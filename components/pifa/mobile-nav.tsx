@@ -28,45 +28,55 @@ const adminNavItems: NavItem[] = [
   { href: '/admin/users', label: 'Usuarios', icon: <Users className="w-5 h-5" /> },
 ]
 
-export function MobileNav({ variant, onLogout }: MobileNavProps) {
+export function MobileNav({ variant }: MobileNavProps) {
   const pathname = usePathname()
   const navItems = variant === 'admin' ? adminNavItems : userNavItems
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-xl border-t border-border safe-area-bottom">
-      <div className="flex items-center justify-around px-2 py-2">
-        {navItems.map((item) => {
-          const isActive = pathname === item.href || 
-            (item.href !== '/admin' && item.href !== '/dashboard' && pathname.startsWith(item.href))
-          
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                'flex flex-col items-center justify-center px-3 py-2 rounded-xl transition-all duration-200 touch-active min-w-[60px]',
-                isActive 
-                  ? 'text-primary' 
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              <div className={cn(
-                'flex items-center justify-center w-10 h-10 rounded-xl transition-colors',
-                isActive && 'bg-primary/15'
-              )}>
-                {item.icon}
-              </div>
-              <span className={cn(
-                'text-[10px] mt-0.5 font-medium',
-                isActive && 'text-primary'
-              )}>
-                {item.label}
-              </span>
-            </Link>
-          )
-        })}
-        
-
+    <nav className="fixed bottom-0 left-0 right-0 z-50 safe-area-bottom">
+      {/* Glassmorphism backdrop */}
+      <div className="bg-card/80 backdrop-blur-2xl border-t border-white/[0.06] shadow-[0_-4px_30px_rgba(0,0,0,0.3)]">
+        <div className="flex items-center justify-around px-1 py-1.5">
+          {navItems.map((item) => {
+            const isActive = pathname === item.href || 
+              (item.href !== '/admin' && item.href !== '/dashboard' && pathname.startsWith(item.href))
+            
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  'relative flex flex-col items-center justify-center px-3 py-1.5 rounded-xl transition-all duration-300 min-w-[56px]',
+                  isActive 
+                    ? 'text-primary scale-105' 
+                    : 'text-muted-foreground hover:text-foreground active:scale-95'
+                )}
+              >
+                {/* Active indicator bar */}
+                {isActive && (
+                  <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full bg-primary animate-tab-indicator" />
+                )}
+                
+                <div className={cn(
+                  'relative flex items-center justify-center w-9 h-9 rounded-xl transition-all duration-300',
+                  isActive && 'bg-primary/15'
+                )}>
+                  {/* Glow effect */}
+                  {isActive && (
+                    <div className="absolute inset-0 bg-primary/20 rounded-xl blur-md" />
+                  )}
+                  <div className="relative">{item.icon}</div>
+                </div>
+                <span className={cn(
+                  'text-[10px] mt-0.5 font-medium transition-colors duration-300',
+                  isActive ? 'text-primary' : 'text-muted-foreground'
+                )}>
+                  {item.label}
+                </span>
+              </Link>
+            )
+          })}
+        </div>
       </div>
     </nav>
   )

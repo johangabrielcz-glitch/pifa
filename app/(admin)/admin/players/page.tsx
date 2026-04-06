@@ -29,20 +29,20 @@ const POSITIONS = [
   { value: 'CF', label: 'Falso 9' },
 ]
 
-const positionColors: Record<string, string> = {
-  GK: 'bg-amber-500/20 text-amber-400',
-  CB: 'bg-blue-500/20 text-blue-400',
-  LB: 'bg-blue-500/20 text-blue-400',
-  RB: 'bg-blue-500/20 text-blue-400',
-  CDM: 'bg-emerald-500/20 text-emerald-400',
-  CM: 'bg-emerald-500/20 text-emerald-400',
-  CAM: 'bg-emerald-500/20 text-emerald-400',
-  LM: 'bg-emerald-500/20 text-emerald-400',
-  RM: 'bg-emerald-500/20 text-emerald-400',
-  LW: 'bg-rose-500/20 text-rose-400',
-  RW: 'bg-rose-500/20 text-rose-400',
-  ST: 'bg-rose-500/20 text-rose-400',
-  CF: 'bg-rose-500/20 text-rose-400',
+const positionColors: Record<string, { bg: string; text: string; bar: string }> = {
+  GK: { bg: 'bg-amber-500/15', text: 'text-amber-400', bar: 'bg-amber-400' },
+  CB: { bg: 'bg-blue-500/15', text: 'text-blue-400', bar: 'bg-blue-400' },
+  LB: { bg: 'bg-blue-500/15', text: 'text-blue-400', bar: 'bg-blue-400' },
+  RB: { bg: 'bg-blue-500/15', text: 'text-blue-400', bar: 'bg-blue-400' },
+  CDM: { bg: 'bg-emerald-500/15', text: 'text-emerald-400', bar: 'bg-emerald-400' },
+  CM: { bg: 'bg-emerald-500/15', text: 'text-emerald-400', bar: 'bg-emerald-400' },
+  CAM: { bg: 'bg-emerald-500/15', text: 'text-emerald-400', bar: 'bg-emerald-400' },
+  LM: { bg: 'bg-emerald-500/15', text: 'text-emerald-400', bar: 'bg-emerald-400' },
+  RM: { bg: 'bg-emerald-500/15', text: 'text-emerald-400', bar: 'bg-emerald-400' },
+  LW: { bg: 'bg-rose-500/15', text: 'text-rose-400', bar: 'bg-rose-400' },
+  RW: { bg: 'bg-rose-500/15', text: 'text-rose-400', bar: 'bg-rose-400' },
+  ST: { bg: 'bg-rose-500/15', text: 'text-rose-400', bar: 'bg-rose-400' },
+  CF: { bg: 'bg-rose-500/15', text: 'text-rose-400', bar: 'bg-rose-400' },
 }
 
 interface PlayerWithClub extends Player {
@@ -206,29 +206,32 @@ export default function AdminPlayersPage() {
   return (
     <div className="min-h-dvh bg-background safe-area-top">
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-xl border-b border-border">
-        <div className="flex items-center justify-between px-5 py-4">
+      <header className="sticky top-[57px] z-30 bg-background/80 backdrop-blur-2xl border-b border-white/[0.06]">
+        <div className="flex items-center justify-between px-5 py-3">
           <div className="flex items-center gap-3">
-            <button onClick={() => router.back()} className="p-2 -ml-2 text-muted-foreground hover:text-foreground">
+            <button onClick={() => router.back()} className="p-2 -ml-2 text-muted-foreground hover:text-foreground rounded-xl transition-colors active:scale-95">
               <ChevronLeft className="w-5 h-5" />
             </button>
-            <h1 className="text-xl font-bold">Jugadores</h1>
+            <div>
+              <h1 className="text-lg font-bold">Jugadores</h1>
+              <p className="text-[10px] text-muted-foreground">{players.length} registrados</p>
+            </div>
           </div>
-          <Button size="sm" onClick={openCreateForm} disabled={clubs.length === 0} className="bg-primary hover:bg-primary/90">
-            <Plus className="w-4 h-4 mr-1" />
+          <Button size="sm" onClick={openCreateForm} disabled={clubs.length === 0} className="bg-primary hover:bg-primary/90 rounded-xl gap-1.5 shadow-lg shadow-primary/20">
+            <Plus className="w-4 h-4" />
             Nuevo
           </Button>
         </div>
         
         {/* Search & Filter */}
-        <div className="px-5 pb-4 space-y-3">
+        <div className="px-5 pb-3 space-y-2.5">
           <div className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               placeholder="Buscar jugadores..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-11 h-12 bg-card border-border rounded-xl"
+              className="pl-11 h-11 bg-card/60 border-white/[0.06] rounded-xl focus:bg-card focus:border-primary/30 transition-all"
             />
             {searchQuery && (
               <button
@@ -240,108 +243,115 @@ export default function AdminPlayersPage() {
             )}
           </div>
 
-          <Select value={filterClub} onValueChange={setFilterClub}>
-            <SelectTrigger className="h-12 bg-card border-border rounded-xl">
-              <SelectValue placeholder="Filtrar por club" />
-            </SelectTrigger>
-            <SelectContent className="bg-card border-border">
-              <SelectItem value="all">Todos los clubes</SelectItem>
-              {clubs.map((club) => (
-                <SelectItem key={club.id} value={club.id}>
-                  {club.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* Club filter pills */}
+          <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-0.5">
+            <button
+              onClick={() => setFilterClub('all')}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 ${
+                filterClub === 'all' 
+                  ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20' 
+                  : 'bg-card/60 text-muted-foreground border border-white/[0.06] hover:bg-card/80'
+              }`}
+            >
+              Todos ({players.length})
+            </button>
+            {clubs.map(club => {
+              const count = players.filter(p => p.club_id === club.id).length
+              return (
+                <button
+                  key={club.id}
+                  onClick={() => setFilterClub(club.id)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 ${
+                    filterClub === club.id
+                      ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20' 
+                      : 'bg-card/60 text-muted-foreground border border-white/[0.06] hover:bg-card/80'
+                  }`}
+                >
+                  {club.name} ({count})
+                </button>
+              )
+            })}
+          </div>
         </div>
       </header>
 
       {/* Players List */}
-      <div className="px-5 py-4 space-y-3 pb-24">
+      <div className="px-5 py-4 space-y-2 pb-24">
         {isLoading ? (
           <div className="flex justify-center py-16">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
         ) : clubs.length === 0 ? (
-          <div className="text-center py-16">
-            <div className="w-16 h-16 rounded-2xl bg-card border border-border mx-auto mb-4 flex items-center justify-center">
-              <Shield className="w-8 h-8 text-muted-foreground" />
+          <div className="text-center py-16 animate-fade-in-up">
+            <div className="w-16 h-16 rounded-2xl bg-card/60 border border-white/[0.06] mx-auto mb-4 flex items-center justify-center">
+              <Shield className="w-8 h-8 text-muted-foreground/40" />
             </div>
-            <p className="text-muted-foreground">
-              Primero debes crear un club
-            </p>
+            <p className="text-muted-foreground font-medium">Primero debes crear un club</p>
           </div>
         ) : filteredPlayers.length === 0 ? (
-          <div className="text-center py-16">
-            <div className="w-16 h-16 rounded-2xl bg-card border border-border mx-auto mb-4 flex items-center justify-center">
-              <User className="w-8 h-8 text-muted-foreground" />
+          <div className="text-center py-16 animate-fade-in-up">
+            <div className="w-16 h-16 rounded-2xl bg-card/60 border border-white/[0.06] mx-auto mb-4 flex items-center justify-center">
+              <User className="w-8 h-8 text-muted-foreground/40" />
             </div>
-            <p className="text-muted-foreground">
+            <p className="text-muted-foreground font-medium">
               {searchQuery || filterClub !== 'all' ? 'No se encontraron jugadores' : 'No hay jugadores registrados'}
             </p>
           </div>
         ) : (
-          filteredPlayers.map((player) => (
-            <div
-              key={player.id}
-              className="bg-card rounded-2xl p-4 pifa-shadow border border-border"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3 min-w-0">
-                  {/* Number */}
-                  <div className="w-11 h-11 rounded-xl bg-primary/20 flex items-center justify-center shrink-0">
-                    <span className="text-base font-bold text-primary">
-                      {player.number || '-'}
-                    </span>
+          filteredPlayers.map((player, i) => {
+            const posColor = positionColors[player.position] || { bg: 'bg-muted/20', text: 'text-muted-foreground', bar: 'bg-muted' }
+            return (
+              <div
+                key={player.id}
+                className="relative bg-card/60 backdrop-blur-sm rounded-2xl p-4 border border-white/[0.06] overflow-hidden transition-all duration-300 hover:bg-card/80 animate-fade-in-up"
+                style={{ animationDelay: `${i * 30}ms` }}
+              >
+                {/* Position color bar */}
+                <div className={`absolute left-0 top-0 bottom-0 w-1 ${posColor.bar} rounded-l-2xl`} />
+                
+                <div className="flex items-center justify-between pl-2">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-11 h-11 rounded-xl ${posColor.bg} flex items-center justify-center shrink-0`}>
+                      <span className={`text-base font-bold ${posColor.text}`}>
+                        {player.number || '-'}
+                      </span>
+                    </div>
+                    
+                    <div className="min-w-0">
+                      <p className="font-semibold text-foreground truncate">{player.name}</p>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${posColor.bg} ${posColor.text}`}>
+                          {player.position}
+                        </span>
+                        {player.club && (
+                          <span className="text-[10px] text-muted-foreground truncate max-w-[100px]">
+                            {player.club.name}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
                   
-                  <div className="min-w-0">
-                    <p className="font-semibold text-foreground truncate">{player.name}</p>
-                    <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${positionColors[player.position] || 'bg-muted text-muted-foreground'}`}>
-                        {player.position}
-                      </span>
-                      {player.club && (
-                        <span className="text-[10px] text-muted-foreground truncate max-w-[100px]">
-                          {player.club.name}
-                        </span>
-                      )}
-                    </div>
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    <Button variant="ghost" size="sm" onClick={() => openEditForm(player)} className="h-9 w-9 p-0 text-muted-foreground hover:text-foreground rounded-xl">
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => { setDeletingPlayer(player); setIsDeleteOpen(true) }} className="h-9 w-9 p-0 text-destructive/60 hover:text-destructive hover:bg-destructive/10 rounded-xl">
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </div>
                 </div>
                 
-                <div className="flex items-center gap-1 shrink-0">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => openEditForm(player)}
-                    className="h-9 w-9 p-0 text-muted-foreground hover:text-foreground"
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setDeletingPlayer(player)
-                      setIsDeleteOpen(true)
-                    }}
-                    className="h-9 w-9 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
+                {(player.age || player.nationality) && (
+                  <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground pl-2">
+                    {player.age && <span>{player.age} años</span>}
+                    {player.age && player.nationality && <span className="opacity-40">•</span>}
+                    {player.nationality && <span>{player.nationality}</span>}
+                  </div>
+                )}
               </div>
-              
-              {(player.age || player.nationality) && (
-                <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                  {player.age && <span>{player.age} años</span>}
-                  {player.age && player.nationality && <span>•</span>}
-                  {player.nationality && <span>{player.nationality}</span>}
-                </div>
-              )}
-            </div>
-          ))
+            )
+          })
         )}
       </div>
 
@@ -350,7 +360,7 @@ export default function AdminPlayersPage() {
         if (!open) resetForm()
         setIsFormOpen(open)
       }}>
-        <DialogContent className="max-w-md mx-4 rounded-2xl bg-card border-border max-h-[85dvh] overflow-y-auto">
+        <DialogContent className="max-w-md mx-4 rounded-2xl bg-card/95 backdrop-blur-xl border-white/[0.08] max-h-[85dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-foreground">
               {editingPlayer ? 'Editar Jugador' : 'Nuevo Jugador'}
@@ -362,111 +372,54 @@ export default function AdminPlayersPage() {
 
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Club</Label>
-              <Select
-                value={formData.club_id || "__none__"}
-                onValueChange={(value) => setFormData({ ...formData, club_id: value === "__none__" ? "" : value })}
-              >
-                <SelectTrigger className="h-12 bg-background border-border">
-                  <SelectValue placeholder="Seleccionar club" />
-                </SelectTrigger>
-                <SelectContent className="bg-card border-border">
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Club</Label>
+              <Select value={formData.club_id || "__none__"} onValueChange={(value) => setFormData({ ...formData, club_id: value === "__none__" ? "" : value })}>
+                <SelectTrigger className="h-12 bg-background/50 border-white/[0.08] rounded-xl"><SelectValue placeholder="Seleccionar club" /></SelectTrigger>
+                <SelectContent className="bg-card/95 backdrop-blur-xl border-white/[0.08]">
                   <SelectItem value="__none__" className="text-muted-foreground">Seleccionar club...</SelectItem>
-                  {clubs.map((club) => (
-                    <SelectItem key={club.id} value={club.id}>
-                      {club.name}
-                    </SelectItem>
-                  ))}
+                  {clubs.map((club) => (<SelectItem key={club.id} value={club.id}>{club.name}</SelectItem>))}
                 </SelectContent>
               </Select>
             </div>
-
             <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Nombre del Jugador</Label>
-              <Input
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Lionel Messi"
-                className="h-12 bg-background border-border"
-              />
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Nombre del Jugador</Label>
+              <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Lionel Messi" className="h-12 bg-background/50 border-white/[0.08] rounded-xl" />
             </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Posición</Label>
-                <Select
-                  value={formData.position || "__none__"}
-                  onValueChange={(value) => setFormData({ ...formData, position: value === "__none__" ? "" : value })}
-                >
-                  <SelectTrigger className="h-12 bg-background border-border">
-                    <SelectValue placeholder="Posición" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-card border-border">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Posición</Label>
+                <Select value={formData.position || "__none__"} onValueChange={(value) => setFormData({ ...formData, position: value === "__none__" ? "" : value })}>
+                  <SelectTrigger className="h-12 bg-background/50 border-white/[0.08] rounded-xl"><SelectValue placeholder="Posición" /></SelectTrigger>
+                  <SelectContent className="bg-card/95 backdrop-blur-xl border-white/[0.08]">
                     <SelectItem value="__none__" className="text-muted-foreground">Seleccionar...</SelectItem>
-                    {POSITIONS.map((pos) => (
-                      <SelectItem key={pos.value} value={pos.value}>
-                        {pos.value}
-                      </SelectItem>
-                    ))}
+                    {POSITIONS.map((pos) => (<SelectItem key={pos.value} value={pos.value}>{pos.value}</SelectItem>))}
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Dorsal</Label>
-                <Input
-                  type="number"
-                  value={formData.number}
-                  onChange={(e) => setFormData({ ...formData, number: e.target.value })}
-                  placeholder="10"
-                  min="1"
-                  max="99"
-                  className="h-12 bg-background border-border"
-                />
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Dorsal</Label>
+                <Input type="number" value={formData.number} onChange={(e) => setFormData({ ...formData, number: e.target.value })} placeholder="10" min="1" max="99" className="h-12 bg-background/50 border-white/[0.08] rounded-xl" />
               </div>
             </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Edad</Label>
-                <Input
-                  type="number"
-                  value={formData.age}
-                  onChange={(e) => setFormData({ ...formData, age: e.target.value })}
-                  placeholder="25"
-                  min="15"
-                  max="50"
-                  className="h-12 bg-background border-border"
-                />
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Edad</Label>
+                <Input type="number" value={formData.age} onChange={(e) => setFormData({ ...formData, age: e.target.value })} placeholder="25" min="15" max="50" className="h-12 bg-background/50 border-white/[0.08] rounded-xl" />
               </div>
-
               <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Nacionalidad</Label>
-                <Input
-                  value={formData.nationality}
-                  onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
-                  placeholder="Argentina"
-                  className="h-12 bg-background border-border"
-                />
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Nacionalidad</Label>
+                <Input value={formData.nationality} onChange={(e) => setFormData({ ...formData, nationality: e.target.value })} placeholder="Argentina" className="h-12 bg-background/50 border-white/[0.08] rounded-xl" />
               </div>
             </div>
-
             <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground uppercase tracking-wider">URL de Foto (opcional)</Label>
-              <Input
-                value={formData.photo_url}
-                onChange={(e) => setFormData({ ...formData, photo_url: e.target.value })}
-                placeholder="https://ejemplo.com/foto.png"
-                className="h-12 bg-background border-border"
-              />
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider font-medium">URL de Foto (opcional)</Label>
+              <Input value={formData.photo_url} onChange={(e) => setFormData({ ...formData, photo_url: e.target.value })} placeholder="https://ejemplo.com/foto.png" className="h-12 bg-background/50 border-white/[0.08] rounded-xl" />
             </div>
           </div>
 
-          <DialogFooter className="gap-2 pt-4">
-            <DialogClose asChild>
-              <Button variant="outline" className="flex-1 h-12 border-border">Cancelar</Button>
-            </DialogClose>
-            <Button onClick={handleSave} disabled={isSaving} className="flex-1 h-12 bg-primary">
+          <DialogFooter className="gap-2 pt-2">
+            <DialogClose asChild><Button variant="outline" className="flex-1 h-12 border-white/[0.08] rounded-xl">Cancelar</Button></DialogClose>
+            <Button onClick={handleSave} disabled={isSaving} className="flex-1 h-12 bg-primary rounded-xl shadow-lg shadow-primary/20">
               {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Guardar'}
             </Button>
           </DialogFooter>
@@ -475,7 +428,7 @@ export default function AdminPlayersPage() {
 
       {/* Delete Confirmation */}
       <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <AlertDialogContent className="max-w-sm mx-4 rounded-2xl bg-card border-border">
+        <AlertDialogContent className="max-w-sm mx-4 rounded-2xl bg-card/95 backdrop-blur-xl border-white/[0.08]">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-foreground">Eliminar Jugador</AlertDialogTitle>
             <AlertDialogDescription>
@@ -483,10 +436,8 @@ export default function AdminPlayersPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2">
-            <AlertDialogCancel className="flex-1 h-12 border-border">Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="flex-1 h-12 bg-destructive text-destructive-foreground">
-              Eliminar
-            </AlertDialogAction>
+            <AlertDialogCancel className="flex-1 h-12 border-white/[0.08] rounded-xl">Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="flex-1 h-12 bg-destructive text-destructive-foreground rounded-xl">Eliminar</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
