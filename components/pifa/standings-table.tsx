@@ -19,15 +19,15 @@ export function StandingsTable({ standings, highlightClubId, compact = false }: 
 
   if (compact) {
     return (
-      <div className="rounded-xl border border-border overflow-hidden">
+      <div className="rounded-xl border border-[#202020] bg-[#0A0A0A] overflow-hidden">
         <table className="w-full text-xs">
           <thead>
-            <tr className="bg-muted/50 text-muted-foreground">
-              <th className="text-left py-2 px-2 font-medium">#</th>
-              <th className="text-left py-2 px-1 font-medium">Club</th>
-              <th className="text-center py-2 px-1 font-medium">PJ</th>
-              <th className="text-center py-2 px-1 font-medium">DG</th>
-              <th className="text-center py-2 px-1 font-medium">Pts</th>
+            <tr className="bg-[#141414] text-[#6A6C6E]">
+              <th className="text-left py-2 px-2 font-black uppercase tracking-wider">#</th>
+              <th className="text-left py-2 px-1 font-black uppercase tracking-wider">Club</th>
+              <th className="text-center py-2 px-1 font-black uppercase tracking-wider">PJ</th>
+              <th className="text-center py-2 px-1 font-black uppercase tracking-wider">DG</th>
+              <th className="text-center py-2 px-1 font-black uppercase tracking-wider">Pts</th>
             </tr>
           </thead>
           <tbody>
@@ -36,30 +36,30 @@ export function StandingsTable({ standings, highlightClubId, compact = false }: 
               return (
                 <tr 
                   key={standing.id} 
-                  className={`border-t border-border ${isHighlighted ? 'bg-primary/10' : ''}`}
+                  className={`border-t border-[#202020] ${isHighlighted ? 'bg-[#00FF85]/10' : ''}`}
                 >
-                  <td className={`py-2 px-2 font-medium ${isHighlighted ? 'text-primary' : 'text-muted-foreground'}`}>
+                  <td className={`py-2 px-2 font-bold ${isHighlighted ? 'text-[#00FF85]' : 'text-[#6A6C6E]'}`}>
                     {index + 1}
                   </td>
                   <td className="py-2 px-1">
                     <div className="flex items-center gap-1.5">
-                      <div className="w-5 h-5 rounded bg-muted/50 flex items-center justify-center overflow-hidden shrink-0">
+                      <div className="w-5 h-5 rounded bg-[#141414] border border-[#202020] flex items-center justify-center overflow-hidden shrink-0">
                         {standing.club?.shield_url ? (
                           <img src={standing.club.shield_url} alt="" className="w-4 h-4 object-contain" />
                         ) : (
-                          <Shield className="w-3 h-3 text-muted-foreground" />
+                          <Shield className="w-3 h-3 text-[#6A6C6E]" />
                         )}
                       </div>
-                      <span className={`font-medium truncate max-w-[70px] ${isHighlighted ? 'text-primary' : 'text-foreground'}`}>
+                      <span className={`font-bold truncate max-w-[70px] uppercase ${isHighlighted ? 'text-[#00FF85]' : 'text-white'}`}>
                         {standing.club?.name}
                       </span>
                     </div>
                   </td>
-                  <td className="py-2 px-1 text-center text-muted-foreground">{standing.played}</td>
-                  <td className={`py-2 px-1 text-center ${standing.goal_difference > 0 ? 'text-emerald-400' : standing.goal_difference < 0 ? 'text-red-400' : 'text-muted-foreground'}`}>
+                  <td className="py-2 px-1 text-center font-bold text-[#6A6C6E]">{standing.played}</td>
+                  <td className={`py-2 px-1 text-center font-bold ${standing.goal_difference > 0 ? 'text-[#00FF85]' : standing.goal_difference < 0 ? 'text-[#FF3333]' : 'text-[#6A6C6E]'}`}>
                     {standing.goal_difference > 0 ? '+' : ''}{standing.goal_difference}
                   </td>
-                  <td className={`py-2 px-1 text-center font-bold ${isHighlighted ? 'text-primary' : 'text-foreground'}`}>
+                  <td className={`py-2 px-1 text-center font-black ${isHighlighted ? 'text-[#00FF85]' : 'text-white'}`}>
                     {standing.points}
                   </td>
                 </tr>
@@ -72,21 +72,21 @@ export function StandingsTable({ standings, highlightClubId, compact = false }: 
   }
 
   return (
-    <div className="rounded-xl border border-border overflow-hidden">
+    <div className="rounded-xl border border-[#202020] bg-[#0A0A0A] overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
-            <tr className="bg-muted/50 text-muted-foreground">
-              <th className="text-left py-2.5 px-2 font-medium w-6">#</th>
-              <th className="text-left py-2.5 px-1 font-medium">Club</th>
-              <th className="text-center py-2.5 px-1 font-medium w-7">PJ</th>
-              <th className="text-center py-2.5 px-1 font-medium w-7">PG</th>
-              <th className="text-center py-2.5 px-1 font-medium w-7">PE</th>
-              <th className="text-center py-2.5 px-1 font-medium w-7">PP</th>
-              <th className="text-center py-2.5 px-1 font-medium w-8">GF</th>
-              <th className="text-center py-2.5 px-1 font-medium w-8">GC</th>
-              <th className="text-center py-2.5 px-1 font-medium w-8">DG</th>
-              <th className="text-center py-2.5 px-2 font-medium w-8">Pts</th>
+            <tr className="bg-[#141414] text-[#6A6C6E]">
+              <th className="text-left py-2.5 px-2 font-black uppercase tracking-wider w-6">#</th>
+              <th className="text-left py-2.5 px-1 font-black uppercase tracking-wider">Club</th>
+              <th className="text-center py-2.5 px-1 font-black uppercase tracking-wider w-7">PJ</th>
+              <th className="text-center py-2.5 px-1 font-black uppercase tracking-wider w-7">PG</th>
+              <th className="text-center py-2.5 px-1 font-black uppercase tracking-wider w-7">PE</th>
+              <th className="text-center py-2.5 px-1 font-black uppercase tracking-wider w-7">PP</th>
+              <th className="text-center py-2.5 px-1 font-black uppercase tracking-wider w-8">GF</th>
+              <th className="text-center py-2.5 px-1 font-black uppercase tracking-wider w-8">GC</th>
+              <th className="text-center py-2.5 px-1 font-black uppercase tracking-wider w-8">DG</th>
+              <th className="text-center py-2.5 px-2 font-black uppercase tracking-wider w-8">Pts</th>
             </tr>
           </thead>
           <tbody>
@@ -95,35 +95,35 @@ export function StandingsTable({ standings, highlightClubId, compact = false }: 
               return (
                 <tr 
                   key={standing.id} 
-                  className={`border-t border-border ${isHighlighted ? 'bg-primary/10' : ''}`}
+                  className={`border-t border-[#202020] ${isHighlighted ? 'bg-[#00FF85]/10' : ''}`}
                 >
-                  <td className={`py-2.5 px-2 font-semibold ${isHighlighted ? 'text-primary' : 'text-muted-foreground'}`}>
+                  <td className={`py-2.5 px-2 font-bold ${isHighlighted ? 'text-[#00FF85]' : 'text-[#6A6C6E]'}`}>
                     {index + 1}
                   </td>
                   <td className="py-2.5 px-1">
                     <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded bg-muted/50 flex items-center justify-center overflow-hidden shrink-0">
+                      <div className="w-6 h-6 rounded bg-[#141414] border border-[#202020] flex items-center justify-center overflow-hidden shrink-0">
                         {standing.club?.shield_url ? (
                           <img src={standing.club.shield_url} alt="" className="w-5 h-5 object-contain" />
                         ) : (
-                          <Shield className="w-3.5 h-3.5 text-muted-foreground" />
+                          <Shield className="w-3.5 h-3.5 text-[#6A6C6E]" />
                         )}
                       </div>
-                      <span className={`font-medium truncate max-w-[90px] ${isHighlighted ? 'text-primary' : 'text-foreground'}`}>
+                      <span className={`font-bold truncate max-w-[90px] uppercase ${isHighlighted ? 'text-[#00FF85]' : 'text-white'}`}>
                         {standing.club?.name}
                       </span>
                     </div>
                   </td>
-                  <td className="py-2.5 px-1 text-center text-muted-foreground">{standing.played}</td>
-                  <td className="py-2.5 px-1 text-center text-emerald-400">{standing.won}</td>
-                  <td className="py-2.5 px-1 text-center text-yellow-400">{standing.drawn}</td>
-                  <td className="py-2.5 px-1 text-center text-red-400">{standing.lost}</td>
-                  <td className="py-2.5 px-1 text-center text-muted-foreground">{standing.goals_for}</td>
-                  <td className="py-2.5 px-1 text-center text-muted-foreground">{standing.goals_against}</td>
-                  <td className={`py-2.5 px-1 text-center font-medium ${standing.goal_difference > 0 ? 'text-emerald-400' : standing.goal_difference < 0 ? 'text-red-400' : 'text-muted-foreground'}`}>
+                  <td className="py-2.5 px-1 text-center font-bold text-[#6A6C6E]">{standing.played}</td>
+                  <td className="py-2.5 px-1 text-center font-bold text-[#00FF85]">{standing.won}</td>
+                  <td className="py-2.5 px-1 text-center font-bold text-yellow-400">{standing.drawn}</td>
+                  <td className="py-2.5 px-1 text-center font-bold text-[#FF3333]">{standing.lost}</td>
+                  <td className="py-2.5 px-1 text-center font-bold text-[#6A6C6E]">{standing.goals_for}</td>
+                  <td className="py-2.5 px-1 text-center font-bold text-[#6A6C6E]">{standing.goals_against}</td>
+                  <td className={`py-2.5 px-1 text-center font-bold ${standing.goal_difference > 0 ? 'text-[#00FF85]' : standing.goal_difference < 0 ? 'text-[#FF3333]' : 'text-[#6A6C6E]'}`}>
                     {standing.goal_difference > 0 ? '+' : ''}{standing.goal_difference}
                   </td>
-                  <td className={`py-2.5 px-2 text-center font-bold ${isHighlighted ? 'text-primary' : 'text-foreground'}`}>
+                  <td className={`py-2.5 px-2 text-center font-black ${isHighlighted ? 'text-[#00FF85]' : 'text-white'}`}>
                     {standing.points}
                   </td>
                 </tr>

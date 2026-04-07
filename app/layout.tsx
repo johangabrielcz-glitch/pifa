@@ -42,8 +42,8 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="es" className={inter.variable} data-scroll-behavior="smooth">
-      <body className="font-sans antialiased min-h-dvh overflow-x-hidden">
+    <html lang="es" className={inter.variable} data-scroll-behavior="smooth" suppressHydrationWarning>
+      <body className="font-sans antialiased min-h-dvh overflow-x-hidden" suppressHydrationWarning>
         <main className="min-h-dvh">
           {children}
         </main>

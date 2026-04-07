@@ -3,73 +3,73 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* PIFA Theme - Dark Phoenix Premium */
+/* PIFA Theme - Modern Dark Emerald (Figma Sync) */
 :root {
-  /* Dark theme by default for premium app feel */
-  --background: oklch(0.10 0.015 250);
-  --foreground: oklch(0.95 0.01 250);
+  /* Ultra dark background */
+  --background: oklch(0.15 0 0);
+  --foreground: oklch(0.95 0 0);
   
-  /* Cards - slightly elevated from background */
-  --card: oklch(0.14 0.015 250);
-  --card-foreground: oklch(0.95 0.01 250);
+  /* Cards - Deep Gray */
+  --card: oklch(0.20 0 0);
+  --card-foreground: oklch(0.95 0 0);
   
   /* Popover */
-  --popover: oklch(0.16 0.015 250);
-  --popover-foreground: oklch(0.95 0.01 250);
+  --popover: oklch(0.20 0 0);
+  --popover-foreground: oklch(0.95 0 0);
   
-  /* Primary - Phoenix Orange/Fire */
-  --primary: oklch(0.72 0.19 45);
-  --primary-foreground: oklch(0.10 0.015 250);
+  /* Primary - Emerald Green */
+  --primary: oklch(0.86 0.23 150);
+  --primary-foreground: oklch(0.15 0 0);
   
   /* Secondary */
-  --secondary: oklch(0.18 0.015 250);
-  --secondary-foreground: oklch(0.90 0.01 250);
+  --secondary: oklch(0.25 0 0);
+  --secondary-foreground: oklch(0.95 0 0);
   
   /* Muted */
-  --muted: oklch(0.18 0.015 250);
-  --muted-foreground: oklch(0.55 0.015 250);
+  --muted: oklch(0.22 0 0);
+  --muted-foreground: oklch(0.55 0 0);
   
-  /* Accent - Phoenix Gold */
-  --accent: oklch(0.80 0.14 75);
-  --accent-foreground: oklch(0.10 0.015 250);
+  /* Accent - Light Emerald */
+  --accent: oklch(0.90 0.20 150);
+  --accent-foreground: oklch(0.15 0 0);
   
-  /* Destructive - Phoenix Red */
+  /* Destructive - Red */
   --destructive: oklch(0.55 0.22 25);
   --destructive-foreground: oklch(0.98 0 0);
   
   /* Borders & Inputs */
-  --border: oklch(0.22 0.015 250);
-  --input: oklch(0.18 0.015 250);
-  --ring: oklch(0.72 0.19 45);
+  --border: oklch(0.25 0 0);
+  --input: oklch(0.22 0 0);
+  --ring: oklch(0.86 0.23 150);
   
   /* Charts */
-  --chart-1: oklch(0.72 0.19 45);
-  --chart-2: oklch(0.80 0.14 75);
-  --chart-3: oklch(0.55 0.22 25);
+  --chart-1: oklch(0.86 0.23 150);
+  --chart-2: oklch(0.55 0.22 25);
+  --chart-3: oklch(0.15 0 0);
   --chart-4: oklch(0.65 0.15 160);
   --chart-5: oklch(0.60 0.18 280);
   
-  /* Radius - more rounded for mobile */
-  --radius: 1rem;
+  /* Radius - More square for Modern Dark */
+  --radius: 0.75rem;
   
   /* Sidebar */
-  --sidebar: oklch(0.12 0.015 250);
-  --sidebar-foreground: oklch(0.95 0.01 250);
-  --sidebar-primary: oklch(0.72 0.19 45);
-  --sidebar-primary-foreground: oklch(0.10 0.015 250);
-  --sidebar-accent: oklch(0.18 0.015 250);
-  --sidebar-accent-foreground: oklch(0.95 0.01 250);
-  --sidebar-border: oklch(0.22 0.015 250);
-  --sidebar-ring: oklch(0.72 0.19 45);
+  --sidebar: oklch(0.15 0 0);
+  --sidebar-foreground: oklch(0.95 0 0);
+  --sidebar-primary: oklch(0.86 0.23 150);
+  --sidebar-primary-foreground: oklch(0.15 0 0);
+  --sidebar-accent: oklch(0.20 0 0);
+  --sidebar-accent-foreground: oklch(0.95 0 0);
+  --sidebar-border: oklch(0.25 0 0);
+  --sidebar-ring: oklch(0.86 0.23 150);
   
   /* PIFA Custom Colors */
-  --pifa-orange: oklch(0.72 0.19 45);
-  --pifa-gold: oklch(0.80 0.14 75);
+  --pifa-orange: oklch(0.86 0.23 150); /* Overridden to Emerald */
+  --pifa-gold: oklch(0.90 0.20 150);  /* Overridden to Light Emerald */
   --pifa-red: oklch(0.55 0.22 25);
-  --pifa-dark: oklch(0.10 0.015 250);
-  --pifa-light: oklch(0.95 0.01 250);
-  --pifa-surface: oklch(0.14 0.015 250);
-  --pifa-surface-elevated: oklch(0.18 0.015 250);
+  --pifa-dark: oklch(0.15 0 0);
+  --pifa-light: oklch(0.95 0 0);
+  --pifa-surface: oklch(0.20 0 0);
+  --pifa-surface-elevated: oklch(0.25 0 0);
 }
 
 @theme inline {
