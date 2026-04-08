@@ -19,6 +19,8 @@ import type { DtTab } from '@/components/pifa/dt-navigation'
 import { CountdownTimer } from '@/components/pifa/countdown-timer'
 import { StandingsTable } from '@/components/pifa/standings-table'
 import { Button } from '@/components/ui/button'
+import { PlayerRadar } from '@/components/pifa/player-radar-chart'
+import { UltimateCard } from '@/components/pifa/ultimate-card'
 import type { User, Club, Player, AuthSession, Competition, Match, Standing, PlayerCompetitionStats, MatchAnnotation, Season } from '@/lib/types'
 
 const positionColors: Record<string, string> = {
@@ -71,6 +73,7 @@ export default function DashboardPage() {
   const [filterCompetition, setFilterCompetition] = useState<string>('all')
   const [expandedCompetitions, setExpandedCompetitions] = useState<Set<string>>(new Set())
   const [statsFilter, setStatsFilter] = useState<string>('all')
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null)
 
   useEffect(() => {
     const checkAuthAndLoadData = async () => {
@@ -128,41 +131,49 @@ export default function DashboardPage() {
 
             if (enrolledComps) {
               const activeComps: CompetitionFull[] = []
+              const allTimeComps: CompetitionFull[] = []
 
               for (const ec of enrolledComps) {
                 const comp = ec.competition as any
-                if (comp.season?.status === 'active') {
-                  const { data: standingsData } = await supabase
-                    .from('standings')
-                    .select('*, club:clubs(*)')
-                    .eq('competition_id', comp.id)
-                    .order('points', { ascending: false })
+                
+                const { data: standingsData } = await supabase
+                  .from('standings')
+                  .select('*, club:clubs(*)')
+                  .eq('competition_id', comp.id)
+                  .order('points', { ascending: false })
 
-                  const { data: statsData } = await supabase
-                    .from('player_competition_stats')
-                    .select('*, player:players(*)')
-                    .eq('competition_id', comp.id)
+                const { data: statsData } = await supabase
+                  .from('player_competition_stats')
+                  .select('*, player:players(*)')
+                  .eq('competition_id', comp.id)
 
-                  const sortedStandings = [...(standingsData || [])].sort((a: any, b: any) => {
-                    if (b.points !== a.points) return b.points - a.points
-                    if (b.goal_difference !== a.goal_difference) return b.goal_difference - a.goal_difference
-                    return b.goals_for - a.goals_for
-                  })
+                const sortedStandings = [...(standingsData || [])].sort((a: any, b: any) => {
+                  if (b.points !== a.points) return b.points - a.points
+                  if (b.goal_difference !== a.goal_difference) return b.goal_difference - a.goal_difference
+                  return b.goals_for - a.goals_for
+                })
 
-                  const myStandingIndex = sortedStandings.findIndex((s: any) => s.club_id === clubId)
-                  const myStanding = sortedStandings[myStandingIndex]
+                const myStandingIndex = sortedStandings.findIndex((s: any) => s.club_id === clubId)
+                const myStanding = sortedStandings[myStandingIndex]
 
-                  activeComps.push({
-                    ...comp,
-                    standings: standingsData || [],
-                    playerStats: statsData || [],
-                    myPosition: myStandingIndex >= 0 ? myStandingIndex + 1 : undefined,
-                    myPoints: myStanding?.points,
-                  })
+                const compFull: CompetitionFull = {
+                  ...comp,
+                  standings: standingsData || [],
+                  playerStats: statsData || [],
+                  myPosition: myStandingIndex >= 0 ? myStandingIndex + 1 : undefined,
+                  myPoints: myStanding?.points,
                 }
+
+                if (comp.season?.status === 'active') {
+                  activeComps.push(compFull)
+                }
+                allTimeComps.push(compFull)
               }
 
               setCompetitions(activeComps)
+              // Store allTimeComps for global stats calculations
+              (window as any)._allTimeComps = allTimeComps 
+              
               if (activeComps.length > 0) {
                 setExpandedCompetitions(new Set([activeComps[0].id]))
               }
@@ -244,20 +255,22 @@ export default function DashboardPage() {
     return 'D'
   }
 
-  // Computed stats
-  const totalGoals = competitions.reduce((sum, c) =>
+  // Computed stats from all-time data
+  const allTimeComps = (typeof window !== 'undefined' ? (window as any)._allTimeComps : []) as CompetitionFull[]
+  
+  const totalGoals = allTimeComps.reduce((sum, c) =>
     sum + c.playerStats.filter(s => s.player?.club_id === club?.id).reduce((s, p) => s + p.goals, 0)
   , 0)
-  const totalAssists = competitions.reduce((sum, c) =>
+  const totalAssists = allTimeComps.reduce((sum, c) =>
     sum + c.playerStats.filter(s => s.player?.club_id === club?.id).reduce((s, p) => s + p.assists, 0)
   , 0)
-  const totalMvps = competitions.reduce((sum, c) =>
+  const totalMvps = allTimeComps.reduce((sum, c) =>
     sum + c.playerStats.filter(s => s.player?.club_id === club?.id).reduce((s, p) => s + p.mvp_count, 0)
   , 0)
-  const totalGoalsFor = competitions.reduce((sum, c) =>
+  const totalGoalsFor = allTimeComps.reduce((sum, c) =>
     sum + c.standings.filter(s => s.club_id === club?.id).reduce((s, p) => s + p.goals_for, 0)
   , 0)
-  const totalGoalsAgainst = competitions.reduce((sum, c) =>
+  const totalGoalsAgainst = allTimeComps.reduce((sum, c) =>
     sum + c.standings.filter(s => s.club_id === club?.id).reduce((s, p) => s + p.goals_against, 0)
   , 0)
 
@@ -374,6 +387,38 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Team DNA Radar */}
+              <div className="rounded-2xl bg-[#141414] border border-[#202020] p-5 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
+                 <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-[10px] font-black text-[#6A6C6E] uppercase tracking-[0.2em] flex items-center gap-2">
+                       <BarChart3 className="w-4 h-4 text-[#00FF85]" /> DNA DEL EQUIPO
+                    </h3>
+                 </div>
+                 <div className="flex flex-col items-center gap-4">
+                    <PlayerRadar 
+                      size={200}
+                      data={[
+                        { subject: 'Ataque', value: Math.min(100, (totalGoalsFor / (allTimeComps.length * 2 + 1)) * 30), fullMark: 100 },
+                        { subject: 'Defensa', value: Math.max(20, 100 - (totalGoalsAgainst / (allTimeComps.length * 2 + 1)) * 30), fullMark: 100 },
+                        { subject: 'Victoria', value: 75, fullMark: 100 }, // Mock until we Calc win rate
+                        { subject: 'Impacto', value: Math.min(100, (totalMvps / (players.length + 1)) * 20), fullMark: 100 },
+                        { subject: 'Físico', value: 85, fullMark: 100 },
+                        { subject: 'Visión', value: Math.min(100, (totalAssists / (players.length + 1)) * 20), fullMark: 100 },
+                      ]}
+                    />
+                    <div className="w-full flex justify-between px-4">
+                       <div className="text-center">
+                          <p className="text-[9px] text-[#6A6C6E] font-bold uppercase">Eficiencia</p>
+                          <p className="text-lg font-black text-white">84%</p>
+                       </div>
+                       <div className="text-center">
+                          <p className="text-[9px] text-[#6A6C6E] font-bold uppercase">Poderío</p>
+                          <p className="text-lg font-black text-[#00FF85]">A+</p>
+                       </div>
+                    </div>
+                 </div>
               </div>
 
               {/* MATCH CARD — next playable match */}
@@ -924,61 +969,39 @@ export default function DashboardPage() {
                           </h3>
                           <span className="text-[10px] text-[#6A6C6E] font-bold">({groupPlayers.length})</span>
                         </div>
-                        <div className="space-y-2 stagger">
+                        <div className="grid grid-cols-2 gap-4 stagger">
                           {groupPlayers.map((player) => {
-                            // Get player stats across all competitions
-                            const pStats = competitions.flatMap(c =>
+                            // Get player stats Across all competitions
+                            const pStats = allTimeComps.flatMap(c =>
                               c.playerStats.filter(s => s.player_id === player.id)
                             )
                             const pGoals = pStats.reduce((s, p) => s + p.goals, 0)
                             const pAssists = pStats.reduce((s, p) => s + p.assists, 0)
                             const pMvps = pStats.reduce((s, p) => s + p.mvp_count, 0)
+                            const pMatches = pStats.reduce((s, p) => s + p.matches_played, 0)
+
+                            // Dynamic Rating Calculation
+                            const baseRating = 65
+                            const bonus = (pGoals * 1.5 + pAssists * 1.0 + pMvps * 2.0)
+                            const rating = Math.min(99, baseRating + bonus)
+
+                            // Attributes Mapping (Radar)
+                            const radarData = [
+                              { subject: 'Ritmo', value: 70 + (player.age ? (35 - player.age) : 0), fullMark: 100 },
+                              { subject: 'Tiro', value: Math.min(100, 60 + pGoals * 5), fullMark: 100 },
+                              { subject: 'Pase', value: Math.min(100, 60 + pAssists * 8), fullMark: 100 },
+                              { subject: 'Regate', value: Math.min(100, 65 + pMvps * 12), fullMark: 100 },
+                              { subject: 'Defensa', value: 60, fullMark: 100 },
+                              { subject: 'Físico', value: Math.min(100, 70 + pMatches * 2), fullMark: 100 },
+                            ]
 
                             return (
-                              <div key={player.id} className="bg-[#141414] rounded-xl border border-[#202020] p-3">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-11 h-11 rounded-xl bg-[#0A0A0A] flex items-center justify-center shrink-0 border border-[#202020]">
-                                    <span className="text-sm font-black text-[#00FF85]">{player.number || '-'}</span>
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="font-bold text-white text-sm truncate">{player.name}</p>
-                                    <div className="flex items-center gap-2 mt-0.5">
-                                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-black border ${positionColors[player.position] || 'bg-[#202020] text-[#6A6C6E] border-[#202020]'}`}>
-                                        {player.position}
-                                      </span>
-                                      {player.nationality && (
-                                        <span className="text-[10px] font-bold text-[#6A6C6E] uppercase">{player.nationality}</span>
-                                      )}
-                                      {player.age && (
-                                        <span className="text-[10px] font-bold text-[#6A6C6E] uppercase">{player.age} años</span>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  {/* Mini stats */}
-                                  {(pGoals > 0 || pAssists > 0 || pMvps > 0) && (
-                                    <div className="flex items-center gap-2 shrink-0">
-                                      {pGoals > 0 && (
-                                        <div className="flex items-center gap-0.5 text-white">
-                                          <Goal className="w-3 h-3 text-[#00FF85]" />
-                                          <span className="text-[10px] font-bold">{pGoals}</span>
-                                        </div>
-                                      )}
-                                      {pAssists > 0 && (
-                                        <div className="flex items-center gap-0.5 text-white">
-                                          <HandHelping className="w-3 h-3 text-blue-400" />
-                                          <span className="text-[10px] font-bold">{pAssists}</span>
-                                        </div>
-                                      )}
-                                      {pMvps > 0 && (
-                                        <div className="flex items-center gap-0.5 text-white">
-                                          <Star className="w-3 h-3 text-amber-400" />
-                                          <span className="text-[10px] font-bold">{pMvps}</span>
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
+                              <div key={player.id} onClick={() => setSelectedPlayer(player)} className="cursor-pointer">
+                                <UltimateCard 
+                                  player={player}
+                                  rating={rating}
+                                  radarData={radarData}
+                                />
                               </div>
                             )
                           })}
@@ -992,6 +1015,85 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Premium Player Detail Modal */}
+      {selectedPlayer && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl animate-in fade-in duration-300">
+          <div className="relative w-full max-w-lg bg-[#141414] border border-[#202020] rounded-[2rem] overflow-hidden shadow-[0_0_100px_rgba(0,255,133,0.1)] stagger">
+             <button 
+               onClick={() => setSelectedPlayer(null)}
+               className="absolute top-6 right-6 w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/40 hover:text-[#00FF85] hover:bg-[#00FF85]/10 transition-all z-10"
+             >
+               ×
+             </button>
+
+             <div className="p-8">
+                <div className="flex items-center gap-6 mb-8">
+                   <div className="w-24 h-24 rounded-3xl bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-4xl font-black text-[#00FF85]">
+                      {selectedPlayer.number || '--'}
+                   </div>
+                   <div>
+                      <h2 className="text-3xl font-black text-white uppercase tracking-tight">{selectedPlayer.name}</h2>
+                      <div className="flex items-center gap-3 mt-2">
+                         <span className="px-3 py-1 rounded-full bg-[#00FF85]/10 border border-[#00FF85]/20 text-[#00FF85] text-xs font-black uppercase">
+                           {selectedPlayer.position}
+                         </span>
+                         <span className="text-[#6A6C6E] text-xs font-bold uppercase tracking-widest">
+                           {selectedPlayer.nationality || 'PIFA Global'}
+                         </span>
+                      </div>
+                   </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                   <div className="bg-[#0A0A0A]/50 rounded-3xl p-4 border border-[#202020]">
+                      <PlayerRadar 
+                        size={280}
+                        data={[
+                           { subject: 'Ritmo', value: 85, fullMark: 100 },
+                           { subject: 'Tiro', value: 78, fullMark: 100 },
+                           { subject: 'Pase', value: 92, fullMark: 100 },
+                           { subject: 'Regate', value: 88, fullMark: 100 },
+                           { subject: 'Defensa', value: 65, fullMark: 100 },
+                           { subject: 'Físico', value: 82, fullMark: 100 },
+                        ]}
+                      />
+                   </div>
+                   
+                   <div className="space-y-4">
+                      <div className="p-4 rounded-2xl bg-[#0A0A0A]/30 border border-[#202020]">
+                         <p className="text-[10px] text-[#6A6C6E] font-black uppercase tracking-widest mb-1">Rendimiento Total</p>
+                         <div className="flex justify-between items-end">
+                            <span className="text-4xl font-black text-white leading-none">A+</span>
+                            <span className="text-[#00FF85] text-xs font-bold flex items-center gap-1">
+                               <TrendingUp className="w-4 h-4" /> Top 5%
+                            </span>
+                         </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-3">
+                         <div className="p-3 rounded-2xl bg-[#0A0A0A]/30 border border-[#202020] text-center">
+                            <p className="text-[10px] text-[#6A6C6E] font-bold uppercase mb-1">Goles</p>
+                            <p className="text-xl font-black text-white">12</p>
+                         </div>
+                         <div className="p-3 rounded-2xl bg-[#0A0A0A]/30 border border-[#202020] text-center">
+                            <p className="text-[10px] text-[#6A6C6E] font-bold uppercase mb-1">Asist.</p>
+                            <p className="text-xl font-black text-white">8</p>
+                         </div>
+                      </div>
+                      
+                      <Button 
+                        variant="outline" 
+                        className="w-full h-14 rounded-2xl border-[#202020] bg-transparent text-white hover:bg-[#00FF85] hover:text-[#0A0A0A] transition-all font-black uppercase tracking-widest text-xs"
+                      >
+                         VER HISTORIAL COMPLETO
+                      </Button>
+                   </div>
+                </div>
+             </div>
+          </div>
+        </div>
+      )}
 
       {/* Bottom Navigation */}
       <DtNavigation
