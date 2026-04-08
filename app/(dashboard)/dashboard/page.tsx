@@ -399,40 +399,9 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* Team DNA Radar */}
-              <div className="rounded-2xl bg-[#141414] border border-[#202020] p-5 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
-                 <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-[10px] font-black text-[#6A6C6E] uppercase tracking-[0.2em] flex items-center gap-2">
-                       <BarChart3 className="w-4 h-4 text-[#00FF85]" /> DNA DEL EQUIPO
-                    </h3>
-                 </div>
-                 <div className="flex flex-col items-center gap-4">
-                    <PlayerRadar 
-                      size={200}
-                      data={[
-                        { subject: 'Ataques', value: Math.min(clubGoalsFor, 30), fullMark: 30 },
-                        { subject: 'Defensa', value: Math.max(0, 30 - clubGoalsAgainst), fullMark: 30 },
-                        { subject: 'Victoria', value: Math.min(clubWins, 10), fullMark: 10 },
-                        { subject: 'Balance', value: Math.min(Math.max(0, clubWins - clubLosses + 5), 10), fullMark: 10 },
-                        { subject: 'Goleo', value: Math.min(clubGoalsFor / (totalMatches || 1) * 3, 10), fullMark: 10 },
-                      ]}
-                    />
-                    <div className="w-full flex justify-between px-4">
-                       <div className="text-center">
-                          <p className="text-[9px] text-[#6A6C6E] font-bold uppercase">Eficiencia (Win Rate)</p>
-                          <p className="text-lg font-black text-white">{winRate}%</p>
-                       </div>
-                       <div className="text-center">
-                          <p className="text-[9px] text-[#6A6C6E] font-bold uppercase">Partidos Jugados</p>
-                          <p className="text-lg font-black text-[#00FF85]">{totalMatches}</p>
-                       </div>
-                    </div>
-                 </div>
-              </div>
-
               {/* MATCH CARD — next playable match */}
               {nextPlayableMatch && (
-                <div className="rounded-xl bg-[#141414] border border-[#202020] overflow-hidden flex flex-col">
+                <div className="rounded-xl bg-[#141414] border border-[#202020] overflow-hidden flex flex-col animate-fade-in-up">
                   {/* Top Bar Label */}
                   <div className="bg-[#00FF85] px-4 py-2 flex items-center justify-between">
                     <span className="text-[10px] font-black text-[#0A0A0A] uppercase tracking-[0.2em] flex items-center gap-1.5">
@@ -511,6 +480,37 @@ export default function DashboardPage() {
                   </div>
                 </div>
               )}
+
+              {/* Team DNA Radar */}
+              <div className="rounded-2xl bg-[#141414] border border-[#202020] p-5 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
+                 <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-[10px] font-black text-[#6A6C6E] uppercase tracking-[0.2em] flex items-center gap-2">
+                       <BarChart3 className="w-4 h-4 text-[#00FF85]" /> DNA DEL EQUIPO
+                    </h3>
+                 </div>
+                 <div className="flex flex-col items-center gap-4">
+                    <PlayerRadar 
+                      size={200}
+                      data={[
+                        { subject: 'Ataques', value: Math.min(clubGoalsFor, 30), fullMark: 30 },
+                        { subject: 'Defensa', value: totalMatches === 0 ? 0 : Math.max(0, 30 - clubGoalsAgainst), fullMark: 30 },
+                        { subject: 'Victoria', value: Math.min(clubWins, 10), fullMark: 10 },
+                        { subject: 'Balance', value: Math.min(Math.max(0, clubWins - clubLosses + 5), 10), fullMark: 10 },
+                        { subject: 'Goleo', value: Math.min(clubGoalsFor / (totalMatches || 1) * 3, 10), fullMark: 10 },
+                      ]}
+                    />
+                    <div className="w-full flex justify-between px-4">
+                       <div className="text-center">
+                          <p className="text-[9px] text-[#6A6C6E] font-bold uppercase">Eficiencia (Win Rate)</p>
+                          <p className="text-lg font-black text-white">{winRate}%</p>
+                       </div>
+                       <div className="text-center">
+                          <p className="text-[9px] text-[#6A6C6E] font-bold uppercase">Partidos Jugados</p>
+                          <p className="text-lg font-black text-[#00FF85]">{totalMatches}</p>
+                       </div>
+                    </div>
+                 </div>
+              </div>
 
               {/* WAITING STATE & NO MATCHES */}
               <div className="grid grid-cols-1 gap-4">
@@ -965,32 +965,49 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 <div className="space-y-5">
-                  {positionGroups.map((group) => {
-                    const groupPlayers = players.filter(p => group.positions.includes(p.position))
-                    if (groupPlayers.length === 0) return null
+                  {(() => {
+                    // Aggregate stats for current season's competitions
+                    const playerSeasonMap = new Map<string, { goals: number, assists: number, matches: number }>()
+                    
+                    competitions.forEach(comp => {
+                      comp.playerStats.forEach((ps: any) => {
+                        const pid = ps.player_id
+                        const current = playerSeasonMap.get(pid) || { goals: 0, assists: 0, matches: 0 }
+                        current.goals += ps.goals || 0
+                        current.assists += ps.assists || 0
+                        current.matches += ps.matches_played || 0
+                        playerSeasonMap.set(pid, current)
+                      })
+                    })
 
-                    return (
-                      <div key={group.label}>
-                        <div className="flex items-center gap-2 mb-2.5">
-                          <div className={`w-1 h-4 rounded-full ${group.color.replace('text-', 'bg-')}`} />
-                          <h3 className={`text-xs font-black uppercase tracking-widest ${group.color}`}>
-                            {group.label}
-                          </h3>
-                          <span className="text-[10px] text-[#6A6C6E] font-bold">({groupPlayers.length})</span>
+                    return positionGroups.map((group) => {
+                      const groupPlayers = players.filter(p => group.positions.includes(p.position))
+                      if (groupPlayers.length === 0) return null
+
+                      return (
+                        <div key={group.label}>
+                          <div className="flex items-center gap-2 mb-2.5">
+                            <div className={`w-1 h-4 rounded-full ${group.color.replace('text-', 'bg-')}`} />
+                            <h3 className={`text-xs font-black uppercase tracking-widest ${group.color}`}>
+                              {group.label}
+                            </h3>
+                            <span className="text-[10px] text-[#6A6C6E] font-bold">({groupPlayers.length})</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4 stagger">
+                            {groupPlayers.map((player) => {
+                              return (
+                                <UltimateCard 
+                                  key={player.id} 
+                                  player={player}
+                                  stats={playerSeasonMap.get(player.id)}
+                                />
+                              )
+                            })}
+                          </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-4 stagger">
-                          {groupPlayers.map((player) => {
-                            return (
-                              <UltimateCard 
-                                key={player.id} 
-                                player={player}
-                              />
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )
-                  })}
+                      )
+                    })
+                  })()}
                 </div>
               )}
             </div>

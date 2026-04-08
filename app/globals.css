@@ -136,6 +136,7 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     scroll-behavior: smooth;
+    overscroll-behavior: none;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   }
   
