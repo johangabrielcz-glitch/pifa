@@ -44,9 +44,11 @@ export default function RootLayout({
   return (
     <html lang="es" className={inter.variable} data-scroll-behavior="smooth" suppressHydrationWarning>
       <body className="font-sans antialiased min-h-dvh overflow-x-hidden" suppressHydrationWarning>
-        <main className="min-h-dvh">
-          {children}
-        </main>
+        <div className="app-viewport">
+          <main className="min-h-dvh">
+            {children}
+          </main>
+        </div>
         <Toaster 
           position="top-center" 
           richColors 

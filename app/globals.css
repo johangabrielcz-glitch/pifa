@@ -138,11 +138,27 @@
     scroll-behavior: smooth;
     overscroll-behavior: none;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    height: 100%;
+    overflow: hidden;
   }
   
   body {
     overscroll-behavior: none;
     touch-action: manipulation;
+    height: 100%;
+    overflow: hidden;
+    position: fixed;
+    width: 100%;
+  }
+
+  /* Decoupled scrolling viewport for a native app feel */
+  .app-viewport {
+    height: 100%;
+    width: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
   }
   
   /* Safe area for mobile devices */

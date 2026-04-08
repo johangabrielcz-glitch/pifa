@@ -495,7 +495,7 @@ export default function DashboardPage() {
                         { subject: 'Ataques', value: Math.min(clubGoalsFor, 30), fullMark: 30 },
                         { subject: 'Defensa', value: totalMatches === 0 ? 0 : Math.max(0, 30 - clubGoalsAgainst), fullMark: 30 },
                         { subject: 'Victoria', value: Math.min(clubWins, 10), fullMark: 10 },
-                        { subject: 'Balance', value: Math.min(Math.max(0, clubWins - clubLosses + 5), 10), fullMark: 10 },
+                        { subject: 'Balance', value: totalMatches === 0 ? 0 : Math.min(Math.max(0, clubWins - clubLosses + 5), 10), fullMark: 10 },
                         { subject: 'Goleo', value: Math.min(clubGoalsFor / (totalMatches || 1) * 3, 10), fullMark: 10 },
                       ]}
                     />
