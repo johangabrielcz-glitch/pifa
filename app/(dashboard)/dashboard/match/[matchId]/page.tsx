@@ -2,7 +2,7 @@
 
 import { useEffect, useState, use } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Shield, Loader2, Plus, X, Goal, HandHelping, Star, Check, Trash2, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, Shield, Users, Loader2, Plus, X, Goal, HandHelping, Star, Check, Trash2, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { submitAnnotation, deleteAnnotation } from '@/lib/match-engine'
@@ -40,6 +40,8 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
   const [assists, setAssists] = useState<AssistEntry[]>([])
   const [mvpPlayerId, setMvpPlayerId] = useState<string>('')
   const [wantsMvp, setWantsMvp] = useState(false)
+  const [startingXi, setStartingXi] = useState<string[]>([])
+  const [substitutesIn, setSubstitutesIn] = useState<string[]>([])
 
   useEffect(() => {
     loadMatchData()
@@ -108,6 +110,19 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
 
     if (allPlayers) setAllMatchPlayers(allPlayers)
 
+    // Load club's default lineup to pre-fill startingXi
+    const { data: clubData } = await supabase
+      .from('clubs')
+      .select('default_lineup')
+      .eq('id', userClubId)
+      .single()
+
+    const defLineup = clubData?.default_lineup as any
+    if (defLineup?.players) {
+      const initial11 = Object.values(defLineup.players).filter(Boolean) as string[]
+      setStartingXi(initial11)
+    }
+
     // Load existing annotations
     const { data: annotations } = await supabase
       .from('match_annotations')
@@ -124,6 +139,12 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
         const mymine = mine as any;
         setGoals((mymine.goals as GoalEntry[]) || [])
         setAssists((mymine.assists as AssistEntry[]) || [])
+        if (mymine.starting_xi && mymine.starting_xi.length > 0) {
+          setStartingXi(mymine.starting_xi as string[])
+        }
+        if (mymine.substitutes_in && mymine.substitutes_in.length > 0) {
+          setSubstitutesIn(mymine.substitutes_in as string[])
+        }
         if (mymine.mvp_player_id) {
           setMvpPlayerId(mymine.mvp_player_id)
           setWantsMvp(true)
@@ -181,7 +202,9 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
       clubId,
       goals,
       assists,
-      wantsMvp && mvpPlayerId ? mvpPlayerId : null
+      wantsMvp && mvpPlayerId ? mvpPlayerId : null,
+      startingXi,
+      substitutesIn
     )
 
     if (!result.success) {
@@ -357,6 +380,111 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
         {/* ANNOTATION FORM — only show if match not finished */}
         {!matchFinished && (
           <>
+            {/* CONVOCATORIA (11 Inicial y Cambios) */}
+            <div className="bg-[#0A0A0A] rounded-xl border border-[#202020] overflow-hidden">
+              <div className="flex items-center justify-between p-4 border-b border-[#202020] bg-[#141414]">
+                <div className="flex items-center gap-2">
+                   <Users className="w-4 h-4 text-[#00FF85]" />
+                   <h3 className="text-xs font-black text-white uppercase tracking-wider">Convocatoria</h3>
+                </div>
+                <span className="text-[10px] font-bold text-[#00FF85] uppercase tracking-widest bg-[#00FF85]/10 px-2 py-0.5 rounded">
+                  {startingXi.length} Iniciales
+                </span>
+              </div>
+
+              <div className="p-4 space-y-6">
+                {/* Starters Section */}
+                <div>
+                  <p className="text-[9px] font-black text-[#6A6C6E] uppercase tracking-[2px] mb-3">11 Inicial (Confirmar)</p>
+                  <div className="grid grid-cols-1 gap-2">
+                    {myPlayers.map(player => {
+                      const isSelected = startingXi.includes(player.id)
+                      const isSub = substitutesIn.includes(player.id)
+                      return (
+                        <button
+                          key={player.id}
+                          onClick={() => {
+                            if (isSelected) {
+                              setStartingXi(startingXi.filter(id => id !== player.id))
+                            } else {
+                              if (startingXi.length < 11) {
+                                setStartingXi([...startingXi, player.id])
+                                setSubstitutesIn(substitutesIn.filter(id => id !== player.id))
+                              } else {
+                                toast.error('Ya has seleccionado 11 jugadores iniciales')
+                              }
+                            }
+                          }}
+                          className={`flex items-center justify-between p-2.5 rounded-lg border transition-all ${
+                            isSelected 
+                              ? 'bg-[#00FF85]/10 border-[#00FF85]/30 text-white' 
+                              : 'bg-[#141414] border-[#202020] text-[#6A6C6E]'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-black ${
+                              isSelected ? 'bg-[#00FF85] text-[#0A0A0A]' : 'bg-[#202020] text-[#4A4A4A]'
+                            }`}>
+                              {player.number || '-'}
+                            </div>
+                            <span className="text-[11px] font-bold uppercase truncate max-w-[120px]">{player.name}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${
+                              isSelected ? 'bg-[#00FF85]/20 text-[#00FF85]' : 'bg-[#202020] text-[#4A4A4A]'
+                            }`}>{player.position}</span>
+                            {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-[#00FF85]" />}
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Substitutes Section */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-[9px] font-black text-[#6A6C6E] uppercase tracking-[2px]">Cambios (Entraron)</p>
+                    <span className="text-[10px] font-bold text-blue-400 uppercase tracking-widest bg-blue-400/10 px-2 py-0.5 rounded">
+                      {substitutesIn.length} Subs
+                    </span>
+                  </div>
+                  <div className="p-3 bg-[#141414] rounded-lg border border-[#202020] space-y-3">
+                    <p className="text-[10px] text-[#4A4A4A] font-medium leading-relaxed italic">
+                      Selecciona los jugadores que están en el banco pero que entraron al partido como sustitutos.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {myPlayers
+                        .filter(p => !startingXi.includes(p.id))
+                        .map(player => {
+                          const isSubIn = substitutesIn.includes(player.id)
+                          return (
+                            <button
+                              key={player.id}
+                              onClick={() => {
+                                if (isSubIn) {
+                                  setSubstitutesIn(substitutesIn.filter(id => id !== player.id))
+                                } else {
+                                  setSubstitutesIn([...substitutesIn, player.id])
+                                }
+                              }}
+                              className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all flex items-center gap-1.5 ${
+                                isSubIn
+                                  ? 'bg-blue-400/20 border-blue-400/40 text-blue-400 shadow-[0_0_10px_rgba(96,165,250,0.1)]'
+                                  : 'bg-[#0A0A0A] border-[#202020] text-[#4A4A4A] hover:border-[#303030]'
+                              }`}
+                            >
+                              {isSubIn && <Plus className="w-2.5 h-2.5" />}
+                              {player.name}
+                            </button>
+                          )
+                        })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* GOLES */}
             <div className="bg-[#0A0A0A] rounded-xl border border-[#202020] overflow-hidden">
               <div className="flex items-center justify-between p-4 border-b border-[#202020] bg-[#141414]">
@@ -412,11 +540,18 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
                     </div>
                   </SelectTrigger>
                   <SelectContent className="bg-[#141414] border-[#202020] text-white">
-                    {myPlayers.map((player) => (
-                      <SelectItem key={player.id} value={player.id} className="focus:bg-[#0A0A0A] focus:text-white">
-                        {player.name} ({player.position}) {player.number ? `#${player.number}` : ''}
-                      </SelectItem>
-                    ))}
+                    {myPlayers
+                      .filter(p => startingXi.includes(p.id) || substitutesIn.includes(p.id))
+                      .map((player) => (
+                        <SelectItem key={player.id} value={player.id} className="focus:bg-[#0A0A0A] focus:text-white">
+                          {player.name} ({player.position}) {player.number ? `#${player.number}` : ''}
+                        </SelectItem>
+                      ))}
+                    {(startingXi.length + substitutesIn.length === 0) && (
+                      <div className="p-2 text-[10px] text-[#FF3333] font-bold uppercase text-center">
+                        Debes confirmar la convocatoria primero
+                      </div>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -477,11 +612,18 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
                     </div>
                   </SelectTrigger>
                   <SelectContent className="bg-[#141414] border-[#202020] text-white">
-                    {myPlayers.map((player) => (
-                      <SelectItem key={player.id} value={player.id} className="focus:bg-[#0A0A0A] focus:text-white">
-                        {player.name} ({player.position}) {player.number ? `#${player.number}` : ''}
-                      </SelectItem>
-                    ))}
+                    {myPlayers
+                      .filter(p => startingXi.includes(p.id) || substitutesIn.includes(p.id))
+                      .map((player) => (
+                        <SelectItem key={player.id} value={player.id} className="focus:bg-[#0A0A0A] focus:text-white">
+                          {player.name} ({player.position}) {player.number ? `#${player.number}` : ''}
+                        </SelectItem>
+                      ))}
+                    {(startingXi.length + substitutesIn.length === 0) && (
+                      <div className="p-2 text-[10px] text-[#FF3333] font-bold uppercase text-center">
+                        Debes confirmar la convocatoria primero
+                      </div>
+                    )}
                   </SelectContent>
                 </Select>
               </div>

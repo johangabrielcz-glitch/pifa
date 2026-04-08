@@ -123,7 +123,9 @@ export async function submitAnnotation(
   clubId: string,
   goals: GoalEntry[],
   assists: AssistEntry[],
-  mvpPlayerId: string | null
+  mvpPlayerId: string | null,
+  starting_xi: string[] = [],
+  substitutes_in: string[] = []
 ): Promise<SubmitAnnotationResult> {
   const { data: mData, error: matchError } = await supabase
     .from('matches')
@@ -204,6 +206,8 @@ export async function submitAnnotation(
         goals,
         assists,
         mvp_player_id: mvpPlayerId,
+        starting_xi,
+        substitutes_in,
         updated_at: new Date().toISOString(),
       } as any,
       { onConflict: 'match_id,club_id' }
@@ -454,18 +458,31 @@ async function updatePlayerStats(annotations: MatchAnnotation[], competitionId: 
     goals: number;
     assists: number;
     mvp: number;
+    played: boolean;
     clubId: string;
   }>();
 
   for (const annotation of annotations) {
     const goals = (annotation.goals || []) as GoalEntry[]
     const assists = (annotation.assists || []) as AssistEntry[]
+    const starting_xi = (annotation.starting_xi || []) as string[]
+    const substitutes_in = (annotation.substitutes_in || []) as string[]
     const clubId = annotation.club_id;
+
+    // Track matches played first
+    const playedPlayers = new Set([...starting_xi, ...substitutes_in]);
+    for (const playerId of playedPlayers) {
+      if (!playerStatsMap.has(playerId)) {
+        playerStatsMap.set(playerId, { goals: 0, assists: 0, mvp: 0, played: true, clubId });
+      } else {
+        playerStatsMap.get(playerId)!.played = true;
+      }
+    }
 
     // Goals
     for (const goal of goals) {
       if (!playerStatsMap.has(goal.player_id)) {
-        playerStatsMap.set(goal.player_id, { goals: 0, assists: 0, mvp: 0, clubId });
+        playerStatsMap.set(goal.player_id, { goals: 0, assists: 0, mvp: 0, played: false, clubId });
       }
       playerStatsMap.get(goal.player_id)!.goals += goal.count;
     }
@@ -473,7 +490,7 @@ async function updatePlayerStats(annotations: MatchAnnotation[], competitionId: 
     // Assists
     for (const assist of assists) {
       if (!playerStatsMap.has(assist.player_id)) {
-        playerStatsMap.set(assist.player_id, { goals: 0, assists: 0, mvp: 0, clubId });
+        playerStatsMap.set(assist.player_id, { goals: 0, assists: 0, mvp: 0, played: false, clubId });
       }
       playerStatsMap.get(assist.player_id)!.assists += assist.count;
     }
@@ -481,13 +498,10 @@ async function updatePlayerStats(annotations: MatchAnnotation[], competitionId: 
     // MVP
     if (annotation.mvp_player_id) {
       if (!playerStatsMap.has(annotation.mvp_player_id)) {
-        playerStatsMap.set(annotation.mvp_player_id, { goals: 0, assists: 0, mvp: 0, clubId });
+        playerStatsMap.set(annotation.mvp_player_id, { goals: 0, assists: 0, mvp: 0, played: false, clubId });
       }
       playerStatsMap.get(annotation.mvp_player_id)!.mvp += 1;
     }
-
-    // Matches Played (all players who appeared in goals or assists are considered to have played)
-    // In a more complex system we'd track a full roster, but here we track involved players.
   }
 
   // Apply updates to database
@@ -501,6 +515,8 @@ async function updatePlayerStats(annotations: MatchAnnotation[], competitionId: 
 
     if (fetchError) continue;
 
+    const matchesInc = stats.played ? 1 : 0;
+
     if (existing) {
       const ex = existing as any
       // Update
@@ -510,7 +526,7 @@ async function updatePlayerStats(annotations: MatchAnnotation[], competitionId: 
           goals: (ex.goals || 0) + stats.goals,
           assists: (ex.assists || 0) + stats.assists,
           mvp_count: (ex.mvp_count || 0) + stats.mvp,
-          matches_played: (ex.matches_played || 0) + 1,
+          matches_played: (ex.matches_played || 0) + matchesInc,
           updated_at: new Date().toISOString(),
         } as any)
         .eq('id', ex.id);
@@ -525,7 +541,7 @@ async function updatePlayerStats(annotations: MatchAnnotation[], competitionId: 
           goals: stats.goals,
           assists: stats.assists,
           mvp_count: stats.mvp,
-          matches_played: 1,
+          matches_played: matchesInc,
           yellow_cards: 0,
           red_cards: 0,
           minutes_played: 0,
@@ -534,6 +550,7 @@ async function updatePlayerStats(annotations: MatchAnnotation[], competitionId: 
     }
   }
 }
+
 
 // =============================================
 // K.O. ADVANCEMENT
@@ -717,6 +734,16 @@ export async function checkAndAutoResolveExpired(): Promise<number> {
     const homeAnnotation = annotations?.find((a: MatchAnnotation) => a.club_id === match.home_club_id)
     const awayAnnotation = annotations?.find((a: MatchAnnotation) => a.club_id === match.away_club_id)
 
+    // Helper to get default lineup players as starting_xi
+    const getDefaultXI = async (clubId: string): Promise<string[]> => {
+      const { data } = await supabase.from('clubs').select('default_lineup').eq('id', clubId).single()
+      const defLineup = (data as any)?.default_lineup
+      if (defLineup?.players) {
+        return Object.values(defLineup.players).filter(Boolean) as string[]
+      }
+      return []
+    }
+
     let homeScore: number
     let awayScore: number
 
@@ -725,18 +752,46 @@ export async function checkAndAutoResolveExpired(): Promise<number> {
       homeScore = 0
       awayScore = 0
 
-      // Create empty annotations for both
+      // Create empty annotations for both (using default lineups for participation)
+      const homeXI = await getDefaultXI(match.home_club_id)
+      const awayXI = await getDefaultXI(match.away_club_id)
+
       await supabase.from('match_annotations').upsert([
-        { match_id: match.id, club_id: match.home_club_id, goals: [], assists: [], mvp_player_id: null },
-        { match_id: match.id, club_id: match.away_club_id, goals: [], assists: [], mvp_player_id: null },
+        { 
+          match_id: match.id, 
+          club_id: match.home_club_id, 
+          goals: [], 
+          assists: [], 
+          mvp_player_id: null,
+          starting_xi: homeXI,
+          substitutes_in: []
+        },
+        { 
+          match_id: match.id, 
+          club_id: match.away_club_id, 
+          goals: [], 
+          assists: [], 
+          mvp_player_id: null,
+          starting_xi: awayXI,
+          substitutes_in: []
+        },
       ] as any, { onConflict: 'match_id,club_id' })
     } else if (homeAnnotation && !awayAnnotation) {
       // Only home annotated: home wins
       homeScore = ((homeAnnotation as any).goals as GoalEntry[]).reduce((s: number, g: GoalEntry) => s + g.count, 0)
       awayScore = 0
 
+      const awayXI = await getDefaultXI(match.away_club_id)
       await supabase.from('match_annotations').upsert(
-        { match_id: match.id, club_id: match.away_club_id, goals: [], assists: [], mvp_player_id: null } as any,
+        { 
+          match_id: match.id, 
+          club_id: match.away_club_id, 
+          goals: [], 
+          assists: [], 
+          mvp_player_id: null,
+          starting_xi: awayXI,
+          substitutes_in: []
+        } as any,
         { onConflict: 'match_id,club_id' }
       )
     } else if (!homeAnnotation && awayAnnotation) {
@@ -744,8 +799,17 @@ export async function checkAndAutoResolveExpired(): Promise<number> {
       homeScore = 0
       awayScore = ((awayAnnotation as any).goals as GoalEntry[]).reduce((s: number, g: GoalEntry) => s + g.count, 0)
 
+      const homeXI = await getDefaultXI(match.home_club_id)
       await supabase.from('match_annotations').upsert(
-        { match_id: match.id, club_id: match.home_club_id, goals: [], assists: [], mvp_player_id: null } as any,
+        { 
+          match_id: match.id, 
+          club_id: match.home_club_id, 
+          goals: [], 
+          assists: [], 
+          mvp_player_id: null,
+          starting_xi: homeXI,
+          substitutes_in: []
+        } as any,
         { onConflict: 'match_id,club_id' }
       )
     } else {

@@ -61,12 +61,12 @@ export interface Database {
   }
 }
 
-// Club types
 export interface Club {
   id: string
   name: string
   shield_url: string | null
   budget: number
+  default_lineup: any | null
   created_at: string
   updated_at: string
 }
@@ -76,6 +76,7 @@ export interface ClubInsert {
   name: string
   shield_url?: string | null
   budget?: number
+  default_lineup?: any | null
   created_at?: string
   updated_at?: string
 }
@@ -85,6 +86,7 @@ export interface ClubUpdate {
   name?: string
   shield_url?: string | null
   budget?: number
+  default_lineup?: any | null
   updated_at?: string
 }
 
@@ -458,6 +460,8 @@ export interface MatchAnnotation {
   goals: GoalEntry[]
   assists: AssistEntry[]
   mvp_player_id: string | null
+  starting_xi: string[]
+  substitutes_in: string[]
   created_at: string
   updated_at: string
 }
@@ -468,5 +472,7 @@ export interface MatchAnnotationInsert {
   goals?: GoalEntry[]
   assists?: AssistEntry[]
   mvp_player_id?: string | null
+  starting_xi?: string[]
+  substitutes_in?: string[]
   updated_at?: string
 }

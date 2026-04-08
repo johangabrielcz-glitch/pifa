@@ -21,6 +21,7 @@ import { StandingsTable } from '@/components/pifa/standings-table'
 import { Button } from '@/components/ui/button'
 import { PlayerRadar } from '@/components/pifa/player-radar-chart'
 import { UltimateCard } from '@/components/pifa/ultimate-card'
+import { PitchLineup, LineupData } from '@/components/pifa/pitch-lineup'
 import type { User, Club, Player, AuthSession, Competition, Match, Standing, PlayerCompetitionStats, MatchAnnotation, Season } from '@/lib/types'
 
 const positionColors: Record<string, string> = {
@@ -75,6 +76,7 @@ export default function DashboardPage() {
   const [statsFilter, setStatsFilter] = useState<string>('all')
   const [allTimeComps, setAllTimeComps] = useState<CompetitionFull[]>([])
   const [allTimeMatches, setAllTimeMatches] = useState<MatchWithDetails[]>([])
+  const [squadTab, setSquadTab] = useState<'lista' | 'alineacion'>('lista')
 
   useEffect(() => {
     const checkAuthAndLoadData = async () => {
@@ -242,6 +244,21 @@ export default function DashboardPage() {
       else next.add(compId)
       return next
     })
+  }
+
+  const handleSaveLineup = async (lineupData: LineupData) => {
+    if (!club) return
+    const { error } = await supabase
+      .from('clubs')
+      .update({ default_lineup: lineupData } as any)
+      .eq('id', club.id)
+
+    if (error) {
+      toast.error('Error al guardar la alineación')
+      throw error
+    }
+
+    setClub({ ...club, default_lineup: lineupData })
   }
 
   const filteredMatches = filterCompetition === 'all'
@@ -958,7 +975,39 @@ export default function DashboardPage() {
                 </span>
               </div>
 
-              {players.length === 0 ? (
+              {/* Squad Sub-Tabs */}
+              <div className="flex bg-[#0A0A0A] p-1 rounded-xl border border-[#202020]">
+                <button
+                  onClick={() => setSquadTab('lista')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                    squadTab === 'lista'
+                      ? 'bg-[#00FF85] text-[#0A0A0A] shadow-[0_0_15px_rgba(0,255,133,0.2)]'
+                      : 'text-[#6A6C6E] hover:text-white'
+                  }`}
+                >
+                  <LayoutList className="w-3.5 h-3.5" />
+                  Lista
+                </button>
+                <button
+                  onClick={() => setSquadTab('alineacion')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                    squadTab === 'alineacion'
+                      ? 'bg-[#00FF85] text-[#0A0A0A] shadow-[0_0_15px_rgba(0,255,133,0.2)]'
+                      : 'text-[#6A6C6E] hover:text-white'
+                  }`}
+                >
+                  <Swords className="w-3.5 h-3.5" />
+                  Alineación
+                </button>
+              </div>
+
+              {squadTab === 'alineacion' ? (
+                <PitchLineup 
+                  players={players} 
+                  initialLineup={club?.default_lineup} 
+                  onSave={handleSaveLineup}
+                />
+              ) : players.length === 0 ? (
                 <div className="bg-[#141414] rounded-xl border border-[#202020] p-10 text-center animate-fade-in-up">
                   <Users className="w-12 h-12 text-[#2D2D2D] mx-auto mb-3" />
                   <p className="text-[#6A6C6E] text-sm font-semibold">No hay jugadores</p>
