@@ -430,60 +430,80 @@ export function PitchLineup({ players, initialLineup, onSave }: PitchLineupProps
                   onPointerDown={(e) => pDetails && onPointerDown(e, pDetails.id, true, slot.id)}
                   onPointerUp={onPointerUp}
                   onClick={() => !draggingPlayer && setActiveSlot(slot)}
-                  className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center group cursor-pointer transition-all duration-75"
+                  className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center cursor-pointer transition-all duration-75"
                   style={{ 
                     top: customPos ? customPos.top : slot.top, 
                     left: customPos ? customPos.left : slot.left,
                     zIndex: draggingPlayer?.id === pDetails?.id ? 50 : 20
                   }}
                 >
-                  <div className={`w-14 h-14 rounded-full border-[3px] overflow-hidden bg-black flex items-center justify-center transition-all shadow-xl ${
-                    pDetails ? 'border-[#00FF85] shadow-[#00FF85]/20' : 'border-white/10 bg-black/40 border-dashed'
-                  } ${draggingPlayer?.id === pDetails?.id ? 'scale-125 rotate-6' : ''}`}>
-                     {pDetails?.photo_url ? (
-                        <img src={pDetails.photo_url} alt="" className="w-full h-full object-cover select-none" draggable="false" />
-                     ) : pDetails ? (
-                        <Shield className="w-7 h-7 text-white/10" />
-                     ) : (
-                        <Plus className="w-6 h-6 text-white/20" />
-                     )}
-                  </div>
-                  <div className={`mt-1.5 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider max-w-[64px] truncate shadow-lg border ${
-                     pDetails ? 'bg-[#00FF85] text-black border-[#00FF85]' : 'bg-black/60 text-white/40 border-white/10 backdrop-blur-md'
-                  }`}>
-                     {pDetails ? pDetails.name : slot.role}
-                  </div>
+                  {pDetails ? (
+                    /* Premium Player Badge */
+                    <div className={`flex flex-col items-center transition-all ${draggingPlayer?.id === pDetails.id ? 'scale-110' : ''}`}>
+                      <div className="relative group/badge">
+                        <div className="w-10 h-10 rounded-full border-2 border-[#00FF85] bg-[#0A0A0A] overflow-hidden shadow-[0_0_15px_rgba(0,255,133,0.3)] z-10 relative">
+                           {pDetails.photo_url ? (
+                              <img src={pDetails.photo_url} alt="" className="w-full h-full object-cover select-none" draggable="false" />
+                           ) : (
+                              <Shield className="w-full h-full p-2 text-[#00FF85]/20" />
+                           )}
+                           {/* Small position badge */}
+                           <div className="absolute top-0 right-0 bg-[#00FF85] text-black text-[7px] font-black px-1 rounded-bl-md border-l border-b border-black/20">
+                             {slot.role}
+                           </div>
+                        </div>
+                        {/* Shadow/Glow Effect */}
+                        <div className="absolute inset-0 bg-[#00FF85]/20 blur-md rounded-full -z-10 animate-pulse" />
+                      </div>
+                      
+                      {/* Nameplate - Wider and Glassmorphic */}
+                      <div className="mt-[-8px] min-w-[70px] max-w-[90px] px-2 py-0.5 bg-black/80 backdrop-blur-md rounded-md border border-[#00FF85]/30 shadow-2xl z-20">
+                        <p className="text-[9px] font-black text-white uppercase truncate text-center leading-tight tracking-tight">
+                          {pDetails.name.split(' ').pop()}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Subtle Empty Slot */
+                    <div className="flex flex-col items-center">
+                       <div className="w-6 h-6 rounded-full border border-white/10 flex items-center justify-center bg-white/5 backdrop-blur-sm group-hover:border-[#00FF85]/40 transition-colors">
+                          <Plus className="w-2.5 h-2.5 text-white/20" />
+                       </div>
+                       <span className="mt-1 text-[7px] font-black text-white/30 uppercase tracking-[0.2em]">{slot.role}</span>
+                    </div>
+                  )}
                 </div>
              )
            })}
         </div>
       </div>
 
-      {/* Available Bench Bar */}
+      {/* Available Bench Bar - Also Redesigned for consistency */}
       <div className="bg-[#141414] rounded-2xl border border-[#202020] p-5 flex flex-col gap-4 shadow-xl">
         <h3 className="text-[10px] font-black text-[#6A6C6E] uppercase tracking-[0.2em] flex items-center gap-2">
           PLANTILLA <span className="text-white/60">({bench.length})</span>
         </h3>
         <div className="flex overflow-x-auto gap-4 pb-2 no-scrollbar scroll-smooth p-1">
           {bench.length === 0 ? (
-             <p className="text-[10px] text-white/20 italic italic w-full text-center py-2">Todos están en el campo</p>
+             <p className="text-[10px] text-white/20 italic w-full text-center py-2 uppercase font-black">Equipo Completo</p>
           ) : (
              bench.map(player => (
                <div 
                   key={player.id} 
                   onPointerDown={(e) => onPointerDown(e, player.id, false)}
                   onPointerUp={onPointerUp}
-                  className="flex flex-col items-center gap-2 shrink-0 group active:scale-95 transition-transform"
+                  className="flex flex-col items-center gap-1.5 shrink-0 group active:scale-95 transition-transform"
                >
-                  <div className="w-12 h-12 rounded-2xl bg-[#1D1D1D] border border-[#252525] overflow-hidden shadow-lg group-hover:border-[#00FF85]/40 transition-colors">
+                  <div className="w-10 h-10 rounded-full bg-[#1D1D1D] border border-[#252525] overflow-hidden shadow-lg group-hover:border-[#00FF85]/40 transition-colors relative">
                      {player.photo_url ? (
                         <img src={player.photo_url} alt="" className="w-full h-full object-cover select-none" draggable="false" />
                      ) : (
-                        <Shield className="w-full h-full p-3 text-white/5" />
+                        <Shield className="w-full h-full p-2.5 text-white/5" />
                      )}
+                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
-                  <span className="text-[8px] font-black text-[#6A6C6E] uppercase truncate w-14 text-center">
-                    {player.name}
+                  <span className="text-[8px] font-black text-[#6A6C6E] uppercase truncate w-12 text-center group-hover:text-white transition-colors">
+                    {player.name.split(' ').pop()}
                   </span>
                </div>
              ))
