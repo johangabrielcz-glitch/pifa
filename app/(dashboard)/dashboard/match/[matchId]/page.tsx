@@ -82,8 +82,10 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
       return
     }
 
-    setMatch(matchData as MatchFull)
-    setMatchFinished(matchData.status === 'finished')
+    const mData = matchData as any
+
+    setMatch(mData)
+    setMatchFinished(mData.status === 'finished')
 
     // Load my players
     const { data: players } = await supabase
@@ -96,7 +98,7 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
     if (players) setMyPlayers(players)
 
     // Load all players from both teams (for MVP selection)
-    const bothClubIds = [matchData.home_club_id, matchData.away_club_id].filter(Boolean)
+    const bothClubIds = [mData.home_club_id, mData.away_club_id].filter(Boolean)
     const { data: allPlayers } = await supabase
       .from('players')
       .select('*')
@@ -114,15 +116,16 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
 
     if (annotations) {
       const mine = annotations.find((a: MatchAnnotation) => a.club_id === userClubId)
-      const opponentId = matchData.home_club_id === userClubId ? matchData.away_club_id : matchData.home_club_id
+      const opponentId = mData.home_club_id === userClubId ? mData.away_club_id : mData.home_club_id
       const opponentExists = annotations.some((a: MatchAnnotation) => a.club_id === opponentId)
 
       if (mine) {
         setMyAnnotation(mine as MatchAnnotation)
-        setGoals((mine.goals as GoalEntry[]) || [])
-        setAssists((mine.assists as AssistEntry[]) || [])
-        if (mine.mvp_player_id) {
-          setMvpPlayerId(mine.mvp_player_id)
+        const mymine = mine as any;
+        setGoals((mymine.goals as GoalEntry[]) || [])
+        setAssists((mymine.assists as AssistEntry[]) || [])
+        if (mymine.mvp_player_id) {
+          setMvpPlayerId(mymine.mvp_player_id)
           setWantsMvp(true)
         }
       }
@@ -238,30 +241,30 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
   const opponentClub = isHome ? match.away_club : match.home_club
 
   return (
-    <div className="min-h-dvh bg-background safe-area-top safe-area-bottom">
+    <div className="min-h-dvh bg-[#0A0A0A] safe-area-top safe-area-bottom font-sans">
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-card/95 backdrop-blur-xl border-b border-border">
+      <header className="sticky top-0 z-40 bg-[#141414] border-b border-[#202020]">
         <div className="flex items-center gap-3 px-4 py-3">
-          <button onClick={() => router.back()} className="p-2 -ml-2 rounded-xl touch-active">
-            <ArrowLeft className="w-5 h-5 text-muted-foreground" />
+          <button onClick={() => router.back()} className="p-2 -ml-2 rounded touch-active">
+            <ArrowLeft className="w-5 h-5 text-[#6A6C6E]" />
           </button>
           <div className="flex-1 min-w-0">
-            <h1 className="font-bold text-foreground truncate">Partido</h1>
-            <p className="text-xs text-muted-foreground truncate">{match.competition?.name} — {match.round_name}</p>
+            <h1 className="font-black text-white truncate">Partido</h1>
+            <p className="text-[10px] text-[#6A6C6E] uppercase font-bold tracking-wider truncate">{match.competition?.name} — {match.round_name}</p>
           </div>
           {/* Status badge */}
           {matchFinished ? (
-            <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-500/15 text-emerald-400 text-xs font-medium">
+            <span className="flex items-center gap-1 px-2 py-1 rounded bg-[#00FF85]/10 text-[#00FF85] text-[10px] font-black uppercase tracking-wider">
               <CheckCircle2 className="w-3.5 h-3.5" />
               Finalizado
             </span>
           ) : myAnnotation ? (
-            <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-500/15 text-blue-400 text-xs font-medium">
+            <span className="flex items-center gap-1 px-2 py-1 rounded bg-blue-500/15 text-blue-400 text-[10px] font-black uppercase tracking-wider">
               <Check className="w-3.5 h-3.5" />
               Anotado
             </span>
           ) : opponentAnnotated ? (
-            <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-500/15 text-amber-400 text-xs font-medium">
+            <span className="flex items-center gap-1 px-2 py-1 rounded bg-amber-500/15 text-amber-400 text-[10px] font-black uppercase tracking-wider">
               <AlertCircle className="w-3.5 h-3.5" />
               Rival anotó
             </span>
@@ -271,48 +274,48 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
 
       <div className="px-4 py-4 space-y-4 pb-8">
         {/* Match Card */}
-        <div className="bg-card rounded-2xl border border-border p-4 pifa-shadow">
+        <div className="bg-[#141414] rounded-xl border border-[#202020] p-5 flex flex-col">
           <div className="flex items-center justify-between">
             {/* Home team */}
             <div className="flex-1 flex flex-col items-center text-center">
-              <div className="w-14 h-14 rounded-xl bg-muted/50 flex items-center justify-center mb-1.5 overflow-hidden">
+              <div className="w-14 h-14 rounded bg-[#0A0A0A] border border-[#202020] flex items-center justify-center mb-1.5 overflow-hidden">
                 {match.home_club?.shield_url ? (
                   <img src={match.home_club.shield_url} alt="" className="w-12 h-12 object-contain" />
                 ) : (
-                  <Shield className="w-7 h-7 text-muted-foreground" />
+                  <Shield className="w-7 h-7 text-[#6A6C6E]" />
                 )}
               </div>
-              <p className="text-xs font-semibold text-foreground truncate max-w-[90px]">{match.home_club?.name}</p>
-              {isHome && <span className="text-[10px] text-primary font-medium">Tu equipo</span>}
+              <p className="text-xs font-black text-white truncate max-w-[90px] uppercase">{match.home_club?.name}</p>
+              {isHome && <span className="text-[10px] text-[#00FF85] font-black tracking-widest uppercase">Tu equipo</span>}
             </div>
 
             {/* VS / Score */}
             <div className="px-4 flex flex-col items-center">
               {matchFinished && match.home_score !== null ? (
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-foreground">
+                  <p className="text-2xl font-black text-white">
                     {match.home_score} - {match.away_score}
                   </p>
-                  <p className="text-[10px] text-muted-foreground mt-1">Final</p>
+                  <p className="text-[10px] text-[#6A6C6E] mt-1 font-bold uppercase tracking-widest">Final</p>
                 </div>
               ) : (
-                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                  <span className="text-xs font-bold text-primary">VS</span>
+                <div className="w-10 h-10 rounded bg-[#0A0A0A] border border-[#202020] flex items-center justify-center">
+                  <span className="text-xs font-black text-[#00FF85] uppercase">VS</span>
                 </div>
               )}
             </div>
 
             {/* Away team */}
             <div className="flex-1 flex flex-col items-center text-center">
-              <div className="w-14 h-14 rounded-xl bg-muted/50 flex items-center justify-center mb-1.5 overflow-hidden">
+              <div className="w-14 h-14 rounded bg-[#0A0A0A] border border-[#202020] flex items-center justify-center mb-1.5 overflow-hidden">
                 {match.away_club?.shield_url ? (
                   <img src={match.away_club.shield_url} alt="" className="w-12 h-12 object-contain" />
                 ) : (
-                  <Shield className="w-7 h-7 text-muted-foreground" />
+                  <Shield className="w-7 h-7 text-[#6A6C6E]" />
                 )}
               </div>
-              <p className="text-xs font-semibold text-foreground truncate max-w-[90px]">{match.away_club?.name}</p>
-              {!isHome && <span className="text-[10px] text-primary font-medium">Tu equipo</span>}
+              <p className="text-xs font-black text-white truncate max-w-[90px] uppercase">{match.away_club?.name}</p>
+              {!isHome && <span className="text-[10px] text-[#00FF85] font-black tracking-widest uppercase">Tu equipo</span>}
             </div>
           </div>
         </div>
@@ -326,18 +329,18 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
         {!matchFinished && (
           <div className="grid grid-cols-2 gap-2">
             <div className={`p-3 rounded-xl border text-center ${
-              myAnnotation ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-muted/30 border-border'
+              myAnnotation ? 'bg-[#00FF85]/10 border-[#00FF85]/30' : 'bg-[#141414] border-[#202020]'
             }`}>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Tu club</p>
-              <p className={`text-xs font-semibold mt-1 ${myAnnotation ? 'text-emerald-400' : 'text-muted-foreground'}`}>
+              <p className="text-[10px] text-[#6A6C6E] uppercase tracking-wider font-bold">Tu club</p>
+              <p className={`text-xs font-black mt-1 uppercase ${myAnnotation ? 'text-[#00FF85]' : 'text-[#A0A2A4]'}`}>
                 {myAnnotation ? '✓ Anotado' : 'Pendiente'}
               </p>
             </div>
             <div className={`p-3 rounded-xl border text-center ${
-              opponentAnnotated ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-muted/30 border-border'
+              opponentAnnotated ? 'bg-[#00FF85]/10 border-[#00FF85]/30' : 'bg-[#141414] border-[#202020]'
             }`}>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{opponentClub?.name}</p>
-              <p className={`text-xs font-semibold mt-1 ${opponentAnnotated ? 'text-emerald-400' : 'text-muted-foreground'}`}>
+              <p className="text-[10px] text-[#6A6C6E] uppercase tracking-wider font-bold truncate">{opponentClub?.name}</p>
+              <p className={`text-xs font-black mt-1 uppercase ${opponentAnnotated ? 'text-[#00FF85]' : 'text-[#A0A2A4]'}`}>
                 {opponentAnnotated ? '✓ Anotado' : 'Pendiente'}
               </p>
             </div>
@@ -346,8 +349,8 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
 
         {/* Match finished summary */}
         {matchFinished && match.notes && (
-          <div className="p-3 rounded-xl bg-muted/30 border border-border">
-            <p className="text-xs text-muted-foreground">{match.notes}</p>
+          <div className="p-3 rounded-xl bg-[#141414] border border-[#202020]">
+            <p className="text-xs text-[#A0A2A4]">{match.notes}</p>
           </div>
         )}
 
@@ -355,41 +358,41 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
         {!matchFinished && (
           <>
             {/* GOLES */}
-            <div className="bg-card rounded-2xl border border-border overflow-hidden pifa-shadow">
-              <div className="flex items-center justify-between p-4 border-b border-border bg-muted/30">
+            <div className="bg-[#0A0A0A] rounded-xl border border-[#202020] overflow-hidden">
+              <div className="flex items-center justify-between p-4 border-b border-[#202020] bg-[#141414]">
                 <div className="flex items-center gap-2">
-                  <Goal className="w-4 h-4 text-primary" />
-                  <h3 className="text-sm font-semibold text-foreground">Goles de tu equipo</h3>
+                   <Goal className="w-4 h-4 text-[#00FF85]" />
+                   <h3 className="text-xs font-black text-white uppercase tracking-wider">Goles de tu equipo</h3>
                 </div>
-                <span className="text-lg font-bold text-primary">{totalGoals}</span>
+                <span className="text-lg font-black text-white">{totalGoals}</span>
               </div>
 
               {/* Current goals */}
               {goals.length > 0 && (
-                <div className="divide-y divide-border">
+                <div className="divide-y divide-[#202020]">
                   {goals.map((goal) => (
                     <div key={goal.player_id} className="flex items-center gap-3 p-3">
-                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <Goal className="w-4 h-4 text-primary" />
+                      <div className="w-8 h-8 rounded bg-[#141414] border border-[#202020] flex items-center justify-center">
+                        <Goal className="w-4 h-4 text-[#00FF85]" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate">
+                        <p className="text-sm font-bold text-white truncate">
                           {getPlayerName(goal.player_id)}
                         </p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {goal.count} {goal.count === 1 ? 'gol' : 'goles'}
+                        <p className="text-[10px] text-[#6A6C6E] font-bold uppercase">
+                          {goal.count} {goal.count === 1 ? 'GOL' : 'GOLES'}
                         </p>
                       </div>
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => addGoal(goal.player_id)}
-                          className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-400 flex items-center justify-center text-sm font-bold touch-active"
+                          className="w-7 h-7 rounded bg-[#00FF85]/10 border border-[#00FF85]/20 text-[#00FF85] flex items-center justify-center text-sm font-bold touch-active"
                         >
                           +
                         </button>
                         <button
                           onClick={() => removeGoal(goal.player_id)}
-                          className="w-7 h-7 rounded-lg bg-red-500/15 text-red-400 flex items-center justify-center text-sm font-bold touch-active"
+                          className="w-7 h-7 rounded bg-[#FF3333]/10 border border-[#FF3333]/20 text-[#FF3333] flex items-center justify-center text-sm font-bold touch-active"
                         >
                           −
                         </button>
@@ -400,17 +403,17 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
               )}
 
               {/* Add goal */}
-              <div className="p-3 border-t border-border">
+              <div className="p-3 border-t border-[#202020] bg-[#141414]/50">
                 <Select onValueChange={(val) => addGoal(val)}>
-                  <SelectTrigger className="h-10 rounded-xl bg-muted/30 border-border text-sm">
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Plus className="w-4 h-4" />
-                      <span>Agregar gol</span>
+                  <SelectTrigger className="h-10 rounded border-[#202020] bg-[#0A0A0A] text-sm text-white">
+                    <div className="flex items-center gap-2 text-[#6A6C6E] font-bold">
+                      <Plus className="w-4 h-4 text-[#00FF85]" />
+                      <span>AGREGAR GOL</span>
                     </div>
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-[#141414] border-[#202020] text-white">
                     {myPlayers.map((player) => (
-                      <SelectItem key={player.id} value={player.id}>
+                      <SelectItem key={player.id} value={player.id} className="focus:bg-[#0A0A0A] focus:text-white">
                         {player.name} ({player.position}) {player.number ? `#${player.number}` : ''}
                       </SelectItem>
                     ))}
@@ -420,42 +423,42 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
             </div>
 
             {/* ASISTENCIAS */}
-            <div className="bg-card rounded-2xl border border-border overflow-hidden pifa-shadow">
-              <div className="flex items-center justify-between p-4 border-b border-border bg-muted/30">
+            <div className="bg-[#0A0A0A] rounded-xl border border-[#202020] overflow-hidden">
+              <div className="flex items-center justify-between p-4 border-b border-[#202020] bg-[#141414]">
                 <div className="flex items-center gap-2">
-                  <HandHelping className="w-4 h-4 text-blue-400" />
-                  <h3 className="text-sm font-semibold text-foreground">Asistencias</h3>
+                  <HandHelping className="w-4 h-4 text-[#00FF85]" />
+                  <h3 className="text-xs font-black text-white uppercase tracking-wider">Asistencias</h3>
                 </div>
-                <span className="text-lg font-bold text-blue-400">
+                <span className="text-lg font-black text-white">
                   {assists.reduce((s, a) => s + a.count, 0)}
                 </span>
               </div>
 
               {assists.length > 0 && (
-                <div className="divide-y divide-border">
+                <div className="divide-y divide-[#202020]">
                   {assists.map((assist) => (
                     <div key={assist.player_id} className="flex items-center gap-3 p-3">
-                      <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                      <div className="w-8 h-8 rounded bg-[#141414] border border-[#202020] flex items-center justify-center">
                         <HandHelping className="w-4 h-4 text-blue-400" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate">
+                        <p className="text-sm font-bold text-white truncate">
                           {getPlayerName(assist.player_id)}
                         </p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {assist.count} {assist.count === 1 ? 'asistencia' : 'asistencias'}
+                        <p className="text-[10px] text-[#6A6C6E] uppercase font-bold">
+                          {assist.count} {assist.count === 1 ? 'ASIST' : 'ASISTS'}
                         </p>
                       </div>
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => addAssist(assist.player_id)}
-                          className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-400 flex items-center justify-center text-sm font-bold touch-active"
+                          className="w-7 h-7 rounded bg-[#00FF85]/10 border border-[#00FF85]/20 text-[#00FF85] flex items-center justify-center text-sm font-bold touch-active"
                         >
                           +
                         </button>
                         <button
                           onClick={() => removeAssist(assist.player_id)}
-                          className="w-7 h-7 rounded-lg bg-red-500/15 text-red-400 flex items-center justify-center text-sm font-bold touch-active"
+                          className="w-7 h-7 rounded bg-[#FF3333]/10 border border-[#FF3333]/20 text-[#FF3333] flex items-center justify-center text-sm font-bold touch-active"
                         >
                           −
                         </button>
@@ -465,17 +468,17 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
                 </div>
               )}
 
-              <div className="p-3 border-t border-border">
+              <div className="p-3 border-t border-[#202020] bg-[#141414]/50">
                 <Select onValueChange={(val) => addAssist(val)}>
-                  <SelectTrigger className="h-10 rounded-xl bg-muted/30 border-border text-sm">
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Plus className="w-4 h-4" />
-                      <span>Agregar asistencia</span>
+                  <SelectTrigger className="h-10 rounded border-[#202020] bg-[#0A0A0A] text-sm text-white">
+                    <div className="flex items-center gap-2 text-[#6A6C6E] font-bold">
+                      <Plus className="w-4 h-4 text-blue-400" />
+                      <span>AGREGAR ASISTENCIA</span>
                     </div>
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-[#141414] border-[#202020] text-white">
                     {myPlayers.map((player) => (
-                      <SelectItem key={player.id} value={player.id}>
+                      <SelectItem key={player.id} value={player.id} className="focus:bg-[#0A0A0A] focus:text-white">
                         {player.name} ({player.position}) {player.number ? `#${player.number}` : ''}
                       </SelectItem>
                     ))}
@@ -485,13 +488,13 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
             </div>
 
             {/* MVP */}
-            <div className="bg-card rounded-2xl border border-border overflow-hidden pifa-shadow">
-              <div className="flex items-center justify-between p-4 border-b border-border bg-muted/30">
+            <div className="bg-[#0A0A0A] rounded-xl border border-[#202020] overflow-hidden">
+              <div className="flex items-center justify-between p-4 border-b border-[#202020] bg-[#141414]">
                 <div className="flex items-center gap-2">
-                  <Star className="w-4 h-4 text-pifa-gold" />
-                  <h3 className="text-sm font-semibold text-foreground">MVP del partido</h3>
+                  <Star className="w-4 h-4 text-amber-400" />
+                  <h3 className="text-xs font-black text-white uppercase tracking-wider">MVP del partido</h3>
                 </div>
-                <span className="text-[10px] text-muted-foreground">Opcional</span>
+                <span className="text-[10px] font-bold text-[#6A6C6E] uppercase tracking-widest">Opcional</span>
               </div>
 
               <div className="p-3 space-y-3">
@@ -503,34 +506,34 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
                       setWantsMvp(e.target.checked)
                       if (!e.target.checked) setMvpPlayerId('')
                     }}
-                    className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
+                    className="w-4 h-4 rounded border-[#202020] bg-[#141414] text-[#00FF85] focus:ring-[#00FF85] focus:ring-offset-0 placeholder-[#0A0A0A]"
                   />
-                  <span className="text-sm text-foreground">Quiero nominar un MVP</span>
+                  <span className="text-sm font-bold text-white tracking-wide">Quiero nominar un MVP</span>
                 </label>
 
                 {wantsMvp && (
                   <Select value={mvpPlayerId} onValueChange={setMvpPlayerId}>
-                    <SelectTrigger className="h-10 rounded-xl bg-muted/30 border-border text-sm">
+                    <SelectTrigger className="h-10 rounded border-[#202020] bg-[#141414] text-sm text-white">
                       <SelectValue placeholder="Seleccionar jugador MVP" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    <SelectContent className="bg-[#141414] border-[#202020] text-white">
+                      <div className="px-2 py-1.5 text-xs font-black text-[#00FF85] uppercase tracking-wider">
                         {myClub?.name}
                       </div>
                       {allMatchPlayers
                         .filter(p => p.club_id === clubId)
                         .map((player) => (
-                          <SelectItem key={player.id} value={player.id}>
+                          <SelectItem key={player.id} value={player.id} className="focus:bg-[#0A0A0A] focus:text-white">
                             {player.name} ({player.position})
                           </SelectItem>
                         ))}
-                      <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider border-t border-border mt-1 pt-2">
+                      <div className="px-2 py-1.5 text-xs font-black text-amber-400 uppercase tracking-wider border-t border-[#202020] mt-1 pt-2">
                         {opponentClub?.name}
                       </div>
                       {allMatchPlayers
                         .filter(p => p.club_id !== clubId)
                         .map((player) => (
-                          <SelectItem key={player.id} value={player.id}>
+                          <SelectItem key={player.id} value={player.id} className="focus:bg-[#0A0A0A] focus:text-white">
                             {player.name} ({player.position})
                           </SelectItem>
                         ))}
@@ -541,11 +544,11 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
             </div>
 
             {/* ACTION BUTTONS */}
-            <div className="space-y-3 pt-2">
+            <div className="space-y-3 pt-4">
               <Button
                 onClick={handleSave}
                 disabled={isSaving}
-                className="w-full h-14 text-base font-semibold bg-pifa-gradient hover:opacity-90 transition-opacity rounded-2xl glow-orange"
+                className="w-full h-12 text-xs font-black uppercase tracking-widest bg-[#00FF85] text-[#0A0A0A] hover:bg-[#00CC6A] rounded transition-colors"
               >
                 {isSaving ? (
                   <>
@@ -555,12 +558,12 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
                 ) : myAnnotation ? (
                   <>
                     <Check className="w-5 h-5 mr-2" />
-                    Actualizar Anotación
+                    Actualizar
                   </>
                 ) : (
                   <>
                     <Check className="w-5 h-5 mr-2" />
-                    Guardar Anotación
+                    Guardar
                   </>
                 )}
               </Button>
@@ -569,7 +572,7 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
                 <Button
                   variant="ghost"
                   onClick={() => setIsDeleteOpen(true)}
-                  className="w-full h-11 text-sm text-destructive hover:text-destructive hover:bg-destructive/10 rounded-xl"
+                  className="w-full h-11 text-xs font-bold uppercase tracking-widest text-[#FF3333] hover:text-[#FF3333] hover:bg-[#FF3333]/10 rounded"
                 >
                   <Trash2 className="w-4 h-4 mr-2" />
                   Borrar Anotación
@@ -583,28 +586,28 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
         {matchFinished && (
           <Button
             onClick={() => router.push('/dashboard')}
-            className="w-full h-12 rounded-2xl"
+            className="w-full h-12 rounded bg-[#141414] text-white border border-[#202020] font-black uppercase tracking-widest hover:bg-[#202020]"
           >
-            Volver al Dashboard
+            Volver
           </Button>
         )}
       </div>
 
       {/* Delete confirmation */}
       <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <AlertDialogContent className="max-w-sm mx-4 rounded-2xl bg-card">
+        <AlertDialogContent className="max-w-sm mx-4 rounded-xl border border-[#202020] bg-[#141414]">
           <AlertDialogHeader>
-            <AlertDialogTitle>Borrar anotación</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="text-white font-black uppercase">Borrar anotación</AlertDialogTitle>
+            <AlertDialogDescription className="text-[#A0A2A4] font-medium">
               Se borrará tu pre-anotación y podrás volver a anotar desde cero. ¿Continuar?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
+            <AlertDialogCancel className="rounded bg-[#0A0A0A] border border-[#202020] text-white font-bold uppercase">Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               disabled={isDeleting}
-              className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="rounded bg-[#FF3333] text-white font-bold uppercase hover:bg-[#CC0000]"
             >
               {isDeleting && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
               Borrar

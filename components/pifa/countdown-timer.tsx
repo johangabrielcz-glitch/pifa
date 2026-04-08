@@ -52,32 +52,31 @@ export function CountdownTimer({ deadline, onExpired, size = 'md' }: CountdownTi
 
   const pad = (n: number) => String(n).padStart(2, '0')
 
-  // Color logic: > 6h green, 1-6h yellow, < 1h red
+  // Flat Color Logic
   const totalHours = timeLeft.totalMs / (1000 * 60 * 60)
-  const colorClass = timeLeft.expired
-    ? 'text-red-400'
+  
+  const textColor = timeLeft.expired
+    ? 'text-[#F85149]'
     : totalHours > 6
-    ? 'text-emerald-400'
+    ? 'text-[#58A6FF]'
     : totalHours > 1
-    ? 'text-yellow-400'
-    : 'text-red-400'
+    ? 'text-[#D29922]'
+    : 'text-[#F85149]'
 
-  const bgClass = timeLeft.expired
-    ? 'bg-red-500/15 border-red-500/30'
+  const bgBorder = timeLeft.expired
+    ? 'bg-[#F85149]/10 border-[#F85149]/30'
     : totalHours > 6
-    ? 'bg-emerald-500/10 border-emerald-500/20'
+    ? 'bg-[#58A6FF]/10 border-[#58A6FF]/30'
     : totalHours > 1
-    ? 'bg-yellow-500/10 border-yellow-500/20'
-    : 'bg-red-500/10 border-red-500/20'
-
-  const pulseClass = !timeLeft.expired && totalHours < 1 ? 'animate-pulse' : ''
+    ? 'bg-[#D29922]/10 border-[#D29922]/30'
+    : 'bg-[#F85149]/10 border-[#F85149]/30'
 
   if (size === 'sm') {
     return (
-      <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border ${bgClass} ${pulseClass}`}>
-        <Timer className={`w-3 h-3 ${colorClass}`} />
-        <span className={`text-xs font-mono font-semibold ${colorClass}`}>
-          {timeLeft.expired ? 'Expirado' : `${pad(timeLeft.hours)}:${pad(timeLeft.minutes)}:${pad(timeLeft.seconds)}`}
+      <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded border ${bgBorder}`}>
+        <Timer className={`w-3 h-3 ${textColor}`} />
+        <span className={`text-[10px] font-mono font-bold tracking-widest uppercase ${textColor}`}>
+          {timeLeft.expired ? 'EXP' : `${pad(timeLeft.hours)}:${pad(timeLeft.minutes)}:${pad(timeLeft.seconds)}`}
         </span>
       </div>
     )
@@ -85,32 +84,34 @@ export function CountdownTimer({ deadline, onExpired, size = 'md' }: CountdownTi
 
   if (size === 'lg') {
     return (
-      <div className={`flex flex-col items-center gap-2 p-4 rounded-2xl border ${bgClass} ${pulseClass}`}>
+      <div className={`flex flex-col items-center gap-3 p-4 rounded-xl border ${bgBorder}`}>
         {timeLeft.expired ? (
-          <>
-            <AlertTriangle className="w-6 h-6 text-red-400" />
-            <span className="text-sm font-semibold text-red-400">Tiempo agotado</span>
-          </>
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-10 h-10 rounded bg-[#F85149]/20 flex items-center justify-center">
+              <AlertTriangle className="w-5 h-5 text-[#F85149]" />
+            </div>
+            <span className="text-[11px] font-bold text-[#F85149] uppercase tracking-widest">Tiempo Agotado</span>
+          </div>
         ) : (
           <>
-            <div className="flex items-center gap-1">
-              <Timer className={`w-4 h-4 ${colorClass}`} />
-              <span className={`text-xs font-medium ${colorClass} uppercase tracking-wider`}>Tiempo restante</span>
+            <div className="flex items-center gap-1.5 mb-1">
+              <Timer className={`w-3.5 h-3.5 ${textColor}`} />
+              <span className={`text-[10px] font-bold ${textColor} uppercase tracking-[0.2em]`}>Restante</span>
             </div>
-            <div className="flex items-center gap-1">
-              <div className="flex flex-col items-center">
-                <span className={`text-3xl font-bold font-mono ${colorClass}`}>{pad(timeLeft.hours)}</span>
-                <span className="text-[9px] text-muted-foreground uppercase">hrs</span>
+            <div className="flex items-center gap-1.5">
+              <div className="flex flex-col items-center bg-[#1A1C1E] px-3 py-1.5 rounded border border-[#2C2E30]">
+                <span className={`text-xl font-bold font-mono ${textColor}`}>{pad(timeLeft.hours)}</span>
+                <span className="text-[9px] text-[#8C8E90] uppercase font-bold mt-0.5">hrs</span>
               </div>
-              <span className={`text-3xl font-bold ${colorClass} -mt-3`}>:</span>
-              <div className="flex flex-col items-center">
-                <span className={`text-3xl font-bold font-mono ${colorClass}`}>{pad(timeLeft.minutes)}</span>
-                <span className="text-[9px] text-muted-foreground uppercase">min</span>
+              <span className={`text-xl font-black ${textColor} opacity-30`}>:</span>
+              <div className="flex flex-col items-center bg-[#1A1C1E] px-3 py-1.5 rounded border border-[#2C2E30]">
+                <span className={`text-xl font-bold font-mono ${textColor}`}>{pad(timeLeft.minutes)}</span>
+                <span className="text-[9px] text-[#8C8E90] uppercase font-bold mt-0.5">min</span>
               </div>
-              <span className={`text-3xl font-bold ${colorClass} -mt-3`}>:</span>
-              <div className="flex flex-col items-center">
-                <span className={`text-3xl font-bold font-mono ${colorClass}`}>{pad(timeLeft.seconds)}</span>
-                <span className="text-[9px] text-muted-foreground uppercase">seg</span>
+              <span className={`text-xl font-black ${textColor} opacity-30`}>:</span>
+              <div className="flex flex-col items-center bg-[#1A1C1E] px-3 py-1.5 rounded border border-[#2C2E30]">
+                <span className={`text-xl font-bold font-mono ${textColor}`}>{pad(timeLeft.seconds)}</span>
+                <span className="text-[9px] text-[#8C8E90] uppercase font-bold mt-0.5">seg</span>
               </div>
             </div>
           </>
@@ -121,17 +122,17 @@ export function CountdownTimer({ deadline, onExpired, size = 'md' }: CountdownTi
 
   // Default: md
   return (
-    <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${bgClass} ${pulseClass}`}>
-      <Timer className={`w-4 h-4 ${colorClass}`} />
+    <div className={`flex items-center justify-between p-3 rounded-lg border ${bgBorder}`}>
+      <div className="flex items-center gap-2">
+        <Timer className={`w-4 h-4 ${textColor}`} />
+        <span className={`text-[11px] font-bold ${textColor} uppercase tracking-widest`}>Plazo</span>
+      </div>
       {timeLeft.expired ? (
-        <span className="text-sm font-semibold text-red-400">⏰ Tiempo agotado</span>
+        <span className="text-[11px] font-bold text-[#F85149] uppercase tracking-widest">Expirado</span>
       ) : (
-        <>
-          <span className={`text-xs font-medium ${colorClass}`}>Plazo:</span>
-          <span className={`text-sm font-mono font-bold ${colorClass}`}>
-            {pad(timeLeft.hours)}:{pad(timeLeft.minutes)}:{pad(timeLeft.seconds)}
-          </span>
-        </>
+        <span className={`text-sm font-mono font-bold tracking-widest bg-[#1A1C1E] px-2.5 py-1 rounded border border-[#2C2E30] ${textColor}`}>
+          {pad(timeLeft.hours)}:{pad(timeLeft.minutes)}:{pad(timeLeft.seconds)}
+        </span>
       )}
     </div>
   )
