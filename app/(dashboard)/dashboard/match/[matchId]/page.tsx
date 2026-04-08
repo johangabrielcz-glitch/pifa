@@ -2,7 +2,7 @@
 
 import { useEffect, useState, use } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Shield, Users, Loader2, Plus, X, Goal, HandHelping, Star, Check, Trash2, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, Shield, Users, Loader2, Plus, X, Goal, HandHelping, Star, Check, Trash2, AlertCircle, CheckCircle2, PlusCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { submitAnnotation, deleteAnnotation } from '@/lib/match-engine'
@@ -42,6 +42,7 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
   const [wantsMvp, setWantsMvp] = useState(false)
   const [startingXi, setStartingXi] = useState<string[]>([])
   const [substitutesIn, setSubstitutesIn] = useState<string[]>([])
+  const [isConvocatoriaLocked, setIsConvocatoriaLocked] = useState(false)
 
   useEffect(() => {
     loadMatchData()
@@ -117,7 +118,7 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
       .eq('id', userClubId)
       .single()
 
-    const defLineup = clubData?.default_lineup as any
+    const defLineup = (clubData as any)?.default_lineup
     if (defLineup?.players) {
       const initial11 = Object.values(defLineup.players).filter(Boolean) as string[]
       setStartingXi(initial11)
@@ -149,6 +150,10 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
           setMvpPlayerId(mymine.mvp_player_id)
           setWantsMvp(true)
         }
+        // Lock convocatoria since it already exists
+        setIsConvocatoriaLocked(true)
+      } else {
+        setIsConvocatoriaLocked(false)
       }
       setOpponentAnnotated(opponentExists)
     }
@@ -238,6 +243,7 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
       setAssists([])
       setMvpPlayerId('')
       setWantsMvp(false)
+      setIsConvocatoriaLocked(false)
     }
 
     setIsDeleteOpen(false)
@@ -381,79 +387,112 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
         {!matchFinished && (
           <>
             {/* CONVOCATORIA (11 Inicial y Cambios) */}
-            <div className="bg-[#0A0A0A] rounded-xl border border-[#202020] overflow-hidden">
-              <div className="flex items-center justify-between p-4 border-b border-[#202020] bg-[#141414]">
-                <div className="flex items-center gap-2">
-                   <Users className="w-4 h-4 text-[#00FF85]" />
-                   <h3 className="text-xs font-black text-white uppercase tracking-wider">Convocatoria</h3>
+            <div className="bg-[#0A0A0A] rounded-2xl border border-[#202020] overflow-hidden shadow-2xl">
+              <div className="flex items-center justify-between p-5 border-b border-[#202020] bg-[#141414]/50 backdrop-blur-sm">
+                <div className="flex items-center gap-3">
+                   <div className="w-8 h-8 rounded-lg bg-[#00FF85]/10 flex items-center justify-center">
+                     <Users className="w-4 h-4 text-[#00FF85]" />
+                   </div>
+                   <div>
+                     <h3 className="text-xs font-bold text-white uppercase tracking-widest">Planilla de Juego</h3>
+                     <p className="text-[8px] text-[#6A6C6E] font-bold uppercase mt-0.5">Define quiénes sumarán partido jugado</p>
+                   </div>
                 </div>
-                <span className="text-[10px] font-bold text-[#00FF85] uppercase tracking-widest bg-[#00FF85]/10 px-2 py-0.5 rounded">
-                  {startingXi.length} Iniciales
-                </span>
+                <div className="flex flex-col items-end">
+                  <span className="text-[10px] font-black text-white px-2 py-0.5 rounded bg-white/5 border border-white/10">
+                    {startingXi.length + substitutesIn.length} TOTAL
+                  </span>
+                </div>
               </div>
 
-              <div className="p-4 space-y-6">
+              <div className="p-5 space-y-8">
                 {/* Starters Section */}
-                <div>
-                  <p className="text-[9px] font-black text-[#6A6C6E] uppercase tracking-[2px] mb-3">11 Inicial (Confirmar)</p>
-                  <div className="grid grid-cols-1 gap-2">
-                    {myPlayers.map(player => {
-                      const isSelected = startingXi.includes(player.id)
-                      const isSub = substitutesIn.includes(player.id)
-                      return (
-                        <button
-                          key={player.id}
-                          onClick={() => {
-                            if (isSelected) {
-                              setStartingXi(startingXi.filter(id => id !== player.id))
-                            } else {
-                              if (startingXi.length < 11) {
+                <div className={isConvocatoriaLocked ? 'opacity-80' : ''}>
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-[10px] font-black text-[#00FF85] uppercase tracking-[0.2em] flex items-center gap-2">
+                       <Shield className="w-3 h-3" /> 11 INICIAL
+                    </p>
+                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${startingXi.length === 11 ? 'bg-[#00FF85]/20 text-[#00FF85]' : 'bg-[#FF3333]/10 text-[#FF3333]'}`}>
+                      {startingXi.length}/11
+                    </span>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 gap-2.5">
+                    {myPlayers
+                      .sort((a, b) => {
+                        const aS = startingXi.includes(a.id) ? 1 : 0
+                        const bS = startingXi.includes(b.id) ? 1 : 0
+                        return bS - aS
+                      })
+                      .map(player => {
+                        const isSelected = startingXi.includes(player.id)
+                        return (
+                          <button
+                            key={player.id}
+                            disabled={isConvocatoriaLocked}
+                            onClick={() => {
+                              if (isSelected) {
+                                setStartingXi(startingXi.filter(id => id !== player.id))
+                              } else if (startingXi.length < 11) {
                                 setStartingXi([...startingXi, player.id])
                                 setSubstitutesIn(substitutesIn.filter(id => id !== player.id))
-                              } else {
-                                toast.error('Ya has seleccionado 11 jugadores iniciales')
                               }
-                            }
-                          }}
-                          className={`flex items-center justify-between p-2.5 rounded-lg border transition-all ${
-                            isSelected 
-                              ? 'bg-[#00FF85]/10 border-[#00FF85]/30 text-white' 
-                              : 'bg-[#141414] border-[#202020] text-[#6A6C6E]'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <div className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-black ${
-                              isSelected ? 'bg-[#00FF85] text-[#0A0A0A]' : 'bg-[#202020] text-[#4A4A4A]'
-                            }`}>
-                              {player.number || '-'}
+                            }}
+                            className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${!isConvocatoriaLocked && 'active:scale-[0.98]'} ${
+                              isSelected 
+                                ? 'bg-[#00FF85]/5 border-[#00FF85]/40 shadow-[0_0_15px_rgba(0,255,133,0.05)]' 
+                                : 'bg-[#141414] border-[#1F1F1F] opacity-60'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 rounded-xl bg-[#0A0A0A] overflow-hidden border border-[#2D2D2D] relative group">
+                                {player.photo_url ? (
+                                  <img src={player.photo_url} alt="" className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-white/10">
+                                    <Users className="w-5 h-5" />
+                                  </div>
+                                )}
+                                {isSelected && <div className="absolute inset-0 bg-[#00FF85]/10" />}
+                              </div>
+                              <div className="flex flex-col items-start">
+                                <span className={`text-xs font-bold uppercase transition-colors ${isSelected ? 'text-white' : 'text-[#6A6C6E]'}`}>
+                                  {player.name}
+                                </span>
+                                <span className="text-[9px] font-black text-[#505050] uppercase tracking-tighter">
+                                  {player.position} {player.number ? `• #${player.number}` : ''}
+                                </span>
+                              </div>
                             </div>
-                            <span className="text-[11px] font-bold uppercase truncate max-w-[120px]">{player.name}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${
-                              isSelected ? 'bg-[#00FF85]/20 text-[#00FF85]' : 'bg-[#202020] text-[#4A4A4A]'
-                            }`}>{player.position}</span>
-                            {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-[#00FF85]" />}
-                          </div>
-                        </button>
-                      )
-                    })}
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                              isSelected ? 'bg-[#00FF85] text-black scale-110 shadow-lg' : 'bg-[#202020] text-white/10 border border-white/5'
+                            }`}>
+                              {isSelected ? <Check className="w-3.5 h-3.5 stroke-[3]" /> : <div className="w-1.5 h-1.5 rounded-full bg-white/10" />}
+                            </div>
+                          </button>
+                        )
+                      })}
                   </div>
                 </div>
 
                 {/* Substitutes Section */}
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="text-[9px] font-black text-[#6A6C6E] uppercase tracking-[2px]">Cambios (Entraron)</p>
-                    <span className="text-[10px] font-bold text-blue-400 uppercase tracking-widest bg-blue-400/10 px-2 py-0.5 rounded">
-                      {substitutesIn.length} Subs
+                <div className={`pt-2 ${isConvocatoriaLocked ? 'opacity-80' : ''}`}>
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                       <PlusCircle className="w-3 h-3" /> CAMBIOS QUE ENTRARON
+                    </p>
+                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-blue-400/10 text-blue-400">
+                      {substitutesIn.length} IN
                     </span>
                   </div>
-                  <div className="p-3 bg-[#141414] rounded-lg border border-[#202020] space-y-3">
-                    <p className="text-[10px] text-[#4A4A4A] font-medium leading-relaxed italic">
-                      Selecciona los jugadores que están en el banco pero que entraron al partido como sustitutos.
-                    </p>
-                    <div className="flex flex-wrap gap-2">
+
+                  <div className="bg-[#141414] rounded-2xl border border-[#202020] p-4">
+                    {!isConvocatoriaLocked && (
+                      <p className="text-[10px] text-[#4A4A4A] font-bold uppercase tracking-wider mb-4 leading-relaxed italic text-center">
+                        Marca los jugadores que ingresaron de recambio
+                      </p>
+                    )}
+                    <div className="grid grid-cols-2 gap-2">
                       {myPlayers
                         .filter(p => !startingXi.includes(p.id))
                         .map(player => {
@@ -461,6 +500,7 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
                           return (
                             <button
                               key={player.id}
+                              disabled={isConvocatoriaLocked}
                               onClick={() => {
                                 if (isSubIn) {
                                   setSubstitutesIn(substitutesIn.filter(id => id !== player.id))
@@ -468,32 +508,65 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
                                   setSubstitutesIn([...substitutesIn, player.id])
                                 }
                               }}
-                              className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider border transition-all flex items-center gap-1.5 ${
+                              className={`flex items-center gap-2 p-2 rounded-xl border transition-all ${!isConvocatoriaLocked && 'active:scale-[0.95]'} ${
                                 isSubIn
-                                  ? 'bg-blue-400/20 border-blue-400/40 text-blue-400 shadow-[0_0_10px_rgba(96,165,250,0.1)]'
-                                  : 'bg-[#0A0A0A] border-[#202020] text-[#4A4A4A] hover:border-[#303030]'
+                                  ? 'bg-blue-400/10 border-blue-400/40 text-blue-400 shadow-[0_0_15px_rgba(96,165,250,0.05)]'
+                                  : 'bg-[#0A0A0A] border-[#252525] text-[#4A4A4A] opacity-70'
                               }`}
                             >
-                              {isSubIn && <Plus className="w-2.5 h-2.5" />}
-                              {player.name}
+                              <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 border transition-all ${
+                                isSubIn ? 'bg-blue-400 border-blue-400 text-black' : 'bg-[#202020] border-white/5 text-transparent'
+                              }`}>
+                                <Plus className="w-3 h-3 stroke-[3]" />
+                              </div>
+                              <span className="text-[10px] font-black uppercase truncate">{player.name.split(' ').pop()}</span>
                             </button>
                           )
                         })}
                     </div>
                   </div>
                 </div>
+
+                {/* Confirm Button */}
+                {!isConvocatoriaLocked && (
+                  <Button 
+                    onClick={() => {
+                      if (startingXi.length === 0) {
+                        toast.error('Debes seleccionar al menos un jugador titular')
+                        return
+                      }
+                      if (startingXi.length < 11) {
+                         toast.warning('Has seleccionado menos de 11 titulares')
+                      }
+                      setIsConvocatoriaLocked(true)
+                      toast.success('Convocatoria fijada. Ahora puedes anotar las estadísticas.')
+                    }}
+                    className="w-full bg-[#00FF85] hover:bg-[#00E075] text-[#0A0A0A] font-black uppercase tracking-widest py-6 rounded-xl shadow-[0_10px_20px_-10px_rgba(0,255,133,0.3)]"
+                  >
+                    Guardar Convocatoria
+                  </Button>
+                )}
               </div>
             </div>
 
-            {/* GOLES */}
-            <div className="bg-[#0A0A0A] rounded-xl border border-[#202020] overflow-hidden">
-              <div className="flex items-center justify-between p-4 border-b border-[#202020] bg-[#141414]">
-                <div className="flex items-center gap-2">
-                   <Goal className="w-4 h-4 text-[#00FF85]" />
-                   <h3 className="text-xs font-black text-white uppercase tracking-wider">Goles de tu equipo</h3>
+            {/* ESTADÍSTICAS (Goles, Asistencias, MVP) - Bloqueadas si no hay convocatoria */}
+            <div className={`space-y-4 transition-all duration-500 ${!isConvocatoriaLocked ? 'opacity-30 pointer-events-none grayscale select-none' : ''}`}>
+               {!isConvocatoriaLocked && (
+                 <div className="bg-[#141414]/80 backdrop-blur-sm border border-[#202020] p-4 rounded-xl text-center">
+                    <p className="text-[10px] text-[#00FF85] font-black uppercase tracking-[0.2em]">Fase 1: Convocatoria</p>
+                    <p className="text-[9px] text-white/40 uppercase mt-1">Confirma tu plantilla para habilitar el reporte de goles</p>
+                 </div>
+               )}
+
+              {/* GOLES */}
+              <div className="bg-[#0A0A0A] rounded-xl border border-[#202020] overflow-hidden">
+                <div className="flex items-center justify-between p-4 border-b border-[#202020] bg-[#141414]">
+                  <div className="flex items-center gap-2">
+                     <Goal className="w-4 h-4 text-[#00FF85]" />
+                     <h3 className="text-xs font-black text-white uppercase tracking-wider">Goles de tu equipo</h3>
+                  </div>
+                  <span className="text-lg font-black text-white">{totalGoals}</span>
                 </div>
-                <span className="text-lg font-black text-white">{totalGoals}</span>
-              </div>
 
               {/* Current goals */}
               {goals.length > 0 && (
@@ -720,6 +793,7 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
                   Borrar Anotación
                 </Button>
               )}
+            </div>
             </div>
           </>
         )}
