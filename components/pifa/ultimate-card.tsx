@@ -12,12 +12,10 @@ interface UltimateCardProps {
     nationality: string | null
     photo_url: string | null
   }
-  rating: number
-  radarData: { subject: string; value: number; fullMark: number }[]
   color?: string
 }
 
-export function UltimateCard({ player, rating, radarData, color = '#00FF85' }: UltimateCardProps) {
+export function UltimateCard({ player, color = '#00FF85' }: UltimateCardProps) {
   return (
     <div className="group relative w-full aspect-[2/3] max-w-[220px] mx-auto animate-fade-in-up">
       {/* Outer Glow & Border Layer */}
@@ -30,10 +28,10 @@ export function UltimateCard({ player, rating, radarData, color = '#00FF85' }: U
         {/* Holographic Gradient Overlay */}
         <div className="absolute inset-0 bg-gradient-to-br from-[#00FF85]/5 via-transparent to-[#0A0A0A] opacity-50" />
         
-        {/* Top Info Section: OVR & Position */}
-        <div className="relative p-4 flex flex-col items-start gap-0.5">
-          <span className="text-4xl font-black text-white italic leading-none drop-shadow-lg">
-            {Math.round(rating)}
+        {/* Top Info Section: Position */}
+        <div className="relative p-4 flex flex-col items-start gap-1">
+          <span className="text-xl font-black text-white italic leading-none drop-shadow-lg">
+            {player.number || '--'}
           </span>
           <span className="text-[10px] font-black text-[#00FF85] uppercase tracking-widest bg-[#00FF85]/10 px-1.5 py-0.5 rounded">
             {player.position}
@@ -46,33 +44,29 @@ export function UltimateCard({ player, rating, radarData, color = '#00FF85' }: U
         </div>
 
         {/* Player Photo Area */}
-        <div className="absolute top-4 right-2 w-24 h-24 flex items-center justify-center opacity-80 group-hover:opacity-100 transition-opacity">
+        <div className="absolute top-4 right-2 w-28 h-28 flex items-center justify-center opacity-90 group-hover:opacity-100 transition-opacity">
           {player.photo_url ? (
             <img 
               src={player.photo_url} 
               alt={player.name} 
               className="w-full h-full object-cover scale-110 group-hover:scale-125 transition-transform duration-700"
-              style={{ maskImage: 'linear-gradient(to bottom, black 60%, transparent 100%)' }}
+              style={{ maskImage: 'linear-gradient(to bottom, black 80%, transparent 100%)' }}
             />
           ) : (
-            <Shield className="w-16 h-16 text-white/5" />
+            <Shield className="w-20 h-20 text-white/5" />
           )}
         </div>
 
         {/* Name Plate */}
-        <div className="absolute top-[48%] left-0 right-0 py-1 bg-gradient-to-r from-transparent via-white/5 to-transparent border-y border-white/5">
-          <p className="text-center text-xs font-black text-white uppercase tracking-tight truncate px-2">
+        <div className="absolute top-[65%] left-0 right-0 py-1 bg-gradient-to-r from-transparent via-white/5 to-transparent border-y border-white/5">
+          <p className="text-center text-sm font-black text-white uppercase tracking-tight truncate px-2">
             {player.name}
           </p>
         </div>
 
-        {/* Bottom Section: Mini Radar */}
-        <div className="absolute bottom-4 left-0 right-0 flex justify-center items-center h-[35%] overflow-hidden scale-90">
-             <PlayerRadar 
-               data={radarData} 
-               size={120} 
-               color={color} 
-             />
+        {/* Decorative center accent */}
+        <div className="absolute bottom-10 left-0 right-0 flex justify-center items-center opacity-30">
+             <Shield className="w-12 h-12 text-[#00FF85]/20" />
         </div>
 
         {/* Decorative corner accent */}

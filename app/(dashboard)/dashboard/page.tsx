@@ -73,7 +73,8 @@ export default function DashboardPage() {
   const [filterCompetition, setFilterCompetition] = useState<string>('all')
   const [expandedCompetitions, setExpandedCompetitions] = useState<Set<string>>(new Set())
   const [statsFilter, setStatsFilter] = useState<string>('all')
-  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null)
+  const [allTimeComps, setAllTimeComps] = useState<CompetitionFull[]>([])
+  const [allTimeMatches, setAllTimeMatches] = useState<MatchWithDetails[]>([])
 
   useEffect(() => {
     const checkAuthAndLoadData = async () => {
@@ -171,8 +172,7 @@ export default function DashboardPage() {
               }
 
               setCompetitions(activeComps)
-              // Store allTimeComps for global stats calculations
-              (window as any)._allTimeComps = allTimeComps 
+              setAllTimeComps(allTimeComps)
               
               if (activeComps.length > 0) {
                 setExpandedCompetitions(new Set([activeComps[0].id]))
@@ -202,6 +202,9 @@ export default function DashboardPage() {
               .order('match_order', { ascending: true })
 
             if (matchesData) {
+              const allMatches = matchesData as MatchWithDetails[]
+              setAllTimeMatches(allMatches)
+
               const activeMatches = (matchesData as (MatchWithDetails & { competition: Competition & { season: { status: string } } })[])
                 .filter(m => m.competition?.season?.status === 'active')
               setUpcomingMatches(activeMatches)
@@ -255,24 +258,31 @@ export default function DashboardPage() {
     return 'D'
   }
 
-  // Computed stats from all-time data
-  const allTimeComps = (typeof window !== 'undefined' ? (window as any)._allTimeComps : []) as CompetitionFull[]
+  // Computed stats from real matches data
+  const finishedMatches = allTimeMatches.filter(m => m.status === 'finished' && m.home_score !== null && m.away_score !== null)
   
-  const totalGoals = allTimeComps.reduce((sum, c) =>
-    sum + c.playerStats.filter(s => s.player?.club_id === club?.id).reduce((s, p) => s + p.goals, 0)
-  , 0)
-  const totalAssists = allTimeComps.reduce((sum, c) =>
-    sum + c.playerStats.filter(s => s.player?.club_id === club?.id).reduce((s, p) => s + p.assists, 0)
-  , 0)
-  const totalMvps = allTimeComps.reduce((sum, c) =>
-    sum + c.playerStats.filter(s => s.player?.club_id === club?.id).reduce((s, p) => s + p.mvp_count, 0)
-  , 0)
-  const totalGoalsFor = allTimeComps.reduce((sum, c) =>
-    sum + c.standings.filter(s => s.club_id === club?.id).reduce((s, p) => s + p.goals_for, 0)
-  , 0)
-  const totalGoalsAgainst = allTimeComps.reduce((sum, c) =>
-    sum + c.standings.filter(s => s.club_id === club?.id).reduce((s, p) => s + p.goals_against, 0)
-  , 0)
+  let clubWins = 0
+  let clubLosses = 0
+  let clubDraws = 0
+  let clubGoalsFor = 0
+  let clubGoalsAgainst = 0
+
+  finishedMatches.forEach(m => {
+    const isHome = m.home_club_id === club?.id
+    const gf = isHome ? m.home_score! : m.away_score!
+    const gc = isHome ? m.away_score! : m.home_score!
+    
+    clubGoalsFor += gf
+    clubGoalsAgainst += gc
+    
+    if (gf > gc) clubWins++
+    else if (gf < gc) clubLosses++
+    else clubDraws++
+  })
+
+  const totalMatches = finishedMatches.length
+  // Win rate percentage
+  const winRate = totalMatches > 0 ? Math.round((clubWins / totalMatches) * 100) : 0
 
   const recentResults = upcomingMatches.filter(m => m.status === 'finished').slice(-5).reverse()
 
@@ -400,22 +410,20 @@ export default function DashboardPage() {
                     <PlayerRadar 
                       size={200}
                       data={[
-                        { subject: 'Ataque', value: Math.min(100, (totalGoalsFor / (allTimeComps.length * 2 + 1)) * 30), fullMark: 100 },
-                        { subject: 'Defensa', value: Math.max(20, 100 - (totalGoalsAgainst / (allTimeComps.length * 2 + 1)) * 30), fullMark: 100 },
-                        { subject: 'Victoria', value: 75, fullMark: 100 }, // Mock until we Calc win rate
-                        { subject: 'Impacto', value: Math.min(100, (totalMvps / (players.length + 1)) * 20), fullMark: 100 },
-                        { subject: 'Físico', value: 85, fullMark: 100 },
-                        { subject: 'Visión', value: Math.min(100, (totalAssists / (players.length + 1)) * 20), fullMark: 100 },
+                        { subject: 'Ataques', value: clubGoalsFor, fullMark: Math.max(clubGoalsFor, 20) },
+                        { subject: 'Defensa', value: clubGoalsAgainst === 0 ? 20 : Math.max(10, 30 - clubGoalsAgainst), fullMark: 30 },
+                        { subject: 'Victoria', value: clubWins, fullMark: Math.max(totalMatches, 10) },
+                        { subject: 'Derrotas', value: clubLosses, fullMark: Math.max(totalMatches, 10) },
                       ]}
                     />
                     <div className="w-full flex justify-between px-4">
                        <div className="text-center">
-                          <p className="text-[9px] text-[#6A6C6E] font-bold uppercase">Eficiencia</p>
-                          <p className="text-lg font-black text-white">84%</p>
+                          <p className="text-[9px] text-[#6A6C6E] font-bold uppercase">Eficiencia (Win Rate)</p>
+                          <p className="text-lg font-black text-white">{winRate}%</p>
                        </div>
                        <div className="text-center">
-                          <p className="text-[9px] text-[#6A6C6E] font-bold uppercase">Poderío</p>
-                          <p className="text-lg font-black text-[#00FF85]">A+</p>
+                          <p className="text-[9px] text-[#6A6C6E] font-bold uppercase">Partidos Jugados</p>
+                          <p className="text-lg font-black text-[#00FF85]">{totalMatches}</p>
                        </div>
                     </div>
                  </div>
@@ -533,7 +541,7 @@ export default function DashboardPage() {
                           <Goal className="w-4 h-4 text-[#00FF85]" />
                           <p className="text-[10px] text-[#6A6C6E] uppercase tracking-widest font-black">Rendimiento</p>
                         </div>
-                        <span className="text-[10px] font-black uppercase text-[#2D2D2D]">Dif: {totalGoalsFor - totalGoalsAgainst > 0 ? '+' : ''}{totalGoalsFor - totalGoalsAgainst}</span>
+                        <span className="text-[10px] font-black uppercase text-[#2D2D2D]">Dif: {clubGoalsFor - clubGoalsAgainst > 0 ? '+' : ''}{clubGoalsFor - clubGoalsAgainst}</span>
                       </div>
                       
                       {/* Bars Container */}
@@ -542,12 +550,12 @@ export default function DashboardPage() {
                         <div className="space-y-1.5">
                           <div className="flex justify-between items-end">
                             <span className="text-xs font-black text-white uppercase tracking-wider">A Favor</span>
-                            <span className="text-lg font-black text-[#00FF85]">{totalGoalsFor}</span>
+                            <span className="text-lg font-black text-[#00FF85]">{clubGoalsFor}</span>
                           </div>
                           <div className="h-2 w-full bg-[#0A0A0A] rounded-full overflow-hidden border border-[#202020]">
                             <div 
                               className="h-full bg-[#00FF85] rounded-full" 
-                              style={{ width: `${Math.min(100, Math.max(5, (totalGoalsFor / (Math.max(totalGoalsFor, totalGoalsAgainst) || 1)) * 100))}%` }}
+                              style={{ width: `${Math.min(100, Math.max(5, (clubGoalsFor / (Math.max(clubGoalsFor, clubGoalsAgainst) || 1)) * 100))}%` }}
                             />
                           </div>
                         </div>
@@ -556,12 +564,12 @@ export default function DashboardPage() {
                         <div className="space-y-1.5">
                           <div className="flex justify-between items-end">
                             <span className="text-xs font-black text-white uppercase tracking-wider">En Contra</span>
-                            <span className="text-lg font-black text-[#FF3333]">{totalGoalsAgainst}</span>
+                            <span className="text-lg font-black text-[#FF3333]">{clubGoalsAgainst}</span>
                           </div>
                           <div className="h-2 w-full bg-[#0A0A0A] rounded-full overflow-hidden border border-[#202020]">
                             <div 
                               className="h-full bg-[#FF3333] rounded-full" 
-                              style={{ width: `${Math.min(100, Math.max(5, (totalGoalsAgainst / (Math.max(totalGoalsFor, totalGoalsAgainst) || 1)) * 100))}%` }}
+                              style={{ width: `${Math.min(100, Math.max(5, (clubGoalsAgainst / (Math.max(clubGoalsFor, clubGoalsAgainst) || 1)) * 100))}%` }}
                             />
                           </div>
                         </div>
@@ -571,12 +579,12 @@ export default function DashboardPage() {
                     {/* Secondary Stats Strip */}
                     <div className="grid grid-cols-2 gap-3">
                       <div className="rounded-xl bg-[#141414] border border-[#202020] p-4 flex items-center justify-between">
-                        <p className="text-[10px] text-[#6A6C6E] uppercase tracking-wider font-bold">Asist.</p>
-                        <p className="text-xl font-black text-white">{totalAssists}</p>
+                        <p className="text-[10px] text-[#6A6C6E] uppercase tracking-wider font-bold">Victorias</p>
+                        <p className="text-xl font-black text-[#00FF85]">{clubWins}</p>
                       </div>
                       <div className="rounded-xl bg-[#141414] border border-[#202020] p-4 flex items-center justify-between">
-                        <p className="text-[10px] text-[#6A6C6E] uppercase tracking-wider font-bold">MVP's</p>
-                        <p className="text-xl font-black text-[#00FF85]">{totalMvps}</p>
+                        <p className="text-[10px] text-[#6A6C6E] uppercase tracking-wider font-bold">Derrotas</p>
+                        <p className="text-xl font-black text-[#FF3333]">{clubLosses}</p>
                       </div>
                     </div>
                   </>
@@ -971,38 +979,11 @@ export default function DashboardPage() {
                         </div>
                         <div className="grid grid-cols-2 gap-4 stagger">
                           {groupPlayers.map((player) => {
-                            // Get player stats Across all competitions
-                            const pStats = allTimeComps.flatMap(c =>
-                              c.playerStats.filter(s => s.player_id === player.id)
-                            )
-                            const pGoals = pStats.reduce((s, p) => s + p.goals, 0)
-                            const pAssists = pStats.reduce((s, p) => s + p.assists, 0)
-                            const pMvps = pStats.reduce((s, p) => s + p.mvp_count, 0)
-                            const pMatches = pStats.reduce((s, p) => s + p.matches_played, 0)
-
-                            // Dynamic Rating Calculation
-                            const baseRating = 65
-                            const bonus = (pGoals * 1.5 + pAssists * 1.0 + pMvps * 2.0)
-                            const rating = Math.min(99, baseRating + bonus)
-
-                            // Attributes Mapping (Radar)
-                            const radarData = [
-                              { subject: 'Ritmo', value: 70 + (player.age ? (35 - player.age) : 0), fullMark: 100 },
-                              { subject: 'Tiro', value: Math.min(100, 60 + pGoals * 5), fullMark: 100 },
-                              { subject: 'Pase', value: Math.min(100, 60 + pAssists * 8), fullMark: 100 },
-                              { subject: 'Regate', value: Math.min(100, 65 + pMvps * 12), fullMark: 100 },
-                              { subject: 'Defensa', value: 60, fullMark: 100 },
-                              { subject: 'Físico', value: Math.min(100, 70 + pMatches * 2), fullMark: 100 },
-                            ]
-
                             return (
-                              <div key={player.id} onClick={() => setSelectedPlayer(player)} className="cursor-pointer">
-                                <UltimateCard 
-                                  player={player}
-                                  rating={rating}
-                                  radarData={radarData}
-                                />
-                              </div>
+                              <UltimateCard 
+                                key={player.id} 
+                                player={player}
+                              />
                             )
                           })}
                         </div>
@@ -1015,85 +996,6 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
-
-      {/* Premium Player Detail Modal */}
-      {selectedPlayer && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl animate-in fade-in duration-300">
-          <div className="relative w-full max-w-lg bg-[#141414] border border-[#202020] rounded-[2rem] overflow-hidden shadow-[0_0_100px_rgba(0,255,133,0.1)] stagger">
-             <button 
-               onClick={() => setSelectedPlayer(null)}
-               className="absolute top-6 right-6 w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/40 hover:text-[#00FF85] hover:bg-[#00FF85]/10 transition-all z-10"
-             >
-               ×
-             </button>
-
-             <div className="p-8">
-                <div className="flex items-center gap-6 mb-8">
-                   <div className="w-24 h-24 rounded-3xl bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-4xl font-black text-[#00FF85]">
-                      {selectedPlayer.number || '--'}
-                   </div>
-                   <div>
-                      <h2 className="text-3xl font-black text-white uppercase tracking-tight">{selectedPlayer.name}</h2>
-                      <div className="flex items-center gap-3 mt-2">
-                         <span className="px-3 py-1 rounded-full bg-[#00FF85]/10 border border-[#00FF85]/20 text-[#00FF85] text-xs font-black uppercase">
-                           {selectedPlayer.position}
-                         </span>
-                         <span className="text-[#6A6C6E] text-xs font-bold uppercase tracking-widest">
-                           {selectedPlayer.nationality || 'PIFA Global'}
-                         </span>
-                      </div>
-                   </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-                   <div className="bg-[#0A0A0A]/50 rounded-3xl p-4 border border-[#202020]">
-                      <PlayerRadar 
-                        size={280}
-                        data={[
-                           { subject: 'Ritmo', value: 85, fullMark: 100 },
-                           { subject: 'Tiro', value: 78, fullMark: 100 },
-                           { subject: 'Pase', value: 92, fullMark: 100 },
-                           { subject: 'Regate', value: 88, fullMark: 100 },
-                           { subject: 'Defensa', value: 65, fullMark: 100 },
-                           { subject: 'Físico', value: 82, fullMark: 100 },
-                        ]}
-                      />
-                   </div>
-                   
-                   <div className="space-y-4">
-                      <div className="p-4 rounded-2xl bg-[#0A0A0A]/30 border border-[#202020]">
-                         <p className="text-[10px] text-[#6A6C6E] font-black uppercase tracking-widest mb-1">Rendimiento Total</p>
-                         <div className="flex justify-between items-end">
-                            <span className="text-4xl font-black text-white leading-none">A+</span>
-                            <span className="text-[#00FF85] text-xs font-bold flex items-center gap-1">
-                               <TrendingUp className="w-4 h-4" /> Top 5%
-                            </span>
-                         </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-3">
-                         <div className="p-3 rounded-2xl bg-[#0A0A0A]/30 border border-[#202020] text-center">
-                            <p className="text-[10px] text-[#6A6C6E] font-bold uppercase mb-1">Goles</p>
-                            <p className="text-xl font-black text-white">12</p>
-                         </div>
-                         <div className="p-3 rounded-2xl bg-[#0A0A0A]/30 border border-[#202020] text-center">
-                            <p className="text-[10px] text-[#6A6C6E] font-bold uppercase mb-1">Asist.</p>
-                            <p className="text-xl font-black text-white">8</p>
-                         </div>
-                      </div>
-                      
-                      <Button 
-                        variant="outline" 
-                        className="w-full h-14 rounded-2xl border-[#202020] bg-transparent text-white hover:bg-[#00FF85] hover:text-[#0A0A0A] transition-all font-black uppercase tracking-widest text-xs"
-                      >
-                         VER HISTORIAL COMPLETO
-                      </Button>
-                   </div>
-                </div>
-             </div>
-          </div>
-        </div>
-      )}
 
       {/* Bottom Navigation */}
       <DtNavigation
