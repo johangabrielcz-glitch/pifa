@@ -36,18 +36,18 @@ export async function calculateMatchDeadlines(seasonId: string): Promise<void> {
   if (!competitions || competitions.length === 0) return
 
   // Get all matches for these competitions ordered by match_order
-  const { data: allMatches } = await supabase
+  const { data: allMatches, error: matchesError } = await supabase
     .from('matches')
     .select('id, competition_id, matchday, match_order')
-    .in('competition_id', competitions.map(c => c.id))
+    .in('competition_id', (competitions as any[]).map(c => c.id))
     .order('match_order', { ascending: true })
 
-  if (!allMatches || allMatches.length === 0) return
+  if (matchesError || !allMatches || allMatches.length === 0) return
 
   // Group by competition, then extract unique matchdays in order
   const compMatchdays = new Map<string, number[]>()
 
-  for (const match of allMatches) {
+  for (const match of (allMatches as any[])) {
     const md = match.matchday ?? 1
     if (!compMatchdays.has(match.competition_id)) {
       compMatchdays.set(match.competition_id, [])
@@ -65,7 +65,7 @@ export async function calculateMatchDeadlines(seasonId: string): Promise<void> {
 
   for (const [compId, matchdays] of compMatchdays) {
     for (const md of matchdays) {
-      const firstMatch = allMatches.find(m => m.competition_id === compId && (m.matchday ?? 1) === md)
+      const firstMatch = (allMatches as any[]).find(m => m.competition_id === compId && (m.matchday ?? 1) === md)
       matchdaySlots.push({
         compId,
         matchday: md,
@@ -86,7 +86,7 @@ export async function calculateMatchDeadlines(seasonId: string): Promise<void> {
     const deadline = new Date(deadlineMs).toISOString()
 
     // Find all matches in this competition+matchday
-    const matchesInSlot = allMatches.filter(
+    const matchesInSlot = (allMatches as any[]).filter(
       m => m.competition_id === slot.compId && (m.matchday ?? 1) === slot.matchday
     )
 
@@ -99,7 +99,7 @@ export async function calculateMatchDeadlines(seasonId: string): Promise<void> {
   for (const update of updates) {
     await supabase
       .from('matches')
-      .update({ deadline: update.deadline })
+      .update({ deadline: update.deadline } as any)
       .eq('id', update.id)
   }
 }
@@ -125,29 +125,28 @@ export async function submitAnnotation(
   assists: AssistEntry[],
   mvpPlayerId: string | null
 ): Promise<SubmitAnnotationResult> {
-  // 1. Load the match with competition details
-  const { data: match, error: matchError } = await supabase
+  const { data: mData, error: matchError } = await supabase
     .from('matches')
     .select('*, competition:competitions(*)')
     .eq('id', matchId)
-    .single()
+    .single() as any
 
-  if (matchError || !match) {
+  if (matchError || !mData) {
     return { success: false, error: 'Partido no encontrado' }
   }
-
-  // 2. Validate the club is part of this match
-  if (match.home_club_id !== clubId && match.away_club_id !== clubId) {
+  const match = mData
+  const m = match as any
+  if (m.home_club_id !== clubId && m.away_club_id !== clubId) {
     return { success: false, error: 'Tu club no participa en este partido' }
   }
 
   // 3. Validate match is not already finished
-  if (match.status === 'finished') {
+  if (m.status === 'finished') {
     return { success: false, error: 'El partido ya está finalizado' }
   }
 
   // 4. Check if the OTHER team has already annotated (for K.O. tie validation)
-  const opponentClubId = match.home_club_id === clubId ? match.away_club_id : match.home_club_id
+  const opponentClubId = m.home_club_id === clubId ? m.away_club_id : m.home_club_id
   const { data: opponentAnnotation } = await supabase
     .from('match_annotations')
     .select('*')
@@ -157,9 +156,9 @@ export async function submitAnnotation(
 
   // 5. If opponent has annotated, validate K.O. tie rules
   if (opponentAnnotation) {
-    const competition = match.competition as Competition
+    const competition = m.competition as any
     const isKnockout = competition.type === 'cup' ||
-      (competition.type === 'groups_knockout' && !match.group_name)
+      (competition.type === 'groups_knockout' && !m.group_name)
 
     if (isKnockout) {
       const myGoals = goals.reduce((sum: number, g: GoalEntry) => sum + g.count, 0)
@@ -168,13 +167,13 @@ export async function submitAnnotation(
       )
 
       // Determine which side is home/away for scoring
-      const isHome = match.home_club_id === clubId
+      const isHome = m.home_club_id === clubId
       const homeScore = isHome ? myGoals : opponentGoals
       const awayScore = isHome ? opponentGoals : myGoals
 
       if (match.leg === 1) {
         // Check single-leg tie
-        const config = competition.config as CupConfig | GroupsKnockoutConfig
+        const config = competition.config as any
         const totalLegs = 'legs' in config ? config.legs : ('knockout_legs' in config ? config.knockout_legs : 1)
 
         if (totalLegs === 1 && homeScore === awayScore) {
@@ -185,9 +184,9 @@ export async function submitAnnotation(
         }
       }
 
-      if (match.leg === 2) {
+      if (m.leg === 2) {
         // Check aggregate tie across both legs
-        const tieError = await checkAggregateTie(match, homeScore, awayScore)
+        const tieError = await checkAggregateTie(m, homeScore, awayScore)
         if (tieError) {
           return { success: false, error: tieError }
         }
@@ -206,7 +205,7 @@ export async function submitAnnotation(
         assists,
         mvp_player_id: mvpPlayerId,
         updated_at: new Date().toISOString(),
-      },
+      } as any,
       { onConflict: 'match_id,club_id' }
     )
 
@@ -276,8 +275,7 @@ async function checkAggregateTie(
 
   if (!leg1Matches || leg1Matches.length === 0) return null
 
-  // Find the leg 1 that has leg=1 and a lower match_order
-  const leg1 = leg1Matches.find(
+  const leg1 = (leg1Matches as any[]).find(
     (m: Match) => m.leg === 1 && m.match_order < leg2Match.match_order
   )
   if (!leg1 || leg1.home_score === null || leg1.away_score === null) return null
@@ -322,24 +320,24 @@ async function finalizeMatch(matchId: string): Promise<void> {
   if (!annotations || annotations.length !== 2) return
 
   // Get match with competition
-  const { data: match } = await supabase
+  const { data: mData } = await supabase
     .from('matches')
     .select('*, competition:competitions(*)')
     .eq('id', matchId)
-    .single()
+    .single() as any
 
-  if (!match) return
+  if (!mData) return
+  const match = mData
 
-  const homeAnnotation = annotations.find((a: MatchAnnotation) => a.club_id === match.home_club_id)
-  const awayAnnotation = annotations.find((a: MatchAnnotation) => a.club_id === match.away_club_id)
+  const homeAnnotation = (annotations as any[]).find((a: MatchAnnotation) => a.club_id === (match as any).home_club_id)
+  const awayAnnotation = (annotations as any[]).find((a: MatchAnnotation) => a.club_id === (match as any).away_club_id)
 
   if (!homeAnnotation || !awayAnnotation) return
 
   // Calculate scores
-  const homeScore = (homeAnnotation.goals as GoalEntry[]).reduce((sum: number, g: GoalEntry) => sum + g.count, 0)
-  const awayScore = (awayAnnotation.goals as GoalEntry[]).reduce((sum: number, g: GoalEntry) => sum + g.count, 0)
+  const homeScore = ((homeAnnotation as any).goals || [] as GoalEntry[]).reduce((sum: number, g: GoalEntry) => sum + g.count, 0)
+  const awayScore = ((awayAnnotation as any).goals || [] as GoalEntry[]).reduce((sum: number, g: GoalEntry) => sum + g.count, 0)
 
-  // Update match as finished
   await supabase
     .from('matches')
     .update({
@@ -348,7 +346,7 @@ async function finalizeMatch(matchId: string): Promise<void> {
       away_score: awayScore,
       played_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-    })
+    } as any)
     .eq('id', matchId)
 
   const competition = match.competition as Competition
@@ -360,14 +358,14 @@ async function finalizeMatch(matchId: string): Promise<void> {
   }
 
   // Update player stats
-  await updatePlayerStats(annotations as MatchAnnotation[], match.competition_id)
+  await updatePlayerStats(annotations as MatchAnnotation[], (match as any).competition_id)
 
   // For K.O. matches: advance winner to next round
   const isKnockout = competition.type === 'cup' ||
     (competition.type === 'groups_knockout' && !isGroupStage)
 
   if (isKnockout) {
-    await advanceWinner(match, homeScore, awayScore, competition)
+    await advanceWinner(match as any, homeScore, awayScore, competition as any)
   }
 }
 
@@ -404,18 +402,19 @@ async function updateStandings(
     .maybeSingle()
 
   if (homeStanding) {
+    const hs = homeStanding as any
     const updates = {
-      played: homeStanding.played + 1,
-      won: homeStanding.won + (homeWon ? 1 : 0),
-      drawn: homeStanding.drawn + (draw ? 1 : 0),
-      lost: homeStanding.lost + (!homeWon && !draw ? 1 : 0),
-      goals_for: homeStanding.goals_for + homeScore,
-      goals_against: homeStanding.goals_against + awayScore,
-      goal_difference: (homeStanding.goals_for + homeScore) - (homeStanding.goals_against + awayScore),
-      points: homeStanding.points + (homeWon ? pointsWin : draw ? pointsDraw : pointsLoss),
+      played: hs.played + 1,
+      won: hs.won + (homeWon ? 1 : 0),
+      drawn: hs.drawn + (draw ? 1 : 0),
+      lost: hs.lost + (!homeWon && !draw ? 1 : 0),
+      goals_for: hs.goals_for + homeScore,
+      goals_against: hs.goals_against + awayScore,
+      goal_difference: (hs.goals_for + homeScore) - (hs.goals_against + awayScore),
+      points: hs.points + (homeWon ? pointsWin : draw ? pointsDraw : pointsLoss),
       updated_at: new Date().toISOString(),
     }
-    await supabase.from('standings').update(updates).eq('id', homeStanding.id)
+    await supabase.from('standings').update(updates as any).eq('id', hs.id)
   }
 
   // Update AWAY club standing
@@ -427,20 +426,21 @@ async function updateStandings(
     .maybeSingle()
 
   if (awayStanding) {
+    const as = awayStanding as any
     const awayWon = awayScore > homeScore
 
     const updates = {
-      played: awayStanding.played + 1,
-      won: awayStanding.won + (awayWon ? 1 : 0),
-      drawn: awayStanding.drawn + (draw ? 1 : 0),
-      lost: awayStanding.lost + (!awayWon && !draw ? 1 : 0),
-      goals_for: awayStanding.goals_for + awayScore,
-      goals_against: awayStanding.goals_against + homeScore,
-      goal_difference: (awayStanding.goals_for + awayScore) - (awayStanding.goals_against + homeScore),
-      points: awayStanding.points + (awayWon ? pointsWin : draw ? pointsDraw : pointsLoss),
+      played: as.played + 1,
+      won: as.won + (awayWon ? 1 : 0),
+      drawn: as.drawn + (draw ? 1 : 0),
+      lost: as.lost + (!awayWon && !draw ? 1 : 0),
+      goals_for: as.goals_for + awayScore,
+      goals_against: as.goals_against + homeScore,
+      goal_difference: (as.goals_for + awayScore) - (as.goals_against + homeScore),
+      points: as.points + (awayWon ? pointsWin : draw ? pointsDraw : pointsLoss),
       updated_at: new Date().toISOString(),
     }
-    await supabase.from('standings').update(updates).eq('id', awayStanding.id)
+    await supabase.from('standings').update(updates as any).eq('id', as.id)
   }
 }
 
@@ -449,93 +449,88 @@ async function updateStandings(
 // =============================================
 
 async function updatePlayerStats(annotations: MatchAnnotation[], competitionId: string): Promise<void> {
+  // Aggregate all stats update for each player
+  const playerStatsMap = new Map<string, {
+    goals: number;
+    assists: number;
+    mvp: number;
+    clubId: string;
+  }>();
+
   for (const annotation of annotations) {
-    const goals = annotation.goals as GoalEntry[]
-    const assists = annotation.assists as AssistEntry[]
+    const goals = (annotation.goals || []) as GoalEntry[]
+    const assists = (annotation.assists || []) as AssistEntry[]
+    const clubId = annotation.club_id;
 
-    // Track which players were involved (for matches_played)
-    const involvedPlayers = new Set<string>()
-
-    // Update goals
+    // Goals
     for (const goal of goals) {
-      involvedPlayers.add(goal.player_id)
-      const { data: stat } = await supabase
-        .from('player_competition_stats')
-        .select('*')
-        .eq('competition_id', competitionId)
-        .eq('player_id', goal.player_id)
-        .maybeSingle()
-
-      if (stat) {
-        await supabase
-          .from('player_competition_stats')
-          .update({
-            goals: stat.goals + goal.count,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', stat.id)
+      if (!playerStatsMap.has(goal.player_id)) {
+        playerStatsMap.set(goal.player_id, { goals: 0, assists: 0, mvp: 0, clubId });
       }
+      playerStatsMap.get(goal.player_id)!.goals += goal.count;
     }
 
-    // Update assists
+    // Assists
     for (const assist of assists) {
-      involvedPlayers.add(assist.player_id)
-      const { data: stat } = await supabase
-        .from('player_competition_stats')
-        .select('*')
-        .eq('competition_id', competitionId)
-        .eq('player_id', assist.player_id)
-        .maybeSingle()
-
-      if (stat) {
-        await supabase
-          .from('player_competition_stats')
-          .update({
-            assists: stat.assists + assist.count,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', stat.id)
+      if (!playerStatsMap.has(assist.player_id)) {
+        playerStatsMap.set(assist.player_id, { goals: 0, assists: 0, mvp: 0, clubId });
       }
+      playerStatsMap.get(assist.player_id)!.assists += assist.count;
     }
 
-    // Update MVP
+    // MVP
     if (annotation.mvp_player_id) {
-      const { data: mvpStat } = await supabase
-        .from('player_competition_stats')
-        .select('*')
-        .eq('competition_id', competitionId)
-        .eq('player_id', annotation.mvp_player_id)
-        .maybeSingle()
-
-      if (mvpStat) {
-        await supabase
-          .from('player_competition_stats')
-          .update({
-            mvp_count: mvpStat.mvp_count + 1,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', mvpStat.id)
+      if (!playerStatsMap.has(annotation.mvp_player_id)) {
+        playerStatsMap.set(annotation.mvp_player_id, { goals: 0, assists: 0, mvp: 0, clubId });
       }
+      playerStatsMap.get(annotation.mvp_player_id)!.mvp += 1;
     }
 
-    // Update matches_played for all involved players
-    for (const playerId of involvedPlayers) {
-      const { data: stat } = await supabase
-        .from('player_competition_stats')
-        .select('*')
-        .eq('competition_id', competitionId)
-        .eq('player_id', playerId)
-        .maybeSingle()
+    // Matches Played (all players who appeared in goals or assists are considered to have played)
+    // In a more complex system we'd track a full roster, but here we track involved players.
+  }
 
-      if (stat) {
-        await supabase
-          .from('player_competition_stats')
-          .update({
-            matches_played: stat.matches_played + 1,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', stat.id)
-      }
+  // Apply updates to database
+  for (const [playerId, stats] of playerStatsMap.entries()) {
+    const { data: existing, error: fetchError } = await supabase
+      .from('player_competition_stats')
+      .select('*')
+      .eq('competition_id', competitionId)
+      .eq('player_id', playerId)
+      .maybeSingle();
+
+    if (fetchError) continue;
+
+    if (existing) {
+      const ex = existing as any
+      // Update
+      await supabase
+        .from('player_competition_stats')
+        .update({
+          goals: (ex.goals || 0) + stats.goals,
+          assists: (ex.assists || 0) + stats.assists,
+          mvp_count: (ex.mvp_count || 0) + stats.mvp,
+          matches_played: (ex.matches_played || 0) + 1,
+          updated_at: new Date().toISOString(),
+        } as any)
+        .eq('id', ex.id);
+    } else {
+      // Insert
+      await supabase
+        .from('player_competition_stats')
+        .insert({
+          competition_id: competitionId,
+          player_id: playerId,
+          club_id: stats.clubId,
+          goals: stats.goals,
+          assists: stats.assists,
+          mvp_count: stats.mvp,
+          matches_played: 1,
+          yellow_cards: 0,
+          red_cards: 0,
+          minutes_played: 0,
+          updated_at: new Date().toISOString(),
+        } as any);
     }
   }
 }
@@ -629,10 +624,10 @@ async function advanceWinner(
 
     if (nextAwayNull && nextAwayNull.length > 0) {
       // Fill away slot in the first available match
-      const target = nextAwayNull[0]
+      const target = nextAwayNull[0] as any
       await supabase
         .from('matches')
-        .update({ away_club_id: winnerId, updated_at: new Date().toISOString() })
+        .update({ away_club_id: winnerId, updated_at: new Date().toISOString() } as any)
         .eq('id', target.id)
 
       // If this is leg 1 of a two-leg round, update leg 2 as well (reversed)
@@ -649,8 +644,8 @@ async function advanceWinner(
         if (leg2Matches && leg2Matches.length > 0) {
           await supabase
             .from('matches')
-            .update({ home_club_id: winnerId, updated_at: new Date().toISOString() })
-            .eq('id', leg2Matches[0].id)
+            .update({ home_club_id: winnerId, updated_at: new Date().toISOString() } as any)
+            .eq('id', (leg2Matches[0] as any).id)
         }
       }
     }
@@ -658,10 +653,10 @@ async function advanceWinner(
   }
 
   // Fill home slot
-  const target = nextRoundMatches[0]
+  const target = nextRoundMatches[0] as any
   await supabase
     .from('matches')
-    .update({ home_club_id: winnerId, updated_at: new Date().toISOString() })
+    .update({ home_club_id: winnerId, updated_at: new Date().toISOString() } as any)
     .eq('id', target.id)
 
   // If two legs, also update leg 2 (winner plays away in leg 2)
@@ -678,8 +673,8 @@ async function advanceWinner(
     if (leg2 && leg2.length > 0) {
       await supabase
         .from('matches')
-        .update({ away_club_id: winnerId, updated_at: new Date().toISOString() })
-        .eq('id', leg2[0].id)
+        .update({ away_club_id: winnerId, updated_at: new Date().toISOString() } as any)
+        .eq('id', (leg2[0] as any).id)
     }
   }
 }
@@ -734,29 +729,29 @@ export async function checkAndAutoResolveExpired(): Promise<number> {
       await supabase.from('match_annotations').upsert([
         { match_id: match.id, club_id: match.home_club_id, goals: [], assists: [], mvp_player_id: null },
         { match_id: match.id, club_id: match.away_club_id, goals: [], assists: [], mvp_player_id: null },
-      ], { onConflict: 'match_id,club_id' })
+      ] as any, { onConflict: 'match_id,club_id' })
     } else if (homeAnnotation && !awayAnnotation) {
       // Only home annotated: home wins
-      homeScore = (homeAnnotation.goals as GoalEntry[]).reduce((s: number, g: GoalEntry) => s + g.count, 0)
+      homeScore = ((homeAnnotation as any).goals as GoalEntry[]).reduce((s: number, g: GoalEntry) => s + g.count, 0)
       awayScore = 0
 
       await supabase.from('match_annotations').upsert(
-        { match_id: match.id, club_id: match.away_club_id, goals: [], assists: [], mvp_player_id: null },
+        { match_id: match.id, club_id: match.away_club_id, goals: [], assists: [], mvp_player_id: null } as any,
         { onConflict: 'match_id,club_id' }
       )
     } else if (!homeAnnotation && awayAnnotation) {
       // Only away annotated: away wins
       homeScore = 0
-      awayScore = (awayAnnotation.goals as GoalEntry[]).reduce((s: number, g: GoalEntry) => s + g.count, 0)
+      awayScore = ((awayAnnotation as any).goals as GoalEntry[]).reduce((s: number, g: GoalEntry) => s + g.count, 0)
 
       await supabase.from('match_annotations').upsert(
-        { match_id: match.id, club_id: match.home_club_id, goals: [], assists: [], mvp_player_id: null },
+        { match_id: match.id, club_id: match.home_club_id, goals: [], assists: [], mvp_player_id: null } as any,
         { onConflict: 'match_id,club_id' }
       )
     } else {
       // Both annotated but somehow not finalized (shouldn't happen, but handle it)
-      homeScore = (homeAnnotation!.goals as GoalEntry[]).reduce((s: number, g: GoalEntry) => s + g.count, 0)
-      awayScore = (awayAnnotation!.goals as GoalEntry[]).reduce((s: number, g: GoalEntry) => s + g.count, 0)
+      homeScore = (((homeAnnotation as any)!.goals || []) as GoalEntry[]).reduce((s: number, g: GoalEntry) => s + g.count, 0)
+      awayScore = (((awayAnnotation as any)!.goals || []) as GoalEntry[]).reduce((s: number, g: GoalEntry) => s + g.count, 0)
     }
 
     // For K.O. matches: if auto-resolved result is a tie, give win to the team that annotated
@@ -786,7 +781,7 @@ export async function checkAndAutoResolveExpired(): Promise<number> {
         played_at: new Date().toISOString(),
         notes: 'Auto-resuelto por expiración de plazo',
         updated_at: new Date().toISOString(),
-      })
+      } as any)
       .eq('id', match.id)
 
     // Update standings

@@ -332,6 +332,11 @@ export interface MatchInsert {
   scheduled_date?: string | null
   deadline?: string | null
   status?: MatchStatus
+  home_score?: number | null
+  away_score?: number | null
+  played_at?: string | null
+  notes?: string | null
+  updated_at?: string
 }
 
 export interface MatchUpdate {
@@ -463,4 +468,5 @@ export interface MatchAnnotationInsert {
   goals?: GoalEntry[]
   assists?: AssistEntry[]
   mvp_player_id?: string | null
+  updated_at?: string
 }

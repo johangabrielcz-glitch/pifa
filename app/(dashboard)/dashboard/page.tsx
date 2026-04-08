@@ -111,7 +111,7 @@ export default function DashboardPage() {
             const { data: playersData } = await supabase
               .from('players')
               .select('*')
-              .eq('club_id', clubData.id)
+              .eq('club_id', (clubData as any).id)
               .order('position', { ascending: true })
               .order('number', { ascending: true })
 
@@ -134,8 +134,8 @@ export default function DashboardPage() {
               const activeComps: CompetitionFull[] = []
               const allTimeComps: CompetitionFull[] = []
 
-              for (const ec of enrolledComps) {
-                const comp = ec.competition as any
+              for (const ec of enrolledComps as any[]) {
+                const comp = ec.competition
                 
                 const { data: standingsData } = await supabase
                   .from('standings')
@@ -162,7 +162,7 @@ export default function DashboardPage() {
                   standings: standingsData || [],
                   playerStats: statsData || [],
                   myPosition: myStandingIndex >= 0 ? myStandingIndex + 1 : undefined,
-                  myPoints: myStanding?.points,
+                  myPoints: (myStanding as any)?.points,
                 }
 
                 if (comp.season?.status === 'active') {
@@ -410,10 +410,11 @@ export default function DashboardPage() {
                     <PlayerRadar 
                       size={200}
                       data={[
-                        { subject: 'Ataques', value: clubGoalsFor, fullMark: Math.max(clubGoalsFor, 20) },
-                        { subject: 'Defensa', value: clubGoalsAgainst === 0 ? 20 : Math.max(10, 30 - clubGoalsAgainst), fullMark: 30 },
-                        { subject: 'Victoria', value: clubWins, fullMark: Math.max(totalMatches, 10) },
-                        { subject: 'Derrotas', value: clubLosses, fullMark: Math.max(totalMatches, 10) },
+                        { subject: 'Ataques', value: Math.min(clubGoalsFor, 30), fullMark: 30 },
+                        { subject: 'Defensa', value: Math.max(0, 30 - clubGoalsAgainst), fullMark: 30 },
+                        { subject: 'Victoria', value: Math.min(clubWins, 10), fullMark: 10 },
+                        { subject: 'Balance', value: Math.min(Math.max(0, clubWins - clubLosses + 5), 10), fullMark: 10 },
+                        { subject: 'Goleo', value: Math.min(clubGoalsFor / (totalMatches || 1) * 3, 10), fullMark: 10 },
                       ]}
                     />
                     <div className="w-full flex justify-between px-4">
@@ -783,9 +784,9 @@ export default function DashboardPage() {
                     ) : (
                       <div className="divide-y divide-border">
                         {list.map((entry, i) => {
-                          const isMine = entry.player.club_id === club.id
+                          const isMine = entry.player?.club_id === club?.id
                           return (
-                            <div key={entry.player.id} className={`flex items-center gap-3 px-4 py-2.5 ${isMine ? 'bg-primary/5' : ''}`}>
+                            <div key={entry.player?.id} className={`flex items-center gap-3 px-4 py-2.5 ${isMine ? 'bg-primary/5' : ''}`}>
                               <div className="w-6 text-center shrink-0">
                                 {i < 3 ? (
                                   <span className="text-sm">{medals[i]}</span>
@@ -795,9 +796,9 @@ export default function DashboardPage() {
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className={`text-sm font-medium truncate ${isMine ? 'text-primary' : 'text-foreground'}`}>
-                                  {entry.player.name}
+                                  {entry.player?.name}
                                 </p>
-                                <p className="text-[10px] text-muted-foreground">{entry.player.position} · {entry.played} PJ</p>
+                                <p className="text-[10px] text-muted-foreground">{entry.player?.position} · {entry.played} PJ</p>
                               </div>
                               <span className={`text-base font-bold ${isMine ? 'text-primary' : 'text-foreground'}`}>
                                 {entry[valueKey]}
