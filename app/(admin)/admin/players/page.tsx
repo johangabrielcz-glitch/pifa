@@ -380,14 +380,18 @@ export default function AdminPlayersPage() {
         if (!open) resetForm()
         setIsFormOpen(open)
       }}>
-        <DialogContent className="max-w-md mx-4 rounded-[32px] bg-[#141414]/95 backdrop-blur-2xl border-white/[0.08] p-0 overflow-hidden shadow-2xl max-h-[90vh] flex flex-col">
+        <DialogContent className="max-w-md w-full rounded-[32px] bg-[#141414]/95 backdrop-blur-2xl border-white/[0.08] p-0 overflow-hidden shadow-2xl max-h-[90vh] flex flex-col fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
           <div className="p-8 overflow-y-auto custom-scrollbar flex-1">
             <DialogHeader className="mb-8">
               <div className="w-14 h-14 rounded-2xl bg-[#0A0A0A] border border-[#202020] flex items-center justify-center shadow-xl mb-6 mx-auto">
                 <Users className="w-7 h-7 text-[#FF3131]" />
               </div>
               <DialogTitle className="text-2xl font-black text-white uppercase tracking-tighter text-center">
-                {editingPlayer ? 'MODIFICAR <span className="text-[#FF3131]">ATLETA</span>' : 'REGISTRAR <span className="text-[#FF3131]">ATLETA</span>'}
+                {editingPlayer ? (
+                  <>MODIFICAR <span className="text-[#FF3131]">ATLETA</span></>
+                ) : (
+                  <>REGISTRAR <span className="text-[#FF3131]">ATLETA</span></>
+                )}
               </DialogTitle>
               <DialogDescription className="text-center text-[9px] text-[#6A6C6E] font-black uppercase tracking-[0.3em] mt-2">
                 Actualización de Plantillas Federativas
@@ -473,7 +477,7 @@ export default function AdminPlayersPage() {
 
       {/* Delete Confirmation AlertDialog */}
       <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <AlertDialogContent className="max-w-sm mx-4 rounded-[32px] bg-[#141414] border-white/[0.08] p-8 shadow-2xl">
+        <AlertDialogContent className="max-w-sm w-full rounded-[32px] bg-[#141414] border-white/[0.08] p-8 shadow-2xl fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
           <AlertDialogHeader className="mb-6">
             <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-6">
               <Trash2 className="w-8 h-8 text-red-500" />
