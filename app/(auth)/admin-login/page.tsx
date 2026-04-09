@@ -83,9 +83,9 @@ export default function AdminLoginPage() {
           {/* Admin Header Section */}
           <div className="flex flex-col items-center text-center space-y-6">
             <div className="relative group">
-              <div className="absolute inset-0 bg-[#FF3131]/20 rounded-full blur-2xl group-hover:bg-[#FF3131]/40 transition-all duration-700" />
+              <div className="absolute inset-0 bg-[#FF3131]/20 rounded-full blur-3xl group-hover:bg-[#FF6B00]/40 transition-all duration-700" />
               <div className="relative w-24 h-24 bg-[#141414] border border-[#202020] rounded-[32px] flex items-center justify-center p-5 shadow-2xl">
-                <Shield className="w-12 h-12 text-[#FF3131]" />
+                <PifaLogo size="lg" showText={false} />
               </div>
             </div>
             

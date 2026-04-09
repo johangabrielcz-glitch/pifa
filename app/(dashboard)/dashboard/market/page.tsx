@@ -70,7 +70,7 @@ export default function MarketPage() {
   async function makeOffer() {
     if (!selectedPlayer || !currentUserClub) return
     if (!offerAmount || isNaN(Number(offerAmount)) || Number(offerAmount) <= 0) {
-      toast.error('Ingresa un monto vAAlido')
+      toast.error('Ingresa un monto válido')
       return
     }
 
@@ -112,7 +112,7 @@ export default function MarketPage() {
           <ShoppingCart className="w-8 h-8 text-[#00FF85]" />
           PIFA Market
         </h1>
-        <p className="text-[#6A6C6E] text-xs font-bold uppercase tracking-widest">Negocia, ficha y construye tu equipo de ensueA±o</p>
+        <p className="text-[#6A6C6E] text-xs font-bold uppercase tracking-widest">Negocia, ficha y construye tu equipo de ensueño</p>
       </div>
 
       {/* Tabs */}
@@ -156,7 +156,7 @@ export default function MarketPage() {
               <div className="relative">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6A6C6E]" />
                 <Input 
-                  placeholder="Buscar jugador o posiciA3n..." 
+                  placeholder="Buscar jugador o posición..." 
                   className="bg-[#141414] border-[#202020] pl-11 h-12 text-sm text-white rounded-xl focus:ring-[#00FF85]/20 focus:border-[#00FF85]"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -234,7 +234,7 @@ export default function MarketPage() {
               {myOffers.length === 0 ? (
                 <div className="py-20 text-center bg-[#141414] rounded-3xl border border-[#202020] border-dashed">
                   <DollarSign className="w-12 h-12 text-[#2D2D2D] mx-auto mb-4 opacity-20" />
-                  <p className="text-[#6A6C6E] font-bold uppercase tracking-widest text-xs">AAn no has emitido ofertas</p>
+                  <p className="text-[#6A6C6E] font-bold uppercase tracking-widest text-xs">Aún no has emitido ofertas</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -248,7 +248,7 @@ export default function MarketPage() {
                           <h4 className="text-[11px] font-black text-white uppercase tracking-wider">{offer.player?.name}</h4>
                           <div className="flex items-center gap-2">
                             <span className="text-[9px] text-[#00FF85] font-black">${offer.amount.toLocaleString()}</span>
-                            <span className="text-[14px] text-[#2D2D2D] font-black">A·</span>
+                            <span className="text-[14px] text-[#2D2D2D] font-black">•</span>
                             <span className={`text-[9px] font-black uppercase tracking-widest ${
                               offer.status === 'pending' ? 'text-yellow-500' :
                               offer.status === 'accepted' ? 'text-[#00FF85]' :
@@ -258,7 +258,7 @@ export default function MarketPage() {
                               {offer.status === 'pending' ? 'Pendiente' :
                                offer.status === 'accepted' ? 'Aceptada' :
                                offer.status === 'rejected' ? 'Rechazada' :
-                               offer.status === 'countered' ? 'Contrafertada' : 'Cancelada'}
+                               offer.status === 'countered' ? 'Contraofertada' : 'Cancelada'}
                             </span>
                           </div>
                         </div>

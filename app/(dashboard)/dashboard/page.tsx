@@ -23,9 +23,10 @@ import { PlayerRadar } from '@/components/pifa/player-radar-chart'
 import { UltimateCard } from '@/components/pifa/ultimate-card'
 import { PitchLineup, LineupData } from '@/components/pifa/pitch-lineup'
 import { NotificationsDrawer } from '@/components/pifa/notifications-drawer'
+import { Bell, LayoutGrid } from 'lucide-react'
+import { MatchDetailsDrawer } from '@/components/pifa/match-details-drawer'
 import { PlayerManagementDialog } from '@/components/pifa/player-management-dialog'
 import MarketPage from './market/page'
-import { Bell } from 'lucide-react'
 import type { User, Club, Player, AuthSession, Competition, Match, Standing, PlayerCompetitionStats, MatchAnnotation, Season, Notification } from '@/lib/types'
 
 const positionColors: Record<string, string> = {
@@ -85,6 +86,11 @@ export default function DashboardPage() {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
   const [hasNewNotifications, setHasNewNotifications] = useState(false)
   const [selectedManagePlayer, setSelectedManagePlayer] = useState<Player | null>(null)
+  const [compSubTabs, setCompSubTabs] = useState<Record<string, 'standings' | 'calendar'>>({})
+  const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null)
+  const [isMatchDetailsOpen, setIsMatchDetailsOpen] = useState(false)
+  const [selectedRounds, setSelectedRounds] = useState<Record<string, string>>({})
+  const [calendarPage, setCalendarPage] = useState(0)
 
   const refreshData = async () => {
     const stored = localStorage.getItem('pifa_auth_session')
@@ -252,28 +258,57 @@ export default function DashboardPage() {
   useEffect(() => {
     refreshData()
 
-    // Realtime notifications indicator
+    // Realtime subscriptions
     const sessionStr = localStorage.getItem('pifa_auth_session')
     if (sessionStr) {
       const session = JSON.parse(sessionStr)
       if (session.user?.club_id) {
-        const channel = supabase
-          .channel('notif_indicator')
+        const clubId = session.user.club_id
+
+        // 1. Notifications & Transfer completion Realtime
+        const notifChannel = supabase
+          .channel('dt_notifs')
           .on('postgres_changes', { 
             event: 'INSERT', 
             schema: 'public', 
             table: 'notifications', 
-            filter: `club_id=eq.${session.user.club_id}` 
+            filter: `club_id=eq.${clubId}` 
           }, (payload) => {
             setHasNewNotifications(true)
-            // If it's a transfer completion, refresh the whole dashboard data instantly
             if (payload.new && (payload.new as any).type === 'transfer_complete') {
               refreshData()
             }
           })
           .subscribe()
+
+        // 2. Matches & Standings Realtime (Instant update when results are posted)
+        const matchChannel = supabase
+          .channel('match_updates')
+          .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'matches'
+          }, () => {
+             // We refresh for any change in matches (score update, status change, deadline resolution)
+             refreshData()
+          })
+          .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'standings'
+          }, () => {
+             refreshData()
+          })
+          .subscribe()
+
+        // 3. Backup Polling (Every 5 minutes for long idle sessions)
+        const polling = setInterval(refreshData, 5 * 60 * 1000)
         
-        return () => { supabase.removeChannel(channel) }
+        return () => { 
+          supabase.removeChannel(notifChannel)
+          supabase.removeChannel(matchChannel)
+          clearInterval(polling)
+        }
       }
     }
   }, [router])
@@ -361,13 +396,18 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-dvh flex flex-col items-center justify-center bg-background">
+      <div className="min-h-dvh flex flex-col items-center justify-center bg-loading-gradient animate-fade-in">
         <div className="relative">
-          <div className="w-16 h-16 rounded-2xl bg-pifa-gradient flex items-center justify-center animate-pulse-glow">
-            <Flame className="w-8 h-8 text-white animate-float" />
+          <PifaLogo size="xl" showText={false} className="animate-logo-pulse" />
+        </div>
+        <div className="mt-10 flex flex-col items-center space-y-2">
+          <p className="text-[10px] font-black text-[#00FF85] uppercase tracking-[0.4em] animate-pulse">
+            Sincronizando Club
+          </p>
+          <div className="w-32 h-1 bg-[#141414] rounded-full overflow-hidden border border-white/5">
+            <div className="h-full bg-gradient-to-r from-[#FF3131] to-[#00FF85] animate-progress" style={{ width: '100%' }} />
           </div>
         </div>
-        <p className="mt-4 text-sm text-muted-foreground animate-fade-in-up">Cargando tu club...</p>
       </div>
     )
   }
@@ -405,7 +445,7 @@ export default function DashboardPage() {
              <Shield className="w-5 h-5 text-white" />
           </div>
           <div>
-            <p className="text-[10px] text-[#FF3131] uppercase font-bold tracking-widest">
+            <p className="text-[10px] text-[#00FF85] uppercase font-bold tracking-widest">
                {competitions[0]?.season?.name || 'Pretemporada'}
             </p>
             <p className="text-sm font-semibold text-white">
@@ -419,14 +459,14 @@ export default function DashboardPage() {
               setIsNotificationsOpen(true)
               setHasNewNotifications(false)
             }}
-            className="relative p-2 text-[#6A6C6E] hover:text-[#FF3131] transition-colors"
+            className="relative p-2 text-[#6A6C6E] hover:text-[#00FF85] transition-colors"
           >
             <Bell className="w-5 h-5" />
             {hasNewNotifications && (
-              <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-[#FF3131] rounded-full border-2 border-[#0A0A0A]" />
+              <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-[#00FF85] rounded-full border-2 border-[#0A0A0A]" />
             )}
           </button>
-          <Button variant="ghost" size="sm" onClick={handleLogout} className="text-[#6A6C6E] hover:text-[#FF3131] hover:bg-[#141414]">
+          <Button variant="ghost" size="sm" onClick={handleLogout} className="text-[#6A6C6E] hover:text-[#00FF85] hover:bg-[#141414]">
             <LogOut className="w-4 h-4" />
           </Button>
         </div>
@@ -443,11 +483,11 @@ export default function DashboardPage() {
               {/* Bento Grid: Club Profile */}
               <div className="rounded-2xl bg-[#141414] border border-[#202020] p-4 flex flex-col justify-center items-center gap-3 text-center shadow-2xl relative overflow-hidden group">
                 {/* Decorative background element */}
-                <div className="absolute -top-24 -right-24 w-48 h-48 bg-[#FF3131]/5 rounded-full blur-3xl group-hover:bg-[#FF3131]/10 transition-colors duration-700" />
+                <div className="absolute -top-24 -right-24 w-48 h-48 bg-[#00FF85]/5 rounded-full blur-3xl group-hover:bg-[#00FF85]/10 transition-colors duration-700" />
                 
                 <div className="w-14 h-14 shrink-0 rounded-2xl border border-[#202020] bg-[#0A0A0A] flex items-center justify-center p-2 shadow-2xl relative z-10 transition-transform duration-500 group-hover:scale-105">
                   {club.shield_url ? (
-                    <img src={club.shield_url} alt={club.name} className="w-full h-full object-contain drop-shadow-[0_0_8px_rgba(255,49,49,0.3)]" />
+                    <img src={club.shield_url} alt={club.name} className="w-full h-full object-contain drop-shadow-[0_0_8px_rgba(0,255,133,0.3)]" />
                   ) : (
                     <Shield className="w-8 h-8 text-[#6A6C6E]" />
                   )}
@@ -457,7 +497,7 @@ export default function DashboardPage() {
                   <h1 className="text-xl font-black text-white uppercase tracking-tighter leading-none">{club.name}</h1>
                   <div className="flex items-center justify-center gap-1">
                     <span className="h-px w-3 bg-[#202020]" />
-                    <p className="text-[9px] text-[#FF3131] uppercase font-black tracking-[0.2em]">
+                    <p className="text-[9px] text-[#00FF85] uppercase font-black tracking-[0.2em]">
                       DIRECTOR TÉCNICO
                     </p>
                     <span className="h-px w-3 bg-[#202020]" />
@@ -476,8 +516,8 @@ export default function DashboardPage() {
                   <div className="flex flex-col items-center justify-center p-2 rounded-lg border border-[#202020] bg-[#0A0A0A]/50 backdrop-blur-sm transition-colors hover:bg-[#0A0A0A]">
                     <span className="text-[8px] text-[#6A6C6E] font-bold uppercase tracking-[0.15em] mb-1">Fondos</span>
                     <div className="flex items-center gap-1">
-                      <Wallet className="w-3 h-3 text-[#FF3131]/60"/>
-                      <span className="text-sm font-black text-[#FF3131]">{formatBudget(club.budget)}</span>
+                      <Wallet className="w-3 h-3 text-[#00FF85]/60"/>
+                      <span className="text-sm font-black text-[#00FF85]">{formatBudget(club.budget)}</span>
                     </div>
                   </div>
                 </div>
@@ -487,16 +527,16 @@ export default function DashboardPage() {
               {nextPlayableMatch && (
                 <div className="rounded-xl bg-[#141414] border border-[#202020] overflow-hidden flex flex-col animate-fade-in-up">
                   {/* Top Bar Label */}
-                  <div className="bg-[#FF3131] px-4 py-2 flex items-center justify-between">
-                    <span className="text-[10px] font-black text-white uppercase tracking-[0.2em] flex items-center gap-1.5">
+                  <div className="bg-[#00FF85] px-4 py-2 flex items-center justify-between">
+                    <span className="text-[10px] font-black text-[#0A0A0A] uppercase tracking-[0.2em] flex items-center gap-1.5">
                        PRÓXIMO PARTIDO
                     </span>
                     {nextPlayableMatch.my_annotation ? (
-                      <span className="flex items-center gap-1 text-white text-[9px] font-black uppercase tracking-wider">
+                      <span className="flex items-center gap-1 text-[#0A0A0A] text-[9px] font-black uppercase tracking-wider">
                         <Check className="w-3 h-3 stroke-[3]" /> Anotado
                       </span>
                     ) : nextPlayableMatch.opponent_annotation_exists ? (
-                       <span className="flex items-center gap-1 text-white text-[9px] font-black uppercase tracking-wider">
+                       <span className="flex items-center gap-1 text-[#0A0A0A] text-[9px] font-black uppercase tracking-wider">
                         <AlertCircle className="w-3 h-3 stroke-[3]" /> Rival
                       </span>
                     ) : null}
@@ -514,7 +554,7 @@ export default function DashboardPage() {
                           )}
                         </div>
                         <p className="text-[10px] font-bold text-white text-center leading-tight">{(nextPlayableMatch.home_club as Club)?.name}</p>
-                        {nextPlayableMatch.home_club_id === club.id && <span className="text-[7px] text-[#FF3131] font-black uppercase mt-0.5">Local</span>}
+                        {nextPlayableMatch.home_club_id === club.id && <span className="text-[7px] text-[#00FF85] font-black uppercase mt-0.5">Local</span>}
                       </div>
 
                       {/* VS */}
@@ -532,7 +572,7 @@ export default function DashboardPage() {
                           )}
                         </div>
                         <p className="text-[10px] font-bold text-white text-center leading-tight">{(nextPlayableMatch.away_club as Club)?.name}</p>
-                        {nextPlayableMatch.away_club_id === club.id && <span className="text-[7px] text-[#FF3131] font-black uppercase mt-0.5">Visitante</span>}
+                        {nextPlayableMatch.away_club_id === club.id && <span className="text-[7px] text-[#00FF85] font-black uppercase mt-0.5">Visitante</span>}
                       </div>
                     </div>
 
@@ -549,14 +589,18 @@ export default function DashboardPage() {
                       {nextPlayableMatch.deadline && (
                         <div className="text-right">
                           <p className="text-[8px] text-[#6A6C6E] font-bold uppercase tracking-wider mb-0.5">CIERRE</p>
-                          <CountdownTimer deadline={nextPlayableMatch.deadline} size="sm" />
+                          <CountdownTimer 
+                            deadline={nextPlayableMatch.deadline} 
+                            size="sm" 
+                            onExpired={refreshData}
+                          />
                         </div>
                       )}
                     </div>
 
                     <Link
                       href={`/dashboard/match/${nextPlayableMatch.id}`}
-                      className="mt-4 flex items-center justify-center gap-2 w-full h-9 bg-white text-[#0A0A0A] font-black uppercase tracking-widest text-[9px] rounded transition-colors hover:bg-[#FF3131] hover:text-white"
+                      className="mt-4 flex items-center justify-center gap-2 w-full h-9 bg-white text-[#0A0A0A] font-black uppercase tracking-widest text-[9px] rounded transition-colors hover:bg-[#00FF85] hover:text-[#0A0A0A]"
                     >
                       <Play className="w-3 h-3 fill-current" />
                       {nextPlayableMatch.my_annotation ? 'Editar Datos' : 'Ir al Partido'}
@@ -576,13 +620,13 @@ export default function DashboardPage() {
                     <PlayerRadar 
                       size={200}
                       data={[
-                        { subject: 'Ataques', value: Math.min(clubGoalsFor, 30), fullMark: 30 },
-                        { subject: 'Defensa', value: totalMatches === 0 ? 0 : Math.max(0, 30 - clubGoalsAgainst), fullMark: 30 },
-                        { subject: 'Victoria', value: Math.min(clubWins, 10), fullMark: 10 },
-                        { subject: 'Balance', value: totalMatches === 0 ? 0 : Math.min(Math.max(0, clubWins - clubLosses + 5), 10), fullMark: 10 },
-                        { subject: 'Goleo', value: Math.min((clubGoalsFor / (totalMatches || 1)) * 3, 10), fullMark: 10 },
+                        { subject: 'Ataques', value: totalMatches === 0 ? 0 : Math.min(10, (clubGoalsFor / totalMatches) * 3), fullMark: 10 },
+                        { subject: 'Defensa', value: totalMatches === 0 ? 0 : Math.max(0, 10 - (clubGoalsAgainst / totalMatches) * 4), fullMark: 10 },
+                        { subject: 'Victoria', value: totalMatches === 0 ? 0 : (clubWins / totalMatches) * 10, fullMark: 10 },
+                        { subject: 'Balance', value: totalMatches === 0 ? 0 : Math.min(10, Math.max(0, ((clubGoalsFor - clubGoalsAgainst) / totalMatches) + 5)), fullMark: 10 },
+                        { subject: 'Goleo', value: totalMatches === 0 ? 0 : Math.min(10, (clubGoalsFor / totalMatches) * 2), fullMark: 10 },
                       ]}
-                      color="#FF3131"
+                      color="#00FF85"
                     />
                     <div className="w-full flex justify-between px-4">
                        <div className="text-center">
@@ -600,18 +644,22 @@ export default function DashboardPage() {
               {/* WAITING STATE & NO MATCHES */}
               <div className="grid grid-cols-1 gap-4">
                 {matchResult.waiting && matchResult.waiting_until && (
-                  <div className="rounded-xl border border-[#FF3131]/20 bg-[#FF3131]/5 p-5">
+                  <div className="rounded-xl border border-[#00FF85]/20 bg-[#00FF85]/5 p-5">
                     <div className="flex items-center gap-3 mb-3">
-                      <Hourglass className="w-5 h-5 text-[#FF3131]" />
-                      <span className="text-[11px] font-bold text-[#FF3131] uppercase tracking-wider">Siguiente Jornada</span>
+                      <Hourglass className="w-5 h-5 text-[#00FF85]" />
+                      <span className="text-[11px] font-bold text-[#00FF85] uppercase tracking-wider">Siguiente Jornada</span>
                     </div>
-                    <CountdownTimer deadline={matchResult.waiting_until} size="md" />
+                    <CountdownTimer 
+                      deadline={matchResult.waiting_until} 
+                      size="md" 
+                      onExpired={refreshData}
+                    />
                   </div>
                 )}
 
                 {!nextPlayableMatch && !matchResult.waiting && competitions.length > 0 && (
-                  <div className="rounded-xl border border-[#FF3131]/20 bg-[#FF3131]/5 p-6 text-center">
-                    <Check className="w-6 h-6 text-[#FF3131] mx-auto mb-2" />
+                  <div className="rounded-xl border border-[#00FF85]/20 bg-[#00FF85]/5 p-6 text-center">
+                    <Check className="w-6 h-6 text-[#00FF85] mx-auto mb-2" />
                     <p className="text-sm font-black uppercase text-white tracking-wide">Fixture al día</p>
                     <p className="text-[11px] text-[#6A6C6E] mt-1 font-semibold uppercase tracking-wider">No hay partidos pendientes por jugar</p>
                   </div>
@@ -624,7 +672,7 @@ export default function DashboardPage() {
                     <div className="rounded-xl bg-[#141414] border border-[#202020] p-5 flex flex-col">
                       <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2">
-                          <Goal className="w-4 h-4 text-[#FF3131]" />
+                          <Goal className="w-4 h-4 text-[#00FF85]" />
                           <p className="text-[10px] text-[#6A6C6E] uppercase tracking-widest font-black">Rendimiento</p>
                         </div>
                         <span className="text-[10px] font-black uppercase text-[#2D2D2D]">Dif: {clubGoalsFor - clubGoalsAgainst > 0 ? '+' : ''}{clubGoalsFor - clubGoalsAgainst}</span>
@@ -640,7 +688,7 @@ export default function DashboardPage() {
                           </div>
                           <div className="h-2 w-full bg-[#0A0A0A] rounded-full overflow-hidden border border-[#202020]">
                             <div 
-                              className="h-full bg-[#FF3131] rounded-full" 
+                              className="h-full bg-[#00FF85] rounded-full" 
                               style={{ width: `${Math.min(100, Math.max(5, (clubGoalsFor / (Math.max(clubGoalsFor, clubGoalsAgainst) || 1)) * 100))}%` }}
                             />
                           </div>
@@ -765,124 +813,219 @@ export default function DashboardPage() {
 
                         {isExpanded && (
                           <div className="px-4 pb-4 animate-fade-in-up space-y-4">
-                            {/* League / Group Standings */}
-                            {(comp.type === 'league' || comp.type === 'groups_knockout') && (comp.standings?.length ?? 0) > 0 && (
-                              <div className="space-y-4">
-                                {(() => {
-                                  // Group standings by group_name
-                                  const groupsMap = new Map<string, (Standing & { club?: Club })[]>()
-                                  ;(comp.standings || []).forEach(s => {
-                                    const g = s.group_name || 'Liga'
-                                    if (!groupsMap.has(g)) groupsMap.set(g, [])
-                                    groupsMap.get(g)!.push(s)
-                                  })
-                                  
-                                  return Array.from(groupsMap.entries()).map(([gName, groupStandings]) => (
-                                    <div key={gName} className="space-y-2">
-                                      {groupsMap.size > 1 && (
-                                        <div className="px-2">
-                                          <span className="text-[10px] font-black text-[#00FF85] uppercase tracking-widest">{gName}</span>
+                            {/* Internal Tabs Selector */}
+                            <div className="flex gap-1.5 p-1 bg-[#0A0A0A] rounded-xl border border-white/[0.03]">
+                              <button 
+                                onClick={() => setCompSubTabs(prev => ({ ...prev, [comp.id]: 'standings' }))}
+                                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
+                                  (compSubTabs[comp.id] || 'standings') === 'standings' 
+                                    ? 'bg-[#141414] text-[#00FF85] shadow-lg shadow-black/50 border border-white/[0.05]' 
+                                    : 'text-[#2D2D2D] hover:text-[#6A6C6E]'
+                                }`}
+                              >
+                                <LayoutList className="w-3 h-3" />
+                                Clasificación
+                              </button>
+                              <button 
+                                onClick={() => setCompSubTabs(prev => ({ ...prev, [comp.id]: 'calendar' }))}
+                                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
+                                  compSubTabs[comp.id] === 'calendar' 
+                                    ? 'bg-[#141414] text-[#00FF85] shadow-lg shadow-black/50 border border-white/[0.05]' 
+                                    : 'text-[#2D2D2D] hover:text-[#6A6C6E]'
+                                }`}
+                              >
+                                <Calendar className="w-3 h-3" />
+                                Calendario
+                              </button>
+                            </div>
+
+                            {/* View: Standings */}
+                            {(compSubTabs[comp.id] || 'standings') === 'standings' && (
+                              <div className="space-y-4 pt-1">
+                                {/* League / Group Standings */}
+                                {(comp.type === 'league' || comp.type === 'groups_knockout') && (comp.standings?.length ?? 0) > 0 && (
+                                  <div className="space-y-4">
+                                    {(() => {
+                                      // Group standings by group_name
+                                      const groupsMap = new Map<string, (Standing & { club?: Club })[]>()
+                                      ;(comp.standings || []).forEach(s => {
+                                        const g = s.group_name || 'Liga'
+                                        if (!groupsMap.has(g)) groupsMap.set(g, [])
+                                        groupsMap.get(g)!.push(s)
+                                      })
+                                      
+                                      return Array.from(groupsMap.entries()).map(([gName, groupStandings]) => (
+                                        <div key={gName} className="space-y-2">
+                                          {groupsMap.size > 1 && (
+                                            <div className="px-2">
+                                              <span className="text-[10px] font-black text-[#00FF85] uppercase tracking-widest">{gName}</span>
+                                            </div>
+                                          )}
+                                          <StandingsTable
+                                            standings={groupStandings}
+                                            highlightClubId={club.id}
+                                          />
                                         </div>
-                                      )}
-                                      <StandingsTable
-                                        standings={groupStandings}
-                                        highlightClubId={club.id}
-                                      />
-                                    </div>
-                                  ))
-                                })()}
+                                      ))
+                                    })()}
+                                  </div>
+                                )}
+
+                                {/* Default KO indicator for cup */}
+                                {comp.type === 'cup' && (comp.standings?.length === 0) && (
+                                  <div className="py-8 text-center bg-white/[0.02] border border-dashed border-white/[0.05] rounded-2xl">
+                                    <Trophy className="w-8 h-8 text-[#2D2D2D] mx-auto mb-2" />
+                                    <p className="text-[10px] text-[#2D2D2D] font-black uppercase tracking-widest">Competición de eliminación directa</p>
+                                    <button 
+                                      onClick={() => setCompSubTabs(prev => ({ ...prev, [comp.id]: 'calendar' }))}
+                                      className="mt-4 text-[9px] font-black text-[#00FF85] uppercase tracking-widest border-b border-[#00FF85]/30"
+                                    >
+                                      Ver Cuadro de Partidos
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             )}
 
-                            {/* KO Rounds / Cup Matches */}
-                            {(comp.type === 'cup' || comp.type === 'groups_knockout') && (comp.matches?.length ?? 0) > 0 && (
+                            {/* View: Full Calendar */}
+                            {compSubTabs[comp.id] === 'calendar' && (
                               <div className="space-y-6 pt-2">
                                 {(() => {
-                                  // Filter to only KO matches if it's groups_knockout, or all matches for cup
-                                  const matchesToShow = comp.type === 'cup' 
-                                    ? (comp.matches || [])
-                                    : (comp.matches?.filter(m => m.round_name && !m.matchday) || [])
+                                  const matchesMap = new Map<string, MatchWithDetails[]>()
+                                  const matches = comp.matches || []
 
-                                  if (matchesToShow.length === 0 && comp.type === 'cup') {
+                                  if (matches.length === 0) {
                                     return (
-                                      <div className="bg-[#0A0A0A] rounded border border-[#202020] p-5 text-center">
-                                        <Trophy className="w-6 h-6 text-[#00FF85] mx-auto mb-2" />
-                                        <p className="text-xs text-white font-black uppercase tracking-wider">No hay partidos programados</p>
+                                      <div className="bg-[#0A0A0A] rounded-2xl border border-dashed border-white/[0.05] p-10 text-center">
+                                        <Calendar className="w-8 h-8 text-[#2D2D2D] mx-auto mb-3" />
+                                        <p className="text-[10px] text-[#6A6C6E] font-black uppercase tracking-widest">Fixture no programado aún</p>
                                       </div>
                                     )
                                   }
 
-                                  // Group matches by round_name
-                                  const roundsMap = new Map<string, MatchWithDetails[]>()
-                                  matchesToShow.forEach(m => {
-                                    const r = m.round_name || 'Fase Única'
-                                    if (!roundsMap.has(r)) roundsMap.set(r, [])
-                                    roundsMap.get(r)!.push(m)
+                                  // Grouping logic
+                                  matches.forEach(m => {
+                                    let groupTitle = ''
+                                    if (m.round_name) groupTitle = m.round_name
+                                    else if (m.matchday) groupTitle = `Jornada ${m.matchday}`
+                                    else groupTitle = 'Partidos'
+
+                                    if (m.group_name) groupTitle = `${m.group_name} — ${groupTitle}`
+
+                                    if (!matchesMap.has(groupTitle)) matchesMap.set(groupTitle, [])
+                                    matchesMap.get(groupTitle)!.push(m)
                                   })
 
-                                  return Array.from(roundsMap.entries()).map(([rName, roundMatches]) => (
-                                    <div key={rName} className="space-y-3">
-                                      <div className="flex items-center gap-2 px-1">
-                                        <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent to-[#202020]" />
-                                        <span className="text-[9px] font-black text-[#6A6C6E] uppercase tracking-[0.2em]">{rName}</span>
-                                        <div className="h-[1px] flex-1 bg-gradient-to-l from-transparent to-[#202020]" />
+                                  const groupTitles = Array.from(matchesMap.keys())
+                                  const currentRound = selectedRounds[comp.id] || groupTitles[0]
+                                  const gMatches = matchesMap.get(currentRound) || []
+
+                                  return (
+                                    <div className="space-y-4">
+                                      {/* Round Pagination Header */}
+                                      <div className="flex items-center justify-between bg-[#0A0A0A] p-2 rounded-xl border border-white/[0.03]">
+                                        <button 
+                                          onClick={() => {
+                                            const idx = groupTitles.indexOf(currentRound)
+                                            if (idx > 0) setSelectedRounds(prev => ({ ...prev, [comp.id]: groupTitles[idx - 1] }))
+                                          }}
+                                          disabled={groupTitles.indexOf(currentRound) === 0}
+                                          className="p-2 text-[#6A6C6E] hover:text-white disabled:opacity-20 transition-colors"
+                                        >
+                                          <ChevronDown className="w-4 h-4 rotate-90" />
+                                        </button>
+                                        
+                                        <div className="flex flex-col items-center">
+                                          <span className="text-[9px] font-black text-[#00FF85] uppercase tracking-[0.2em]">{currentRound}</span>
+                                          <span className="text-[7px] text-[#6A6C6E] font-bold uppercase mt-0.5">{groupTitles.indexOf(currentRound) + 1} de {groupTitles.length}</span>
+                                        </div>
+
+                                        <button 
+                                          onClick={() => {
+                                            const idx = groupTitles.indexOf(currentRound)
+                                            if (idx < groupTitles.length - 1) setSelectedRounds(prev => ({ ...prev, [comp.id]: groupTitles[idx + 1] }))
+                                          }}
+                                          disabled={groupTitles.indexOf(currentRound) === groupTitles.length - 1}
+                                          className="p-2 text-[#6A6C6E] hover:text-white disabled:opacity-20 transition-colors"
+                                        >
+                                          <ChevronDown className="w-4 h-4 -rotate-90" />
+                                        </button>
                                       </div>
-                                      
+
                                       <div className="grid gap-2">
-                                        {roundMatches.map(m => {
+                                        {gMatches.map(m => {
                                           const isFinished = m.status === 'finished'
                                           const myClubPlaying = m.home_club_id === club.id || m.away_club_id === club.id
                                           
                                           return (
-                                            <div key={m.id} className={`flex items-center justify-between p-3 rounded-2xl border ${
-                                              myClubPlaying ? 'bg-[#00FF85]/5 border-[#00FF85]/20 shadow-[0_0_20px_rgba(0,255,133,0.05)]' : 'bg-[#0A0A0A] border-[#202020]'
-                                            }`}>
+                                            <button 
+                                              key={m.id} 
+                                              onClick={() => {
+                                                if (isFinished) {
+                                                  setSelectedMatchId(m.id)
+                                                  setIsMatchDetailsOpen(true)
+                                                }
+                                              }}
+                                              className={`w-full flex items-center justify-between p-3.5 rounded-2xl border transition-all duration-300 relative overflow-hidden group/m ${
+                                                myClubPlaying 
+                                                  ? 'bg-[#00FF85]/5 border-[#00FF85]/20 shadow-[0_0_20px_rgba(0,255,133,0.05)]' 
+                                                  : 'bg-[#0A0A0A] border-white/[0.03] hover:border-white/10 hover:bg-white/[0.02]'
+                                              } ${!isFinished ? 'cursor-default' : ''}`}
+                                            >
                                               {/* Home Club */}
-                                              <div className="flex items-center gap-2 w-[40%]">
-                                                <div className="w-6 h-6 rounded bg-[#141414] border border-[#202020] flex items-center justify-center p-1">
+                                              <div className="flex items-center gap-2.5 w-[38%]">
+                                                <div className="w-7 h-7 rounded-lg bg-[#141414] border border-white/[0.05] flex items-center justify-center p-1.5 shrink-0 shadow-lg group-hover/m:scale-110 transition-transform">
                                                   {m.home_club?.shield_url ? (
                                                     <img src={m.home_club.shield_url} alt="" className="w-full h-full object-contain" />
                                                   ) : (
-                                                    <Shield className="w-3 h-3 text-[#6A6C6E]" />
+                                                    <Shield className="w-3.5 h-3.5 text-[#2D2D2D]" />
                                                   )}
                                                 </div>
-                                                <span className={`text-[10px] font-bold truncate uppercase ${myClubPlaying && m.home_club_id === club.id ? 'text-[#00FF85]' : 'text-[#A0A2A4]'}`}>
+                                                <span className={`text-[10px] font-black truncate uppercase text-left tracking-tighter ${myClubPlaying && m.home_club_id === club.id ? 'text-[#00FF85]' : 'text-[#6A6C6E] group-hover/m:text-white'}`}>
                                                   {m.home_club?.name}
                                                 </span>
                                               </div>
 
-                                              {/* Score / Status */}
+                                              {/* Score / Status / VS */}
                                               <div className="flex-1 flex flex-col items-center">
                                                 {isFinished ? (
-                                                  <span className="text-xs font-black text-white tracking-widest">
-                                                    {m.home_score}-{m.away_score}
-                                                  </span>
+                                                  <div className="flex flex-col items-center">
+                                                    <span className="text-sm font-black text-white italic tracking-wider">
+                                                      {m.home_score}—{m.away_score}
+                                                    </span>
+                                                    <span className="text-[6px] font-black text-[#00FF85] uppercase tracking-widest mt-0.5 opacity-60">Result</span>
+                                                  </div>
                                                 ) : (
-                                                  <span className="text-[8px] font-black text-[#6A6C6E] uppercase tracking-tighter bg-[#141414] px-2 py-0.5 rounded-full border border-[#202020]">
-                                                    VS
-                                                  </span>
+                                                  <div className="flex flex-col items-center">
+                                                    <div className="px-2 py-0.5 rounded-full bg-white/[0.03] border border-white/[0.05]">
+                                                       <span className="text-[8px] font-black text-[#2D2D2D] uppercase tracking-tighter">VS</span>
+                                                    </div>
+                                                    {m.deadline && (
+                                                       <span className="text-[6px] text-[#6A6C6E] font-black uppercase mt-1 tracking-widest animate-pulse">Pending</span>
+                                                    )}
+                                                  </div>
                                                 )}
                                               </div>
 
                                               {/* Away Club */}
-                                              <div className="flex items-center justify-end gap-2 w-[40%]">
-                                                <span className={`text-[10px] font-bold truncate uppercase text-right ${myClubPlaying && m.away_club_id === club.id ? 'text-[#00FF85]' : 'text-[#A0A2A4]'}`}>
+                                              <div className="flex items-center justify-end gap-2.5 w-[38%]">
+                                                <span className={`text-[10px] font-black truncate uppercase text-right tracking-tighter ${myClubPlaying && m.away_club_id === club.id ? 'text-[#00FF85]' : 'text-[#6A6C6E] group-hover/m:text-white'}`}>
                                                   {m.away_club?.name}
                                                 </span>
-                                                <div className="w-6 h-6 rounded bg-[#141414] border border-[#202020] flex items-center justify-center p-1">
+                                                <div className="w-7 h-7 rounded-lg bg-[#141414] border border-white/[0.05] flex items-center justify-center p-1.5 shrink-0 shadow-lg group-hover/m:scale-110 transition-transform">
                                                   {m.away_club?.shield_url ? (
                                                     <img src={m.away_club.shield_url} alt="" className="w-full h-full object-contain" />
                                                   ) : (
-                                                    <Shield className="w-3 h-3 text-[#6A6C6E]" />
+                                                    <Shield className="w-3.5 h-3.5 text-[#2D2D2D]" />
                                                   )}
                                                 </div>
                                               </div>
-                                            </div>
+                                            </button>
                                           )
                                         })}
                                       </div>
                                     </div>
-                                  ))
+                                  )
                                 })()}
                               </div>
                             )}
@@ -1018,34 +1161,6 @@ export default function DashboardPage() {
           {/* ======== TAB: CALENDAR ======== */}
           {activeTab === 'calendar' && (
             <div className="space-y-4 animate-slide-in" key="tab-cal">
-              {/* Competition filter */}
-              {competitions.length > 1 && (
-                <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-5 px-5 pb-1">
-                  <button
-                    onClick={() => setFilterCompetition('all')}
-                    className={`px-3.5 py-1.5 rounded-full text-xs font-black uppercase tracking-widest whitespace-nowrap transition-all duration-300 ${
-                      filterCompetition === 'all'
-                        ? 'bg-[#00FF85] text-[#0A0A0A] shadow-lg shadow-[#00FF85]/25'
-                        : 'bg-[#141414] text-[#6A6C6E] hover:bg-[#202020] hover:text-white border border-[#202020]'
-                    }`}
-                  >
-                    Todos
-                  </button>
-                  {competitions.map(comp => (
-                    <button
-                      key={comp.id}
-                      onClick={() => setFilterCompetition(comp.id)}
-                      className={`px-3.5 py-1.5 rounded-full text-xs font-black uppercase tracking-widest whitespace-nowrap transition-all duration-300 ${
-                        filterCompetition === comp.id
-                          ? 'bg-[#00FF85] text-[#0A0A0A] shadow-lg shadow-[#00FF85]/25'
-                          : 'bg-[#141414] text-[#6A6C6E] hover:bg-[#202020] hover:text-white border border-[#202020]'
-                      }`}
-                    >
-                      {comp.name}
-                    </button>
-                  ))}
-                </div>
-              )}
 
               <div className="flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-[#00FF85]" />
@@ -1061,78 +1176,135 @@ export default function DashboardPage() {
                   <p className="text-[#6A6C6E] text-sm font-semibold">Sin partidos programados</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2 animate-fade-in-up">
-                  {filteredMatches.map((match) => {
-                    const isHome = match.home_club_id === club.id
-                    const opponent = isHome ? match.away_club : match.home_club
-                    const result = getMatchResult(match)
-                    const isFinished = match.status === 'finished'
+                <div className="space-y-6 animate-fade-in-up">
+                  {(() => {
+                    const itemsPerPage = 6
+                    const totalPages = Math.ceil(filteredMatches.length / itemsPerPage)
+                    const currentPage = Math.min(calendarPage, totalPages - 1)
+                    const pageMatches = filteredMatches.slice(currentPage * itemsPerPage, (currentPage + 1) * itemsPerPage)
 
                     return (
-                      <div key={match.id} className={`aspect-square flex flex-col rounded-lg border p-2 text-center justify-between transition-all duration-500 hover:border-[#00FF85]/60 hover:scale-[1.02] group relative overflow-hidden ${
-                        isFinished
-                          ? result === 'W' ? 'border-[#00FF85]/40 bg-[#00FF85]/[0.05]' :
-                            result === 'L' ? 'border-[#FF3333]/40 bg-[#FF3333]/[0.05]' :
-                            'border-yellow-500/40 bg-yellow-500/[0.05]'
-                          : 'border-[#202020] bg-[#141414]'
-                      }`}>
-                        {/* Status Label Top */}
-                        <div className="flex justify-between items-start mb-1">
-                          <span className={`text-[6px] font-black uppercase tracking-tighter px-1 py-0.5 rounded ${
-                            isFinished
-                              ? result === 'W' ? 'bg-[#00FF85] text-[#0A0A0A]' :
-                                result === 'L' ? 'bg-[#FF3333] text-white' :
-                                'bg-yellow-500 text-[#0A0A0A]'
-                              : 'bg-[#2D2D2D] text-[#A0A2A4] border border-[#3D3D3D]'
-                          }`}>
-                            {isFinished ? `JUGADO (${result === 'W' ? 'G' : result === 'L' ? 'P' : 'E'})` : 'PENDIENTE'}
-                          </span>
+                      <>
+                        <div className="space-y-3">
+                          {pageMatches.map((match) => {
+                            const isHome = match.home_club_id === club.id
+                            const opponent = isHome ? match.away_club : match.home_club
+                            const result = getMatchResult(match)
+                            const isFinished = match.status === 'finished'
+                            
+                            return (
+                              <button 
+                                key={match.id} 
+                                onClick={() => {
+                                  if (isFinished) {
+                                    setSelectedMatchId(match.id)
+                                    setIsMatchDetailsOpen(true)
+                                  }
+                                }}
+                                className={`w-full group relative overflow-hidden flex items-center gap-4 p-5 rounded-[24px] border transition-all duration-500 pt-9 pb-6 ${
+                                  isFinished 
+                                    ? 'bg-[#141414]/90 border-white/[0.05] hover:border-[#00FF85]/30 hover:bg-[#141414]' 
+                                    : 'bg-[#0A0A0A] border-white/[0.03] hover:border-white/10'
+                                } ${!isFinished ? 'cursor-default' : ''}`}
+                              >
+                                {/* Competition Badge Overlay */}
+                                <div className="absolute top-0 left-0 px-4 py-1.5 bg-white/[0.03] border-b border-r border-white/5 rounded-br-[18px]">
+                                  <span className="text-[7px] font-black text-[#6A6C6E] uppercase tracking-[0.2em] leading-none block italic opacity-70">
+                                      {match.competition?.name} — {match.round_name || `Jornada ${match.matchday}`}
+                                  </span>
+                                </div>
+
+                                {/* Home Team */}
+                                <div className="flex-1 flex items-center justify-end gap-3.5 pr-2">
+                                  <span className={`text-[11px] font-black uppercase tracking-tighter truncate text-right ${isHome ? 'text-[#00FF85]' : 'text-white/60 group-hover:text-white'}`}>
+                                    {match.home_club?.name}
+                                  </span>
+                                  <div className="w-14 h-14 rounded-2xl bg-black/50 border border-white/10 flex items-center justify-center p-3 shrink-0 shadow-2xl transition-transform duration-500 group-hover:scale-110">
+                                    {match.home_club?.shield_url ? (
+                                      <img src={match.home_club.shield_url} alt="" className="w-full h-full object-contain" />
+                                    ) : (
+                                      <Shield className="w-6 h-6 text-[#2D2D2D]" />
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Center - Score/Status */}
+                                <div className="flex flex-col items-center justify-center w-24 shrink-0 px-2 py-2 rounded-[20px] bg-black/60 border border-white/5 shadow-inner">
+                                  {isFinished ? (
+                                    <>
+                                      <span className="text-xl font-black text-white italic tracking-tighter leading-none">
+                                        {match.home_score} — {match.away_score}
+                                      </span>
+                                      <div className={`mt-2 px-2 py-0.5 rounded-full border border-current/20 bg-current/[0.02] ${
+                                        result === 'W' ? 'text-[#00FF85]' : result === 'L' ? 'text-red-500' : 'text-yellow-500'
+                                      }`}>
+                                        <span className="text-[7px] font-black uppercase tracking-[0.1em] block w-full text-center">
+                                          {result === 'W' ? 'W' : result === 'L' ? 'L' : 'D'}
+                                        </span>
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <div className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 mb-2">
+                                        <span className="text-[9px] font-black text-white/40 tracking-widest">VS</span>
+                                      </div>
+                                      {match.deadline ? (
+                                          <div className="scale-[0.85] origin-center -my-1">
+                                            <CountdownTimer deadline={match.deadline} size="sm" />
+                                          </div>
+                                      ) : (
+                                          <span className="text-[8px] font-black text-[#2D2D2D] uppercase tracking-[0.2em] animate-pulse">Wait</span>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+
+                                {/* Away Team */}
+                                <div className="flex-1 flex items-center justify-start gap-3.5 pl-2">
+                                  <div className="w-14 h-14 rounded-2xl bg-black/50 border border-white/10 flex items-center justify-center p-3 shrink-0 shadow-2xl transition-transform duration-500 group-hover:scale-110">
+                                    {match.away_club?.shield_url ? (
+                                      <img src={match.away_club.shield_url} alt="" className="w-full h-full object-contain" />
+                                    ) : (
+                                      <Shield className="w-6 h-6 text-[#2D2D2D]" />
+                                    )}
+                                  </div>
+                                  <span className={`text-[11px] font-black uppercase tracking-tighter truncate text-left ${!isHome ? 'text-[#00FF85]' : 'text-white/60 group-hover:text-white'}`}>
+                                    {match.away_club?.name}
+                                  </span>
+                                </div>
+                              </button>
+                            )
+                          })}
                         </div>
 
-                        {/* Middle - Opponent Info */}
-                        <div className="flex flex-col items-center flex-1 justify-center gap-1.5">
-                          <div className={`w-9 h-9 rounded-md bg-[#0A0A0A] border flex items-center justify-center overflow-hidden shrink-0 transition-all duration-500 group-hover:scale-110 ${
-                            isFinished ? 'border-[#202020]' : 'border-[#2D2D2D]'
-                          }`}>
-                            {opponent?.shield_url ? (
-                              <img src={opponent.shield_url} alt="" className="w-6 h-6 object-contain" />
-                            ) : (
-                              <Shield className="w-3.5 h-3.5 text-[#6A6C6E]" />
-                            )}
-                          </div>
-                          
-                          <div className="w-full">
-                            <span className={`font-black text-[9px] block truncate w-full px-0.5 uppercase tracking-tighter leading-none ${
-                               isFinished ? 'text-white' : 'text-white/80'
-                            }`}>
-                                {opponent?.name}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Bottom - Result or Time */}
-                        <div className={`mt-1.5 pt-1.5 border-t flex justify-center items-center ${
-                             isFinished ? 'border-white/5' : 'border-[#202020]'
-                        }`}>
-                          {isFinished && result ? (
-                            <span className="text-[12px] font-black text-white tracking-widest leading-none">
-                              {match.home_score}-{match.away_score}
-                            </span>
-                          ) : (
+                        {/* Pagination Controls */}
+                        {totalPages > 1 && (
+                          <div className="flex items-center justify-between bg-[#141414] p-2 rounded-2xl border border-white/[0.03]">
+                            <button 
+                              onClick={() => setCalendarPage(p => Math.max(0, p - 1))}
+                              disabled={currentPage === 0}
+                              className="p-3 bg-[#0A0A0A] rounded-xl border border-white/5 text-[#6A6C6E] hover:text-white disabled:opacity-20 transition-all active:scale-95"
+                            >
+                              <ChevronDown className="w-5 h-5 rotate-90" />
+                            </button>
+                            
                             <div className="flex flex-col items-center">
-                               {match.deadline ? (
-                                    <div className="scale-[0.55] origin-center -my-1.5">
-                                        <CountdownTimer deadline={match.deadline} size="sm" />
-                                    </div>
-                               ) : (
-                                    <span className="text-[7px] font-black text-[#4A4A4A] uppercase">Pendiente</span>
-                               )}
+                              <span className="text-[11px] font-black text-[#00FF85] uppercase tracking-[0.2em]">Página {currentPage + 1}</span>
+                              <span className="text-[8px] text-[#A0A2A4] font-bold uppercase mt-0.5">{filteredMatches.length} partidos totales</span>
                             </div>
-                          )}
-                        </div>
-                      </div>
+
+                            <button 
+                              onClick={() => setCalendarPage(p => Math.min(totalPages - 1, p + 1))}
+                              disabled={currentPage === totalPages - 1}
+                              className="p-3 bg-[#0A0A0A] rounded-xl border border-white/5 text-[#6A6C6E] hover:text-white disabled:opacity-20 transition-all active:scale-95"
+                            >
+                              <ChevronDown className="w-5 h-5 -rotate-90" />
+                            </button>
+                          </div>
+                        )}
+                      </>
                     )
-                  })}
+                  })()}
                 </div>
               )}
             </div>
@@ -1251,6 +1423,15 @@ export default function DashboardPage() {
         isOpen={isNotificationsOpen} 
         onClose={() => setIsNotificationsOpen(false)} 
         onActionComplete={refreshData}
+      />
+
+      <MatchDetailsDrawer 
+        matchId={selectedMatchId}
+        isOpen={isMatchDetailsOpen}
+        onClose={() => {
+          setIsMatchDetailsOpen(false)
+          setSelectedMatchId(null)
+        }}
       />
 
       <PlayerManagementDialog 

@@ -71,8 +71,8 @@ export default function LoginPage() {
     <div className="min-h-dvh flex flex-col bg-[#0A0A0A] selection:bg-[#00FF85]/30">
       {/* Dynamic Background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-[#00FF85]/10 rounded-full blur-[120px] animate-pulse" />
-        <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-[#00FF85]/5 rounded-full blur-[100px]" />
+        <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-[#FF6B00]/15 rounded-full blur-[120px] animate-pulse" />
+        <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-[#FF3131]/5 rounded-full blur-[100px]" />
         <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay" />
       </div>
 
@@ -83,7 +83,7 @@ export default function LoginPage() {
           {/* Header Section */}
           <div className="flex flex-col items-center text-center space-y-6">
             <div className="relative group">
-              <div className="absolute inset-0 bg-[#00FF85]/20 rounded-full blur-2xl group-hover:bg-[#00FF85]/40 transition-all duration-700" />
+              <div className="absolute inset-0 bg-[#FF6B00]/30 rounded-full blur-3xl group-hover:bg-[#FF6B00]/50 transition-all duration-700" />
               <div className="relative w-24 h-24 bg-[#141414] border border-[#202020] rounded-[32px] flex items-center justify-center p-5 shadow-2xl">
                 <PifaLogo size="lg" showText={false} />
               </div>

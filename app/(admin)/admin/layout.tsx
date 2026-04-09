@@ -60,12 +60,18 @@ export default function AdminLayout({
 
   if (isLoading) {
     return (
-      <div className="min-h-dvh flex flex-col items-center justify-center bg-background">
+      <div className="min-h-dvh flex flex-col items-center justify-center bg-loading-gradient animate-fade-in">
         <div className="relative">
-          <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl animate-pulse" />
-          <Loader2 className="relative w-8 h-8 animate-spin text-primary" />
+          <PifaLogo size="xl" showText={false} className="animate-logo-pulse" />
         </div>
-        <p className="mt-4 text-sm text-muted-foreground animate-fade-in-up">Verificando acceso...</p>
+        <div className="mt-8 flex flex-col items-center space-y-2">
+          <p className="text-[10px] font-black text-red-500 uppercase tracking-[0.4em] animate-pulse">
+            Verificando Acceso Admin
+          </p>
+          <div className="w-24 h-[2px] bg-white/5 rounded-full overflow-hidden">
+            <div className="h-full bg-red-500 animate-progress" style={{ width: '100%' }} />
+          </div>
+        </div>
       </div>
     )
   }

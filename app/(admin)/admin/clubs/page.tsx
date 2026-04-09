@@ -55,6 +55,7 @@ export default function AdminClubsPage() {
           return {
             ...club,
             players_count: playersRes.count || 0,
+            dt: dtRes.data || null
           }
         })
       )
