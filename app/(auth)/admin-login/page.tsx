@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase'
 import { PifaLogo } from '@/components/pifa/logo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { syncPushToken } from '@/lib/push-notifications'
 
 export default function AdminLoginPage() {
   const router = useRouter()
@@ -57,6 +58,9 @@ export default function AdminLoginPage() {
       }
       
       localStorage.setItem('pifa_auth_session', JSON.stringify(session))
+      
+      // Sync Push Token if exists
+      await syncPushToken(user.id, user.full_name, 'login')
       
       toast.success(`Bienvenido, ${user.full_name}`)
       router.push('/admin')

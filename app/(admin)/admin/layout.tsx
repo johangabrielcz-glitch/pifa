@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, LogOut, User, Settings } from 'lucide-react'
 import { toast } from 'sonner'
+import { syncPushToken } from '@/lib/push-notifications'
 import { MobileNav } from '@/components/pifa/mobile-nav'
 import { PifaLogo } from '@/components/pifa/logo'
 import { Button } from '@/components/ui/button'
@@ -52,7 +53,10 @@ export default function AdminLayout({
     checkAuth()
   }, [router])
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (user) {
+      await syncPushToken(user.id, user.full_name, 'logout')
+    }
     localStorage.removeItem('pifa_auth_session')
     toast.success('Sesión cerrada correctamente')
     router.replace('/admin-login')

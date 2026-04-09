@@ -12,6 +12,8 @@ import {
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { getNextMatchForClub, checkAndAutoResolveExpired } from '@/lib/match-engine'
+import { handleOfferResponse } from '@/lib/market-engine'
+import { syncPushToken } from '@/lib/push-notifications'
 import type { NextMatchResult } from '@/lib/match-engine'
 import { PifaLogo } from '@/components/pifa/logo'
 import { DtNavigation } from '@/components/pifa/dt-navigation'
@@ -313,7 +315,10 @@ export default function DashboardPage() {
     }
   }, [router])
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (user) {
+      await syncPushToken(user.id, user.full_name, 'logout')
+    }
     localStorage.removeItem('pifa_auth_session')
     toast.success('Sesión cerrada correctamente')
     router.replace('/login')
