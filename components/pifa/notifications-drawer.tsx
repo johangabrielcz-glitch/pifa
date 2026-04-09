@@ -124,7 +124,7 @@ export function NotificationsDrawer({ clubId, isOpen, onClose, onActionComplete 
           >
             
             {/* Header with Safe Area support */}
-            <div className="flex items-center justify-between p-6 bg-[#0E0E0E] border-b border-white/[0.05] pt-[max(3rem,env(safe-area-inset-top))]">
+            <div className="flex items-center justify-between p-6 bg-[#0E0E0E] border-b border-white/[0.05] pt-[max(4.5rem,env(safe-area-inset-top))]">
               <div className="flex items-center gap-4">
                 <div className="relative">
                   <div className="w-12 h-12 rounded-2xl bg-[#1A1A1A] border border-white/[0.05] flex items-center justify-center shadow-inner">

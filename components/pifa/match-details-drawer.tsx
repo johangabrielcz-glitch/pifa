@@ -9,7 +9,7 @@ import {
   SheetDescription 
 } from '@/components/ui/sheet'
 import { supabase } from '@/lib/supabase'
-import { Loader2, Shield, Goal, HandHelping, Star, Trophy, Calendar, Users } from 'lucide-react'
+import { Loader2, Shield, Goal, HandHelping, Star, Trophy, Calendar, Users, XCircle } from 'lucide-react'
 import type { Match, Club, MatchAnnotation, Player } from '@/lib/types'
 
 interface MatchDetailsDrawerProps {
@@ -140,7 +140,7 @@ export function MatchDetailsDrawer({ matchId, isOpen, onClose }: MatchDetailsDra
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="bg-[#0A0A0A] border-white/5 text-white w-full sm:max-w-md p-0 overflow-y-auto no-scrollbar pt-[env(safe-area-inset-top)]">
+      <SheetContent className="bg-[#0A0A0A] border-white/5 text-white w-full sm:max-w-md p-0 overflow-y-auto no-scrollbar pt-[env(safe-area-inset-top)] [&>button]:hidden">
         <SheetHeader className="sr-only">
           <SheetTitle>Detalles del Partido</SheetTitle>
           <SheetDescription>Vista detallada de las estadísticas y resultado final del encuentro.</SheetDescription>
@@ -156,6 +156,12 @@ export function MatchDetailsDrawer({ matchId, isOpen, onClose }: MatchDetailsDra
               <div className="absolute top-8 left-6">
                 <p className="text-[10px] font-black text-[#6A6C6E] uppercase tracking-[0.2em]">Resultado Final</p>
               </div>
+              <button 
+                onClick={onClose}
+                className="absolute top-8 right-6 p-2 bg-white/5 hover:bg-white/10 rounded-full transition-all border border-white/5 active:scale-95"
+              >
+                <XCircle className="w-5 h-5 text-[#6A6C6E]" />
+              </button>
               
               <div className="flex items-center justify-between w-full max-w-[280px]">
                 {/* Home */}
@@ -195,7 +201,7 @@ export function MatchDetailsDrawer({ matchId, isOpen, onClose }: MatchDetailsDra
             </div>
 
             {/* Stats Content */}
-            <div className="p-6 space-y-8">
+            <div className="p-6 space-y-6">
               {/* GOALS */}
               <section className="space-y-4">
                 <div className="flex items-center gap-2 h-4">
@@ -292,7 +298,7 @@ export function MatchDetailsDrawer({ matchId, isOpen, onClose }: MatchDetailsDra
               )}
             </div>
             
-            <div className="mt-auto p-6 border-t border-white/5">
+            <div className="p-6 border-t border-white/5">
               <button 
                 onClick={onClose}
                 className="w-full h-11 bg-white/[0.05] hover:bg-white/[0.1] text-[#6A6C6E] hover:text-white font-black uppercase tracking-widest text-[9px] rounded-xl transition-all"

@@ -1445,11 +1445,13 @@ export default function DashboardPage() {
       />
 
       {/* Bottom Navigation */}
-      <DtNavigation
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        hasMatch={!!nextPlayableMatch || matchResult.waiting}
-      />
+      {!isNotificationsOpen && !isMatchDetailsOpen && !selectedManagePlayer && (
+        <DtNavigation
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          hasMatch={!!nextPlayableMatch || matchResult.waiting}
+        />
+      )}
     </div>
   )
 }

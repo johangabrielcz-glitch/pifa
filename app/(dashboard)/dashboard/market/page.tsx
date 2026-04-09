@@ -32,6 +32,8 @@ export default function MarketPage() {
   const [globalSearch, setGlobalSearch] = useState('')
   const [currentUserClub, setCurrentUserClub] = useState<Club | null>(null)
   const [selectedClub, setSelectedClub] = useState<Club | null>(null)
+  const [historyPage, setHistoryPage] = useState(0)
+  const itemsPerHistoryPage = 3
   
   // Offer Modal State
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null)
@@ -523,65 +525,103 @@ export default function MarketPage() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {history.map((item) => (
-                    <div key={item.id} className="relative bg-gradient-to-r from-[#141414] to-[#0A0A0A] border border-[#202020] p-6 rounded-[32px] overflow-hidden group hover:border-[#00FF85]/30 transition-all duration-500 shadow-xl">
-                      {/* Decorative Background Glow */}
-                      <div className="absolute -right-20 -bottom-20 w-40 h-40 bg-[#00FF85]/5 rounded-full blur-[80px] group-hover:bg-[#00FF85]/10 transition-colors duration-700" />
-                      
-                      <div className="absolute top-4 right-6">
-                        <span className="text-[10px] font-black text-[#6A6C6E] uppercase tracking-widest opacity-50">
-                          {new Date(item.created_at).toLocaleDateString()}
-                        </span>
-                      </div>
+                  {(() => {
+                    const totalPages = Math.ceil(history.length / itemsPerHistoryPage)
+                    const currentPage = Math.min(historyPage, totalPages - 1)
+                    const paginatedHistory = history.slice(currentPage * itemsPerHistoryPage, (currentPage + 1) * itemsPerHistoryPage)
 
-                      <div className="flex items-center justify-between gap-4 relative z-10">
-                        {/* Seller Club */}
-                        <div className="flex flex-col items-center gap-3 w-24">
-                          <div className="w-14 h-14 rounded-2xl bg-[#0A0A0A] border border-[#202020] flex items-center justify-center p-2.5 shadow-inner group-hover:scale-105 transition-transform duration-500">
-                            {item.from_club?.shield_url ? (
-                              <img src={item.from_club.shield_url} alt="" className="w-full h-full object-contain drop-shadow-lg" />
-                            ) : (
-                              <Shield className="w-6 h-6 text-[#6A6C6E]" />
-                            )}
-                          </div>
-                          <span className="text-[9px] font-black text-[#6A6C6E] uppercase tracking-tighter text-center leading-tight h-6 flex items-center">
-                            {item.from_club?.name}
-                          </span>
-                        </div>
-                        
-                        {/* Transfer Details */}
-                        <div className="flex-1 flex flex-col items-center gap-2">
-                          <div className="flex items-center gap-4 w-full">
-                            <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent via-[#202020] to-[#00FF85]/30" />
-                            <div className="w-10 h-10 rounded-full bg-[#00FF85]/5 border border-[#00FF85]/20 flex items-center justify-center">
-                               <ArrowRight className="w-5 h-5 text-[#00FF85] animate-pulse-glow" />
+                    return (
+                      <>
+                        <div className="space-y-4">
+                          {paginatedHistory.map((item) => (
+                            <div key={item.id} className="relative bg-gradient-to-r from-[#141414] to-[#0A0A0A] border border-[#202020] p-6 rounded-[32px] overflow-hidden group hover:border-[#00FF85]/30 transition-all duration-500 shadow-xl">
+                              {/* Decorative Background Glow */}
+                              <div className="absolute -right-20 -bottom-20 w-40 h-40 bg-[#00FF85]/5 rounded-full blur-[80px] group-hover:bg-[#00FF85]/10 transition-colors duration-700" />
+                              
+                              <div className="absolute top-4 right-6">
+                                <span className="text-[10px] font-black text-[#6A6C6E] uppercase tracking-widest opacity-50">
+                                  {new Date(item.created_at).toLocaleDateString()}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center justify-between gap-4 relative z-10">
+                                {/* Seller Club */}
+                                <div className="flex flex-col items-center gap-3 w-24">
+                                  <div className="w-14 h-14 rounded-2xl bg-[#0A0A0A] border border-[#202020] flex items-center justify-center p-2.5 shadow-inner group-hover:scale-105 transition-transform duration-500">
+                                    {item.from_club?.shield_url ? (
+                                      <img src={item.from_club.shield_url} alt="" className="w-full h-full object-contain drop-shadow-lg" />
+                                    ) : (
+                                      <Shield className="w-6 h-6 text-[#6A6C6E]" />
+                                    )}
+                                  </div>
+                                  <span className="text-[9px] font-black text-[#6A6C6E] uppercase tracking-tighter text-center leading-tight h-6 flex items-center">
+                                    {item.from_club?.name}
+                                  </span>
+                                </div>
+                                
+                                {/* Transfer Details */}
+                                <div className="flex-1 flex flex-col items-center gap-2">
+                                  <div className="flex items-center gap-4 w-full">
+                                    <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent via-[#202020] to-[#00FF85]/30" />
+                                    <div className="w-10 h-10 rounded-full bg-[#00FF85]/5 border border-[#00FF85]/20 flex items-center justify-center">
+                                       <ArrowRight className="w-5 h-5 text-[#00FF85] animate-pulse-glow" />
+                                    </div>
+                                    <div className="h-[1px] flex-1 bg-gradient-to-r from-[#00FF85]/30 via-[#202020] to-transparent" />
+                                  </div>
+                                  <div className="text-center mt-1">
+                                    <span className="text-sm font-black text-white uppercase tracking-tighter block mb-1">{item.player?.name}</span>
+                                    <div className="inline-block py-1 px-4 bg-[#00FF85] rounded-full shadow-[0_5px_15px_rgba(0,255,133,0.2)]">
+                                      <span className="text-[11px] font-black text-[#0A0A0A]">${item.amount.toLocaleString()}</span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Buyer Club */}
+                                <div className="flex flex-col items-center gap-3 w-24">
+                                  <div className="w-14 h-14 rounded-2xl bg-[#0A0A0A] border border-[#00FF85]/30 flex items-center justify-center p-2.5 shadow-[0_0_20px_rgba(0,255,133,0.1)] group-hover:scale-105 transition-transform duration-500">
+                                    {item.to_club?.shield_url ? (
+                                      <img src={item.to_club.shield_url} alt="" className="w-full h-full object-contain drop-shadow-[0_0_8px_rgba(0,255,133,0.3)]" />
+                                    ) : (
+                                      <Shield className="w-6 h-6 text-[#00FF85]" />
+                                    )}
+                                  </div>
+                                  <span className="text-[9px] font-black text-[#00FF85] uppercase tracking-tighter text-center leading-tight h-6 flex items-center">
+                                    {item.to_club?.name}
+                                  </span>
+                                </div>
+                              </div>
                             </div>
-                            <div className="h-[1px] flex-1 bg-gradient-to-r from-[#00FF85]/30 via-[#202020] to-transparent" />
-                          </div>
-                          <div className="text-center mt-1">
-                            <span className="text-sm font-black text-white uppercase tracking-tighter block mb-1">{item.player?.name}</span>
-                            <div className="inline-block py-1 px-4 bg-[#00FF85] rounded-full shadow-[0_5px_15px_rgba(0,255,133,0.2)]">
-                              <span className="text-[11px] font-black text-[#0A0A0A]">${item.amount.toLocaleString()}</span>
-                            </div>
-                          </div>
+                          ))}
                         </div>
 
-                        {/* Buyer Club */}
-                        <div className="flex flex-col items-center gap-3 w-24">
-                          <div className="w-14 h-14 rounded-2xl bg-[#0A0A0A] border border-[#00FF85]/30 flex items-center justify-center p-2.5 shadow-[0_0_20px_rgba(0,255,133,0.1)] group-hover:scale-105 transition-transform duration-500">
-                            {item.to_club?.shield_url ? (
-                              <img src={item.to_club.shield_url} alt="" className="w-full h-full object-contain drop-shadow-[0_0_8px_rgba(0,255,133,0.3)]" />
-                            ) : (
-                              <Shield className="w-6 h-6 text-[#00FF85]" />
-                            )}
+                        {/* Pagination Controls */}
+                        {totalPages > 1 && (
+                          <div className="flex items-center justify-between bg-[#141414] p-3 rounded-2xl border border-white/[0.03] mt-4">
+                            <button 
+                              onClick={() => setHistoryPage(p => Math.max(0, p - 1))}
+                              disabled={currentPage === 0}
+                              className="p-3 bg-[#0A0A0A] rounded-xl border border-white/5 text-[#6A6C6E] hover:text-white disabled:opacity-20 transition-all active:scale-95"
+                            >
+                              <ArrowRight className="w-5 h-5 rotate-180" />
+                            </button>
+                            
+                            <div className="flex flex-col items-center">
+                              <span className="text-[11px] font-black text-[#00FF85] uppercase tracking-[0.2em]">Página {currentPage + 1}</span>
+                              <span className="text-[8px] text-[#A0A2A4] font-bold uppercase mt-0.5">{history.length} traspasos totales</span>
+                            </div>
+
+                            <button 
+                              onClick={() => setHistoryPage(p => Math.min(totalPages - 1, p + 1))}
+                              disabled={currentPage === totalPages - 1}
+                              className="p-3 bg-[#0A0A0A] rounded-xl border border-white/5 text-[#6A6C6E] hover:text-white disabled:opacity-20 transition-all active:scale-95"
+                            >
+                              <ArrowRight className="w-5 h-5" />
+                            </button>
                           </div>
-                          <span className="text-[9px] font-black text-[#00FF85] uppercase tracking-tighter text-center leading-tight h-6 flex items-center">
-                            {item.to_club?.name}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                        )}
+                      </>
+                    )
+                  })()}
                 </div>
               )}
             </div>
