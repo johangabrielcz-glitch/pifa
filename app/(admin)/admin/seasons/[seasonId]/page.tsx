@@ -132,74 +132,74 @@ export default function SeasonDetailPage({ params }: { params: Promise<{ seasonI
   return (
     <div className="min-h-screen">
       {/* Header */}
-      <header className="sticky top-0 z-30 bg-[#0A0A0A]/80 backdrop-blur-2xl border-b border-white/[0.04]">
-        <div className="flex items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-4">
+      <header className="sticky top-0 z-30 bg-[#0A0A0A]/90 backdrop-blur-2xl border-b border-white/[0.04]">
+        <div className="flex items-center justify-between px-6 py-3.5">
+          <div className="flex items-center gap-3">
             <button 
               onClick={() => router.push('/admin/seasons')} 
-              className="w-10 h-10 rounded-xl bg-[#141414] border border-[#202020] flex items-center justify-center text-[#6A6C6E] hover:text-white hover:border-[#FF3131]/40 transition-all active:scale-95"
+              className="w-9 h-9 rounded-xl bg-[#141414] border border-[#202020] flex items-center justify-center text-[#6A6C6E] hover:text-white transition-all active:scale-95"
             >
-              <ChevronLeft className="w-5 h-5" />
+              <ChevronLeft className="w-4.5 h-4.5" />
             </button>
             <div>
-              <h1 className="text-xl font-black text-white uppercase tracking-tight">DETALLE DE <span className="text-[#FF3131]">CICLO</span></h1>
-              <p className="text-[10px] text-[#6A6C6E] font-black uppercase tracking-[0.2em]">{season?.name}</p>
+              <h1 className="text-base font-black text-white uppercase tracking-tight">DETALLE DE <span className="text-[#FF3131]">CICLO</span></h1>
+              <p className="text-[7px] text-[#2D2D2D] font-black uppercase tracking-[0.2em] font-black">{season?.name}</p>
             </div>
           </div>
           {canEdit && (
             <button 
               onClick={() => setIsFormOpen(true)}
-              className="h-11 px-5 bg-[#FF3131] hover:bg-[#D32F2F] text-white rounded-xl flex items-center gap-2.5 font-black uppercase tracking-widest text-[10px] shadow-[0_0_20px_rgba(255,49,49,0.3)] transition-all active:scale-95"
+              className="h-9 px-4 bg-[#FF3131] hover:bg-[#D32F2F] text-white rounded-lg flex items-center gap-2 font-black uppercase tracking-widest text-[8px] shadow-[0_0_15px_rgba(255,49,49,0.2)] transition-all active:scale-95"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-3.5 h-3.5" />
               Nueva Competencia
             </button>
           )}
         </div>
       </header>
 
-      <div className="px-6 py-8 space-y-8 pb-32">
+      <div className="px-6 py-6 space-y-6 pb-32">
         {/* Season Overview Card */}
-        <div className="relative bg-[#141414]/50 backdrop-blur-xl rounded-[32px] border border-white/[0.04] overflow-hidden shadow-2xl animate-fade-in-up">
-           <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-[#FF3131]/10 to-transparent rounded-full blur-[80px] -mr-32 -mt-32" />
+        <div className="relative bg-[#141414]/50 rounded-[20px] border border-white/[0.04] overflow-hidden shadow-2xl animate-fade-in-up">
+           <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-[#FF3131]/5 to-transparent rounded-full blur-[60px] -mr-16 -mt-16" />
            
-           <div className="relative p-8">
-              <div className="flex items-center gap-6 mb-8">
-                <div className="w-16 h-16 rounded-2xl bg-[#FF3131] flex items-center justify-center shadow-[0_0_30px_rgba(255,49,49,0.4)]">
-                  <Calendar className="w-8 h-8 text-white" />
+           <div className="relative p-4">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-12 h-12 rounded-xl bg-[#FF3131] flex items-center justify-center shadow-lg">
+                  <Calendar className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-black text-white uppercase tracking-tighter">{season?.name}</h2>
-                  <div className="flex items-center gap-3 mt-1">
-                    <div className={`flex items-center gap-2 px-2.5 py-1 rounded-full border font-black uppercase tracking-widest text-[8px] ${
-                      season?.status === 'active' ? 'bg-[#FF3131]/10 text-[#FF3131] border-[#FF3131]/20' : 'bg-white/5 text-[#6A6C6E] border-white/10'
+                  <h2 className="text-base font-black text-white uppercase tracking-tighter">{season?.name}</h2>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md border font-black uppercase tracking-widest text-[7px] ${
+                      season?.status === 'active' ? 'bg-[#FF3131]/10 text-[#FF3131] border-[#FF3131]/20' : 'bg-white/5 text-[#2D2D2D] border-white/10'
                     }`}>
-                      <div className={`w-1.2 h-1.2 rounded-full ${season?.status === 'active' ? 'bg-[#FF3131] animate-pulse' : 'bg-current'}`} />
-                      {season?.status === 'active' ? 'SISTEMA ACTIVO' : 'PROTOCOLO EN STANDBY'}
+                      <div className={`w-1 h-1 rounded-full ${season?.status === 'active' ? 'bg-[#FF3131] animate-pulse' : 'bg-current'}`} />
+                      {season?.status === 'active' ? 'SISTEMA ACTIVO' : 'STANDBY'}
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
-                <div className="bg-[#0A0A0A]/50 border border-white/[0.04] rounded-2xl p-4 text-center">
-                  <p className="text-2xl font-black text-white">{competitions.length}</p>
-                  <p className="text-[9px] text-[#2D2D2D] font-black uppercase tracking-widest mt-1">Competencias</p>
+              <div className="grid grid-cols-3 gap-2.5">
+                <div className="bg-[#0A0A0A]/30 border border-white/[0.02] rounded-xl p-3 text-center">
+                  <p className="text-base font-black text-white leading-none">{competitions.length}</p>
+                  <p className="text-[7px] text-[#2D2D2D] font-black uppercase tracking-widest mt-1">Competencias</p>
                 </div>
-                <div className="bg-[#0A0A0A]/50 border border-white/[0.04] rounded-2xl p-4 text-center">
-                  <p className="text-2xl font-black text-white">{totalMatches}</p>
-                  <p className="text-[9px] text-[#2D2D2D] font-black uppercase tracking-widest mt-1">Match Logs</p>
+                <div className="bg-[#0A0A0A]/30 border border-white/[0.02] rounded-xl p-3 text-center">
+                  <p className="text-base font-black text-white leading-none">{totalMatches}</p>
+                  <p className="text-[7px] text-[#2D2D2D] font-black uppercase tracking-widest mt-1">Match Logs</p>
                 </div>
-                <Link href={`/admin/seasons/${seasonId}/calendar`} className="bg-[#FF3131]/5 hover:bg-[#FF3131]/10 border border-[#FF3131]/20 rounded-2xl p-4 flex flex-col items-center justify-center transition-all group">
-                   <Calendar className="w-6 h-6 text-[#FF3131] mb-1 group-hover:scale-110 transition-transform" />
-                   <p className="text-[9px] text-[#FF3131] font-black uppercase tracking-widest">Calendario</p>
+                <Link href={`/admin/seasons/${seasonId}/calendar`} className="bg-[#FF3131]/5 hover:bg-[#FF3131]/10 border border-[#FF3131]/10 rounded-xl p-3 flex flex-col items-center justify-center transition-all group">
+                   <Calendar className="w-5 h-5 text-[#FF3131] mb-0.5 group-hover:scale-110 transition-transform" />
+                   <p className="text-[7px] text-[#FF3131] font-black uppercase tracking-widest">Calendario</p>
                 </Link>
               </div>
 
               {!canEdit && (
-                <div className="mt-8 flex items-center gap-3 p-4 bg-[#FF3131]/5 rounded-2xl border border-[#FF3131]/10">
-                  <Lock className="w-4 h-4 text-[#FF3131]" />
-                  <p className="text-[10px] text-[#6A6C6E] font-bold uppercase tracking-widest">Registros bloqueados por ejecución activa del sistema.</p>
+                <div className="mt-6 flex items-center gap-2.5 p-3 bg-[#FF3131]/5 rounded-xl border border-[#FF3131]/10">
+                  <Lock className="w-3.5 h-3.5 text-[#FF3131]" />
+                  <p className="text-[8px] text-[#2D2D2D] font-black uppercase tracking-widest">Registros bloqueados por ciclo activo.</p>
                 </div>
               )}
            </div>
@@ -207,52 +207,52 @@ export default function SeasonDetailPage({ params }: { params: Promise<{ seasonI
 
         {/* Competitions Section */}
         <div>
-           <h3 className="text-[10px] text-[#6A6C6E] font-black uppercase tracking-[0.3em] mb-4 ml-2">Terminales de Competencia</h3>
+           <h3 className="text-[8px] text-[#2D2D2D] font-black uppercase tracking-[0.3em] mb-3 ml-2">Terminales de Competencia</h3>
            
            {competitions.length === 0 ? (
-             <div className="text-center py-20 bg-[#141414]/30 rounded-[32px] border border-dashed border-white/[0.06] animate-fade-in-up">
-                <Trophy className="w-12 h-12 text-[#2D2D2D] mx-auto mb-4" />
-                <p className="text-[#6A6C6E] font-black uppercase tracking-[0.2em] text-[10px]">Sin unidades de competencia instaladas</p>
+             <div className="text-center py-16 bg-[#141414]/30 rounded-[28px] border border-dashed border-white/[0.04] animate-fade-in-up">
+                <Trophy className="w-10 h-10 text-[#2D2D2D] mx-auto mb-3" />
+                <p className="text-[#2D2D2D] font-black uppercase tracking-[0.2em] text-[8px]">Sin unidades de competencia instaladas</p>
              </div>
            ) : (
-             <div className="space-y-4">
+             <div className="space-y-3">
                 {competitions.map((comp, i) => (
                   <div 
                     key={comp.id}
                     onClick={() => router.push(`/admin/seasons/${seasonId}/competitions/${comp.id}`)}
-                    className="group relative bg-[#141414]/50 backdrop-blur-xl rounded-[28px] p-6 border border-white/[0.04] transition-all duration-300 hover:border-[#FF3131]/30 hover:bg-[#1A1A1A]/60 animate-fade-in-up shadow-xl cursor-pointer overflow-hidden"
-                    style={{ animationDelay: `${i * 60}ms` }}
+                    className="group relative bg-[#141414]/50 rounded-[20px] p-4 border border-white/[0.04] transition-all duration-300 hover:border-[#FF3131]/20 animate-fade-in-up cursor-pointer"
+                    style={{ animationDelay: `${i * 30}ms` }}
                   >
                     <div className="relative flex items-center justify-between">
-                       <div className="flex items-center gap-5 min-w-0">
-                          <div className="w-14 h-14 rounded-[18px] bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#FF3131] shadow-2xl transition-transform group-hover:scale-105">
-                             {comp.type === 'league' ? <LayoutList className="w-7 h-7" /> : 
-                              comp.type === 'cup' ? <Trophy className="w-7 h-7" /> : <Swords className="w-7 h-7" />}
+                       <div className="flex items-center gap-4 min-w-0">
+                          <div className="w-11 h-11 rounded-xl bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#FF3131] shadow-xl transition-transform group-hover:scale-105">
+                             {comp.type === 'league' ? <LayoutList className="w-5.5 h-5.5" /> : 
+                              comp.type === 'cup' ? <Trophy className="w-5.5 h-5.5" /> : <Swords className="w-5.5 h-5.5" />}
                           </div>
                           <div className="min-w-0">
-                             <h4 className="text-base font-black text-white uppercase tracking-tight truncate group-hover:text-[#FF3131] transition-colors">{comp.name}</h4>
-                             <div className="flex items-center gap-3 mt-1">
-                                <span className="text-[9px] font-black text-[#6A6C6E] uppercase tracking-widest bg-white/5 px-2 py-0.5 rounded-md border border-white/5">
+                             <h4 className="text-sm font-black text-white uppercase tracking-tight truncate group-hover:text-[#FF3131] transition-colors">{comp.name}</h4>
+                             <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-[7.5px] font-black text-[#2D2D2D] uppercase tracking-widest bg-white/[0.02] px-1.5 py-0.5 rounded border border-white/5">
                                    {comp.type.replace('_', ' ')}
                                 </span>
-                                <p className="text-[9px] text-[#2D2D2D] font-black uppercase tracking-widest">{comp.clubs_count} Unidades</p>
+                                <p className="text-[7.5px] text-[#2D2D2D] font-black uppercase tracking-widest">{comp.clubs_count} Unidades</p>
                              </div>
                           </div>
                        </div>
                        
-                       <div className="flex items-center gap-3">
+                       <div className="flex items-center gap-1.5">
                           <button 
                             onClick={(e) => { e.stopPropagation(); router.push(`/admin/seasons/${seasonId}/competitions/${comp.id}`) }}
-                            className="w-10 h-10 rounded-full bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#6A6C6E] hover:text-[#FF3131] transition-all"
+                            className="w-8 h-8 rounded-lg bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#2D2D2D] hover:text-white transition-all shadow-xl"
                           >
-                             <ChevronRight className="w-5 h-5" />
+                             <ChevronRight className="w-3.5 h-3.5" />
                           </button>
                           {canEdit && (
                             <button 
                               onClick={(e) => { e.stopPropagation(); setDeletingComp(comp); setIsDeleteOpen(true) }}
-                              className="w-10 h-10 rounded-full bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-red-500/60 hover:text-red-500 hover:bg-red-500/10 transition-all"
+                              className="w-8 h-8 rounded-lg bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#2D2D2D] hover:text-red-500 transition-all shadow-xl"
                             >
-                               <Trash2 className="w-4.5 h-4.5" />
+                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           )}
                        </div>
@@ -264,21 +264,20 @@ export default function SeasonDetailPage({ params }: { params: Promise<{ seasonI
         </div>
       </div>
 
-      {/* Create Competition Dialog */}
       <Dialog open={isFormOpen} onOpenChange={(open) => { if (!open) resetForm(); setIsFormOpen(open) }}>
-        <DialogContent className="max-w-md w-full rounded-[32px] bg-[#141414]/95 backdrop-blur-2xl border-white/[0.08] p-0 overflow-hidden shadow-2xl max-h-[90vh] flex flex-col fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-          <div className="p-8 overflow-y-auto custom-scrollbar flex-1">
-            <DialogHeader className="mb-8">
-              <div className="w-14 h-14 rounded-2xl bg-[#0A0A0A] border border-[#202020] flex items-center justify-center shadow-xl mb-6 mx-auto">
-                <Plus className="w-7 h-7 text-[#FF3131]" />
+        <DialogContent className="max-w-md w-full rounded-[24px] bg-[#141414]/95 backdrop-blur-2xl border-white/[0.08] p-0 overflow-hidden shadow-2xl max-h-[90vh] flex flex-col fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+          <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
+            <DialogHeader className="mb-6">
+              <div className="w-11 h-11 rounded-xl bg-[#0A0A0A] border border-[#202020] flex items-center justify-center shadow-xl mb-4 mx-auto">
+                <Plus className="w-5 h-5 text-[#FF3131]" />
               </div>
-              <DialogTitle className="text-2xl font-black text-white uppercase tracking-tighter text-center">NUEVA <span className="text-[#FF3131]">COMPETENCIA</span></DialogTitle>
+              <DialogTitle className="text-base font-black text-white uppercase tracking-tighter text-center">NUEVA <span className="text-[#FF3131]">COMPETENCIA</span></DialogTitle>
             </DialogHeader>
 
             <div className="space-y-6">
                <div className="space-y-2.5">
                   <Label className="text-[10px] text-[#6A6C6E] uppercase tracking-[0.3em] font-black ml-1">Identificador del Torneo</Label>
-                  <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="LIGA PROFESIONAL..." className="h-14 bg-[#0A0A0A] border-[#202020] rounded-[20px] text-white placeholder:text-[#2D2D2D] text-xs font-black uppercase tracking-widest focus:border-[#FF3131]/40 px-5" />
+                  <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="LIGA PROFESIONAL..." className="h-10.5 bg-[#0A0A0A] border-[#202020] rounded-xl text-white placeholder:text-[#2D2D2D] text-xs font-black uppercase tracking-widest focus:border-[#FF3131]/40 px-5" />
                </div>
 
                <div className="grid grid-cols-1 gap-3">
@@ -288,7 +287,7 @@ export default function SeasonDetailPage({ params }: { params: Promise<{ seasonI
                       <button 
                         key={type.value}
                         onClick={() => setFormData({ ...formData, type: type.value })}
-                        className={`p-4 rounded-2xl border transition-all flex flex-col items-center justify-center gap-2 ${
+                        className={`p-3 rounded-xl border transition-all flex flex-col items-center justify-center gap-2 ${
                           formData.type === type.value ? 'bg-[#FF3131]/10 border-[#FF3131] text-white' : 'bg-[#0A0A0A] border-[#202020] text-[#6A6C6E] hover:border-white/10'
                         }`}
                       >
@@ -348,30 +347,29 @@ export default function SeasonDetailPage({ params }: { params: Promise<{ seasonI
             </div>
           </div>
 
-          <div className="flex gap-4 p-8 bg-[#0A0A0A]/50 border-t border-white/[0.04]">
-            <DialogClose asChild><button className="flex-1 h-14 border border-[#202020] text-[#6A6C6E] hover:text-white rounded-[20px] font-black uppercase tracking-widest text-[10px] transition-all">Abortar</button></DialogClose>
-            <button onClick={handleSubmit} disabled={isSaving} className="flex-1 h-14 bg-[#FF3131] hover:bg-[#D32F2F] text-white rounded-[20px] font-black uppercase tracking-widest text-[10px] shadow-[0_0_30px_rgba(255,49,49,0.3)] transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center">
-              {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Instalar Competencia'}
+          <div className="flex gap-3 p-6 bg-[#0A0A0A]/50 border-t border-white/[0.04]">
+            <DialogClose asChild><button className="flex-1 h-10 border border-[#202020] text-[#2D2D2D] hover:text-white rounded-xl font-black uppercase tracking-widest text-[8px] transition-all">Abortar</button></DialogClose>
+            <button onClick={handleSubmit} disabled={isSaving} className="flex-1 h-10 bg-[#FF3131] hover:bg-[#D32F2F] text-white rounded-xl font-black uppercase tracking-widest text-[8px] shadow-[0_0_15px_rgba(255,49,49,0.2)] transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center">
+              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Instalar Unidad'}
             </button>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Competition Alert */}
       <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <AlertDialogContent className="max-w-sm w-full rounded-[32px] bg-[#141414] border-white/[0.08] p-8 shadow-2xl fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-          <AlertDialogHeader className="mb-6">
-            <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-6">
-              <Trash2 className="w-8 h-8 text-red-500" />
+        <AlertDialogContent className="max-w-xs w-full rounded-[24px] bg-[#141414] border-white/[0.08] p-6 shadow-2xl fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+          <AlertDialogHeader className="mb-4">
+            <div className="w-12 h-12 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-4">
+              <Trash2 className="w-6 h-6 text-red-500" />
             </div>
-            <AlertDialogTitle className="text-xl font-black text-white uppercase tracking-tighter text-center">PURGAR <span className="text-red-500">COMPETENCIA</span></AlertDialogTitle>
-            <AlertDialogDescription className="text-center text-xs text-[#6A6C6E] font-bold uppercase tracking-widest mt-2 px-4 leading-relaxed">
+            <AlertDialogTitle className="text-lg font-black text-white uppercase tracking-tighter text-center">PURGAR <span className="text-red-500">UNIDAD</span></AlertDialogTitle>
+            <AlertDialogDescription className="text-center text-[7px] text-[#2D2D2D] font-black uppercase tracking-widest mt-2 px-4 leading-relaxed">
               ¿CONFIRMAS LA ELIMINACIÓN DE <span className="text-white font-black">{deletingComp?.name}</span>? TODOS LOS PARTIDOS SERÁN BORRADOS.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="flex gap-3">
-            <AlertDialogCancel className="flex-1 h-14 bg-[#0A0A0A] border border-[#202020] text-[#6A6C6E] hover:text-white rounded-[20px] font-black uppercase tracking-widest text-[10px] m-0">No</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteComp} className="flex-1 h-14 bg-red-600 hover:bg-red-700 text-white rounded-[20px] font-black uppercase tracking-widest text-[10px] shadow-[0_0_30px_rgba(220,38,38,0.3)] m-0">Confirmar</AlertDialogAction>
+          <div className="flex gap-2">
+            <AlertDialogCancel className="flex-1 h-10 bg-[#0A0A0A] border border-[#202020] text-[#2D2D2D] hover:text-white rounded-xl font-black uppercase tracking-widest text-[8px] m-0">No</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteComp} className="flex-1 h-10 bg-red-600 hover:bg-red-700 text-white rounded-xl font-black uppercase tracking-widest text-[8px] shadow-[0_0_15px_rgba(220,38,38,0.2)] m-0">Confirmar</AlertDialogAction>
           </div>
         </AlertDialogContent>
       </AlertDialog>

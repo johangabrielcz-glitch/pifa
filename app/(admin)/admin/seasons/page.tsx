@@ -115,31 +115,31 @@ export default function SeasonsPage() {
   return (
     <div className="min-h-screen">
       {/* Header */}
-      <header className="sticky top-0 z-30 bg-[#0A0A0A]/80 backdrop-blur-2xl border-b border-white/[0.04]">
-        <div className="flex items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-4">
+      <header className="sticky top-0 z-30 bg-[#0A0A0A]/90 backdrop-blur-2xl border-b border-white/[0.04]">
+        <div className="flex items-center justify-between px-6 py-3.5">
+          <div className="flex items-center gap-3">
             <button 
               onClick={() => router.back()} 
-              className="w-10 h-10 rounded-xl bg-[#141414] border border-[#202020] flex items-center justify-center text-[#6A6C6E] hover:text-white hover:border-[#FF3131]/40 transition-all active:scale-95"
+              className="w-9 h-9 rounded-xl bg-[#141414] border border-[#202020] flex items-center justify-center text-[#6A6C6E] hover:text-white transition-all active:scale-95"
             >
-              <ChevronLeft className="w-5 h-5" />
+              <ChevronLeft className="w-4.5 h-4.5" />
             </button>
             <div>
-              <h1 className="text-xl font-black text-white uppercase tracking-tight">CONTROL DE <span className="text-[#FF3131]">CICLOS</span></h1>
-              <p className="text-[10px] text-[#6A6C6E] font-black uppercase tracking-[0.2em]">{seasons.length} TEMPORADAS REGISTRADAS</p>
+              <h1 className="text-base font-black text-white uppercase tracking-tight">CONTROL DE <span className="text-[#FF3131]">CICLOS</span></h1>
+              <p className="text-[7px] text-[#2D2D2D] font-black uppercase tracking-[0.3em] font-black">{seasons.length} TEMPORADAS REGISTRADAS</p>
             </div>
           </div>
           <button 
             onClick={openCreateForm} 
-            className="h-11 px-5 bg-[#FF3131] hover:bg-[#D32F2F] text-white rounded-xl flex items-center gap-2.5 font-black uppercase tracking-widest text-[10px] shadow-[0_0_20px_rgba(255,49,49,0.3)] transition-all active:scale-95"
+            className="h-9 px-4 bg-[#FF3131] hover:bg-[#D32F2F] text-white rounded-lg flex items-center gap-2 font-black uppercase tracking-widest text-[8px] shadow-[0_0_15px_rgba(255,49,49,0.2)] transition-all active:scale-95"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-3.5 h-3.5" />
             Nuevo Ciclo
           </button>
         </div>
       </header>
 
-      <div className="px-6 py-8 space-y-8 pb-32">
+      <div className="px-6 py-6 space-y-6 pb-32">
         {isLoading ? (
           <div className="flex justify-center py-20">
             <Loader2 className="w-8 h-8 animate-spin text-[#FF3131]" />
@@ -156,78 +156,78 @@ export default function SeasonsPage() {
             {seasons.map((season, i) => (
               <div
                 key={season.id}
-                className={`group relative bg-[#141414]/50 backdrop-blur-xl rounded-[28px] border transition-all duration-300 overflow-hidden animate-fade-in-up shadow-xl ${
+                className={`group relative bg-[#141414]/50 rounded-[20px] border transition-all duration-300 animate-fade-in-up ${
                   season.status === 'active' 
-                    ? 'border-[#FF3131]/30 bg-gradient-to-br from-[#FF3131]/5 to-transparent' 
-                    : 'border-white/[0.04] hover:border-white/10'
+                    ? 'border-[#FF3131]/20 bg-gradient-to-br from-[#FF3131]/5 to-transparent' 
+                    : 'border-white/[0.04] hover:border-[#2D2D2D]'
                 }`}
-                style={{ animationDelay: `${i * 50}ms` }}
+                style={{ animationDelay: `${i * 30}ms` }}
               >
-                <div className="p-6">
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-5">
-                      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border shadow-2xl transition-transform group-hover:scale-110 ${
+                <div className="p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-4">
+                      <div className={`w-11 h-11 rounded-xl flex items-center justify-center border shadow-xl transition-transform group-hover:scale-105 ${
                         season.status === 'active' 
-                          ? 'bg-[#FF3131] border-white/20 text-white' 
-                          : 'bg-[#0A0A0A] border-[#202020] text-[#6A6C6E]'
+                          ? 'bg-[#FF3131] border-white/20 text-white shadow-[#FF3131]/20' 
+                          : 'bg-[#0A0A0A] border-[#202020] text-[#2D2D2D]'
                       }`}>
-                        <Trophy className="w-7 h-7" />
+                        <Trophy className="w-5.5 h-5.5" />
                       </div>
-                      <div onClick={() => router.push(`/admin/seasons/${season.id}`)} className="cursor-pointer">
-                        <h3 className="text-lg font-black text-white uppercase tracking-tight mb-1 group-hover:text-[#FF3131] transition-colors">{season.name}</h3>
-                        <div className="flex items-center gap-3">
-                          <div className={`flex items-center gap-2 px-2.5 py-1 rounded-full border font-black uppercase tracking-widest text-[8px] ${
+                      <div onClick={() => router.push(`/admin/seasons/${season.id}`)} className="cursor-pointer min-w-0">
+                        <h3 className="text-sm font-black text-white uppercase tracking-tight mb-0.5 group-hover:text-[#FF3131] transition-colors truncate">{season.name}</h3>
+                        <div className="flex items-center gap-2">
+                          <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md border font-black uppercase tracking-widest text-[7px] ${
                             season.status === 'active'
                               ? 'bg-[#FF3131]/10 text-[#FF3131] border-[#FF3131]/20'
                               : season.status === 'finished'
                                 ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
-                                : 'bg-white/5 text-[#6A6C6E] border-white/10'
+                                : 'bg-white/5 text-[#2D2D2D] border-white/5'
                           }`}>
-                            <div className={`w-1.2 h-1.2 rounded-full ${season.status === 'active' ? 'bg-[#FF3131] animate-pulse' : 'bg-current'}`} />
-                            {season.status === 'active' ? 'SISTEMA ACTIVO' : season.status === 'finished' ? 'CICLO COMPLETADO' : 'STANDBY MODE'}
+                            <div className={`w-1 h-1 rounded-full ${season.status === 'active' ? 'bg-[#FF3131] animate-pulse' : 'bg-current'}`} />
+                            {season.status === 'active' ? 'ACTIVO' : season.status === 'finished' ? 'FINALIZADO' : 'DRAFT'}
                           </div>
-                          <p className="text-[10px] text-[#2D2D2D] font-black uppercase tracking-widest">
+                          <p className="text-[7.5px] text-[#2D2D2D] font-black uppercase tracking-widest">
                             {season.competitions_count} COMPETENCIAS
                           </p>
                         </div>
                       </div>
                     </div>
                     
-                    <div className="flex items-center gap-3 relative z-10">
+                    <div className="flex items-center gap-1.5 relative z-10">
                       <button
                         onClick={() => openEditForm(season)}
-                        className="w-10 h-10 rounded-full bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#6A6C6E] hover:text-white hover:border-[#FF3131]/40 transition-all active:scale-90"
+                        className="w-8 h-8 rounded-lg bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#2D2D2D] hover:text-white transition-all"
                       >
-                        <Pencil className="w-4 h-4" />
+                        <Pencil className="w-3.5 h-3.5" />
                       </button>
                       <button
                         onClick={() => {
                           setDeletingSeason(season)
                           setIsDeleteOpen(true)
                         }}
-                        className="w-10 h-10 rounded-full bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-red-500/60 hover:text-red-500 hover:border-red-500/40 hover:bg-red-500/10 transition-all active:scale-90"
+                        className="w-8 h-8 rounded-lg bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#2D2D2D] hover:text-red-500 transition-all"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 pt-4 border-t border-white/[0.04]">
+                  <div className="flex items-center gap-2.5 pt-4 border-t border-white/[0.04]">
                     {season.status === 'draft' && (
                       <button 
                         onClick={() => handleActivate(season)}
-                        className="flex-1 h-11 bg-[#FF3131]/10 hover:bg-[#FF3131] text-[#FF3131] hover:text-white border border-[#FF3131]/20 rounded-xl font-black uppercase tracking-widest text-[9px] transition-all flex items-center justify-center gap-2 group/btn"
+                        className="flex-1 h-9.5 bg-[#FF3131]/5 hover:bg-[#FF3131] text-[#FF3131] hover:text-white border border-[#FF3131]/10 rounded-xl font-black uppercase tracking-widest text-[8px] transition-all flex items-center justify-center gap-2 group/btn"
                       >
-                        <Play className="w-3.5 h-3.5 fill-current" />
-                        Ejecutar Protocolo de Inicio
+                        <Play className="w-3 h-3 fill-current" />
+                        Ejecutar Protocolo
                       </button>
                     )}
                     <button 
                       onClick={() => router.push(`/admin/seasons/${season.id}`)}
-                      className="flex-1 h-11 bg-white/5 hover:bg-white/10 text-white border border-white/5 rounded-xl font-black uppercase tracking-widest text-[9px] transition-all flex items-center justify-center gap-2"
+                      className="flex-1 h-9.5 bg-white/[0.02] hover:bg-white/[0.05] text-[#2D2D2D] hover:text-white border border-white/[0.04] rounded-xl font-black uppercase tracking-widest text-[8px] transition-all flex items-center justify-center gap-2"
                     >
-                      <ChevronRight className="w-4 h-4" />
-                      Panel de Control de Ciclo
+                      <ChevronRight className="w-3.5 h-3.5" />
+                      Control de Ciclo
                     </button>
                   </div>
                 </div>
@@ -242,15 +242,14 @@ export default function SeasonsPage() {
         )}
       </div>
 
-      {/* Modern Ruby Dialog - Season Form */}
       <Dialog open={isFormOpen} onOpenChange={(open) => { if (!open) resetForm(); setIsFormOpen(open) }}>
-        <DialogContent className="max-w-md w-full rounded-[32px] bg-[#141414]/95 backdrop-blur-2xl border-white/[0.08] p-0 overflow-hidden shadow-2xl fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-          <div className="p-8">
-            <DialogHeader className="mb-8">
-              <div className="w-14 h-14 rounded-2xl bg-[#0A0A0A] border border-[#202020] flex items-center justify-center shadow-xl mb-6 mx-auto">
-                <Calendar className="w-7 h-7 text-[#FF3131]" />
+        <DialogContent className="max-w-md w-full rounded-[24px] bg-[#141414]/95 backdrop-blur-2xl border-white/[0.08] p-0 overflow-hidden shadow-2xl fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+          <div className="p-6">
+            <DialogHeader className="mb-6">
+              <div className="w-11 h-11 rounded-xl bg-[#0A0A0A] border border-[#202020] flex items-center justify-center shadow-xl mb-4 mx-auto">
+                <Calendar className="w-5 h-5 text-[#FF3131]" />
               </div>
-              <DialogTitle className="text-2xl font-black text-white uppercase tracking-tighter text-center">
+              <DialogTitle className="text-base font-black text-white uppercase tracking-tighter text-center">
                 {editingSeason ? (
                   <>MODIFICAR <span className="text-[#FF3131]">CICLO</span></>
                 ) : (
@@ -259,21 +258,21 @@ export default function SeasonsPage() {
               </DialogTitle>
             </DialogHeader>
 
-            <div className="space-y-6">
-              <div className="space-y-2.5">
-                <Label className="text-[10px] text-[#6A6C6E] uppercase tracking-[0.3em] font-black ml-1">Código de Temporada (Nombre)</Label>
-                <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="TEMPORADA 2024..." className="h-14 bg-[#0A0A0A] border-[#202020] rounded-[20px] text-white placeholder:text-[#2D2D2D] text-xs font-black uppercase tracking-widest focus:border-[#FF3131]/40 px-5" />
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-[8px] text-[#6A6C6E] uppercase tracking-[0.2em] font-black ml-1">Código de Temporada (Nombre)</Label>
+                <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="TEMPORADA 2024..." className="h-9.5 bg-[#0A0A0A] border-[#202020] rounded-xl text-white placeholder:text-[#2D2D2D] text-xs font-bold uppercase tracking-widest focus:border-[#FF3131]/30 px-4" />
               </div>
 
               {editingSeason && (
-                <div className="space-y-2.5">
-                  <Label className="text-[10px] text-[#6A6C6E] uppercase tracking-[0.3em] font-black ml-1">Estado Operativo (Status)</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-[8px] text-[#6A6C6E] uppercase tracking-[0.2em] font-black ml-1">Estado Operativo (Status)</Label>
                   <Select value={formData.status} onValueChange={(v: SeasonStatus) => setFormData({ ...formData, status: v })}>
-                    <SelectTrigger className="h-14 bg-[#0A0A0A] border-[#202020] rounded-[20px] text-white text-xs font-black uppercase tracking-widest focus:border-[#FF3131]/40 px-5"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-9.5 bg-[#0A0A0A] border-[#202020] rounded-xl text-white text-xs font-bold uppercase tracking-widest focus:border-[#FF3131]/30 px-4"><SelectValue /></SelectTrigger>
                     <SelectContent className="bg-[#141414] border-white/[0.08] rounded-xl">
-                      <SelectItem value="draft" className="text-xs font-black uppercase tracking-widest text-[#6A6C6E]">STANDBY (DRAFT)</SelectItem>
-                      <SelectItem value="active" className="text-xs font-black uppercase tracking-widest text-[#FF3131]">SISTEMA ACTIVO</SelectItem>
-                      <SelectItem value="finished" className="text-xs font-black uppercase tracking-widest text-emerald-500">COMPLETADO</SelectItem>
+                      <SelectItem value="draft" className="text-xs font-bold uppercase tracking-widest text-[#2D2D2D]">STANDBY (DRAFT)</SelectItem>
+                      <SelectItem value="active" className="text-xs font-bold uppercase tracking-widest text-[#FF3131]">SISTEMA ACTIVO</SelectItem>
+                      <SelectItem value="finished" className="text-xs font-bold uppercase tracking-widest text-emerald-500">COMPLETADO</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -281,30 +280,29 @@ export default function SeasonsPage() {
             </div>
           </div>
 
-          <div className="flex gap-4 p-8 bg-[#0A0A0A]/50 border-t border-white/[0.04]">
-            <DialogClose asChild><button className="flex-1 h-14 border border-[#202020] text-[#6A6C6E] hover:text-white rounded-[20px] font-black uppercase tracking-widest text-[10px] transition-all">Abortar</button></DialogClose>
-            <button onClick={handleSave} disabled={isSaving} className="flex-1 h-14 bg-[#FF3131] hover:bg-[#D32F2F] text-white rounded-[20px] font-black uppercase tracking-widest text-[10px] shadow-[0_0_30px_rgba(255,49,49,0.3)] transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center">
-              {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sincronizar Protocolo'}
+          <div className="flex gap-3 p-6 bg-[#0A0A0A]/50 border-t border-white/[0.04]">
+            <DialogClose asChild><button className="flex-1 h-10 border border-[#202020] text-[#2D2D2D] hover:text-white rounded-xl font-black uppercase tracking-widest text-[8px] transition-all">Abortar</button></DialogClose>
+            <button onClick={handleSave} disabled={isSaving} className="flex-1 h-10 bg-[#FF3131] hover:bg-[#D32F2F] text-white rounded-xl font-black uppercase tracking-widest text-[8px] shadow-[0_0_15px_rgba(255,49,49,0.2)] transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center">
+              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Sincronizar Datos'}
             </button>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Modern Ruby AlertDialog - Delete Season */}
       <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <AlertDialogContent className="max-w-sm w-full rounded-[32px] bg-[#141414] border-white/[0.08] p-8 shadow-2xl fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-          <AlertDialogHeader className="mb-6">
-            <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-6">
-              <Trash2 className="w-8 h-8 text-red-500" />
+        <AlertDialogContent className="max-w-xs w-full rounded-[24px] bg-[#141414] border-white/[0.08] p-6 shadow-2xl fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+          <AlertDialogHeader className="mb-4">
+            <div className="w-12 h-12 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-4">
+              <Trash2 className="w-6 h-6 text-red-500" />
             </div>
-            <AlertDialogTitle className="text-xl font-black text-white uppercase tracking-tighter text-center">PURGAR <span className="text-red-500">CICLO</span></AlertDialogTitle>
-            <AlertDialogDescription className="text-center text-xs text-[#6A6C6E] font-bold uppercase tracking-widest mt-2 px-4 leading-relaxed">
+            <AlertDialogTitle className="text-lg font-black text-white uppercase tracking-tighter text-center">PURGAR <span className="text-red-500">CICLO</span></AlertDialogTitle>
+            <AlertDialogDescription className="text-center text-[7px] text-[#2D2D2D] font-black uppercase tracking-widest mt-2 px-4 leading-relaxed">
               ¿CONFIRMAS LA PURGA TOTAL DE <span className="text-white font-black">{deletingSeason?.name}</span>? ESTO ELIMINARÁ COMPETENCIAS Y PARTIDOS RELACIONADOS.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="flex gap-3">
-            <AlertDialogCancel className="flex-1 h-14 bg-[#0A0A0A] border border-[#202020] text-[#6A6C6E] hover:text-white rounded-[20px] font-black uppercase tracking-widest text-[10px] m-0">No</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="flex-1 h-14 bg-red-600 hover:bg-red-700 text-white rounded-[20px] font-black uppercase tracking-widest text-[10px] shadow-[0_0_30px_rgba(220,38,38,0.3)] m-0">Purgar</AlertDialogAction>
+          <div className="flex gap-2">
+            <AlertDialogCancel className="flex-1 h-10 bg-[#0A0A0A] border border-[#202020] text-[#2D2D2D] hover:text-white rounded-xl font-black uppercase tracking-widest text-[8px] m-0">No</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="flex-1 h-10 bg-red-600 hover:bg-red-700 text-white rounded-xl font-black uppercase tracking-widest text-[8px] shadow-[0_0_15px_rgba(220,38,38,0.2)] m-0">Purgar</AlertDialogAction>
           </div>
         </AlertDialogContent>
       </AlertDialog>

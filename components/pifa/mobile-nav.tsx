@@ -33,9 +33,9 @@ export function MobileNav({ variant }: MobileNavProps) {
   const navItems = variant === 'admin' ? adminNavItems : userNavItems
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 safe-area-bottom">
-      {/* Glassmorphism backdrop */}
-      <div className="bg-card/80 backdrop-blur-2xl border-t border-white/[0.06] shadow-[0_-4px_30px_rgba(0,0,0,0.3)]">
+    <nav className="fixed bottom-0 left-0 right-0 z-50">
+      {/* Glassmorphism backdrop covering whole bottom */}
+      <div className="bg-card/80 backdrop-blur-2xl border-t border-white/[0.06] shadow-[0_-4px_30px_rgba(0,0,0,0.3)] pb-[env(safe-area-inset-bottom)]">
         <div className="flex items-center justify-around px-1 py-1.5">
           {navItems.map((item) => {
             const isActive = pathname === item.href || 

@@ -2,7 +2,21 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Users, Shield, UserCog, Loader2, ChevronRight, TrendingUp, Calendar, Trophy, Zap, Activity } from 'lucide-react'
+import { 
+  Users, 
+  Shield, 
+  UserCog, 
+  Loader2, 
+  ChevronRight, 
+  Calendar, 
+  Trophy, 
+  Zap, 
+  Activity,
+  ArrowUpRight,
+  Database,
+  Globe,
+  LayoutDashboard
+} from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { PifaLogo } from '@/components/pifa/logo'
 import type { AuthSession, Season } from '@/lib/types'
@@ -23,10 +37,10 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     const loadData = async () => {
-      const stored = localStorage.getItem('pifa_auth_session')
+      const stored = localStorage.getItem('pifa_admin_user')
       if (stored) {
-        const session: AuthSession = JSON.parse(stored)
-        setAdminName(session.user?.full_name || 'Admin')
+        const user = JSON.parse(stored)
+        setAdminName(user.full_name || 'Admin')
       }
 
       const [usersRes, clubsRes, playersRes, seasonsRes, compsRes] = await Promise.all([
@@ -45,7 +59,6 @@ export default function AdminDashboardPage() {
         competitions: compsRes.count || 0,
       })
 
-      // Fetch active season
       const { data: activeData } = await supabase
         .from('seasons')
         .select('*, competitions(id)')
@@ -66,209 +79,158 @@ export default function AdminDashboardPage() {
     loadData()
   }, [])
 
-  const quickActions = [
-    {
-      href: '/admin/seasons',
-      icon: <Calendar className="w-5 h-5" />,
-      label: 'Temporadas',
-      count: stats.seasons,
-      description: 'Gestionar temporadas y competiciones',
-      gradient: 'from-amber-500/20 to-yellow-600/10',
-      iconColor: 'text-amber-400',
-      ring: 'group-hover:ring-amber-400/30',
-    },
-    {
-      href: '/admin/clubs',
-      icon: <Shield className="w-5 h-5" />,
-      label: 'Clubes',
-      count: stats.clubs,
-      description: 'Gestionar clubes y escudos',
-      gradient: 'from-primary/20 to-orange-600/10',
-      iconColor: 'text-primary',
-      ring: 'group-hover:ring-primary/30',
-    },
-    {
-      href: '/admin/players',
-      icon: <UserCog className="w-5 h-5" />,
-      label: 'Jugadores',
-      count: stats.players,
-      description: 'Gestionar plantillas',
-      gradient: 'from-emerald-500/20 to-green-600/10',
-      iconColor: 'text-emerald-400',
-      ring: 'group-hover:ring-emerald-400/30',
-    },
-    {
-      href: '/admin/users',
-      icon: <Users className="w-5 h-5" />,
-      label: 'Usuarios',
-      count: stats.users,
-      description: 'Gestionar DTs y admins',
-      gradient: 'from-blue-500/20 to-indigo-600/10',
-      iconColor: 'text-blue-400',
-      ring: 'group-hover:ring-blue-400/30',
-    },
-  ]
-
-  const statCards = [
-    { icon: <Calendar className="w-4 h-4" />, value: stats.seasons, label: 'Temporadas', color: 'text-amber-400', bg: 'bg-amber-400/10' },
-    { icon: <Trophy className="w-4 h-4" />, value: stats.competitions, label: 'Compet.', color: 'text-purple-400', bg: 'bg-purple-400/10' },
-    { icon: <Shield className="w-4 h-4" />, value: stats.clubs, label: 'Clubes', color: 'text-primary', bg: 'bg-primary/10' },
-    { icon: <Users className="w-4 h-4" />, value: stats.users, label: 'Usuarios', color: 'text-blue-400', bg: 'bg-blue-400/10' },
-  ]
-
   return (
-    <div className="min-h-screen">
-      {/* Header */}
-      <header className="px-6 pt-10 pb-8">
-        <div className="flex items-center gap-4 mb-8">
-          <div className="relative">
-            <div className="absolute inset-0 bg-[#FF3131]/20 rounded-xl blur-lg animate-pulse" />
-            <div className="relative w-12 h-12 rounded-2xl bg-[#141414] border border-[#202020] flex items-center justify-center shadow-2xl">
-              <PifaLogo size="md" showText={false} />
+    <div className="min-h-screen bg-[#0A0A0A]">
+      {/* Background Ambience */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-[5%] -left-[5%] w-[30%] h-[30%] bg-[#FF3131]/5 rounded-full blur-[80px] animate-pulse" />
+      </div>
+
+      {/* Header Section */}
+      <header className="relative px-6 pt-10 pb-5">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="relative group">
+              <div className="absolute inset-0 bg-[#FF3131]/10 rounded-xl blur-lg" />
+              <div className="relative w-10 h-10 rounded-xl bg-[#141414] border border-white/[0.05] flex items-center justify-center shadow-xl overflow-hidden">
+                <PifaLogo size="xs" showText={false} />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center gap-1">
+                <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
+                <p className="text-[7px] text-[#6A6C6E] uppercase tracking-[0.4em] font-black">Authorized</p>
+              </div>
+              <p className="text-base font-black text-white uppercase tracking-tighter leading-none mt-0.5">
+                Hola, <span className="text-[#FF3131]">{adminName.split(' ')[0]}</span>
+              </p>
             </div>
           </div>
-          <div>
-            <p className="text-[10px] text-[#6A6C6E] uppercase tracking-[0.4em] font-black">Admin Access</p>
-            <p className="text-xl font-black text-white uppercase tracking-tight">{adminName}</p>
-          </div>
+
         </div>
-        
-        <div className="space-y-1">
-          <h1 className="text-4xl font-black text-white tracking-tighter uppercase leading-none">
-            CENTRO DE <span className="text-[#FF3131]">MANDO</span>
+
+        <div className="relative">
+          <h1 className="text-2xl font-black text-white tracking-tighter uppercase leading-none mb-1.5">
+            CONSOLA <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FF3131] to-[#D32F2F]">FEDERAL</span>
           </h1>
-          <p className="text-xs text-[#6A6C6E] font-bold uppercase tracking-widest mt-2 bg-[#141414] w-fit px-3 py-1 rounded-lg border border-white/[0.04]">
-            PIFA Federation Management
-          </p>
+          <div className="flex items-center gap-2">
+            <div className="h-[1px] w-4 bg-[#FF3131]" />
+            <p className="text-[8px] text-[#6A6C6E] font-black uppercase tracking-[0.3em]">Gestión de Red PIFA</p>
+          </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <div className="px-6 space-y-8 pb-32">
+      {/* Main Grid Content */}
+      <main className="relative px-6 space-y-5 pb-32">
         
-        {/* Active Season Hero Card */}
-        {activeSeason && (
-          <Link href={`/admin/seasons/${activeSeason.id}`} className="block group">
-            <div className="relative overflow-hidden rounded-[32px] bg-gradient-to-br from-[#FF3131]/10 via-[#141414] to-[#0A0A0A] border border-[#FF3131]/20 p-6 transition-all duration-500 group-hover:border-[#FF3131]/40 group-hover:shadow-[0_0_40px_rgba(255,49,49,0.15)] group-active:scale-[0.98]">
-              {/* Animated background glow */}
-              <div className="absolute -top-20 -right-20 w-60 h-60 bg-[#FF3131]/10 rounded-full blur-[100px] group-hover:bg-[#FF3131]/20 transition-all duration-700" />
-              
-              <div className="relative flex items-center gap-6">
-                <div className="relative">
-                  <div className="absolute inset-0 bg-[#FF3131]/30 rounded-2xl blur-xl animate-pulse" />
-                  <div className="relative w-16 h-16 rounded-[22px] bg-gradient-to-br from-[#FF3131] to-[#D32F2F] flex items-center justify-center shadow-2xl border border-white/10">
-                    <Zap className="w-8 h-8 text-white" />
-                  </div>
-                </div>
-                <div className="flex-1">
+        {/* Active Season Highlight (HERO) */}
+        <section>
+          {activeSeason ? (
+            <Link href={`/admin/seasons/${activeSeason.id}`} className="group relative block">
+              <div className="relative overflow-hidden rounded-[24px] bg-[#141414] border border-white/[0.05] p-5 transition-all duration-300 group-hover:border-[#FF3131]/40 shadow-xl">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-[#FF3131]/5 rounded-full blur-2xl -mr-10 -mt-10" />
+                
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <span className="text-[9px] font-black uppercase tracking-[0.2em] text-[#FF3131] bg-[#FF3131]/10 px-3 py-1 rounded-full border border-[#FF3131]/20 flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#FF3131] animate-ping" />
-                      Season Active
-                    </span>
+                    <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#FF3131] to-[#A30000] flex items-center justify-center shadow-lg border border-white/10">
+                      <Zap className="w-4 h-4 text-white" />
+                    </div>
+                    <div>
+                      <div className="px-1.5 py-0.5 rounded-full bg-[#FF3131]/10 border border-[#FF3131]/20 w-fit mb-0.5">
+                        <p className="text-[6px] font-black text-[#FF3131] uppercase tracking-[0.2em]">En Curso</p>
+                      </div>
+                      <h2 className="text-lg font-black text-white uppercase tracking-tighter group-hover:text-[#FF3131] transition-colors line-clamp-1">{activeSeason.name}</h2>
+                    </div>
                   </div>
-                  <h3 className="text-xl font-black text-white mt-2 uppercase tracking-tight leading-none">{activeSeason.name}</h3>
-                  <p className="text-[10px] text-[#6A6C6E] font-bold uppercase tracking-widest mt-1">{activeSeason.competitions_count} COMPETICIONES EN CURSO</p>
-                </div>
-                <div className="w-10 h-10 rounded-full bg-[#141414] border border-[#202020] flex items-center justify-center text-[#6A6C6E] group-hover:text-white group-hover:border-[#FF3131]/40 transition-all">
-                  <ChevronRight className="w-6 h-6" />
+                  <ChevronRight size={18} className="text-[#2D2D2D] group-hover:text-white transition-all" />
                 </div>
               </div>
-            </div>
-          </Link>
-        )}
-
-        {/* Overview Stats */}
-        <div className="grid grid-cols-2 gap-3">
-          {isLoading ? (
-            <div className="col-span-2 flex justify-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-[#FF3131]" />
-            </div>
+            </Link>
           ) : (
-            statCards.map((stat, i) => (
-              <div 
-                key={stat.label}
-                className="relative group bg-[#141414]/50 backdrop-blur-xl rounded-[24px] p-5 border border-white/[0.04] overflow-hidden transition-all duration-300 hover:border-[#FF3131]/30"
-              >
-                <div className="absolute -top-10 -right-10 w-24 h-24 bg-[#FF3131]/5 rounded-full blur-2xl group-hover:bg-[#FF3131]/10 transition-all" />
-                <div className={`w-10 h-10 rounded-[14px] ${stat.bg.replace('bg-', 'bg-[#141414] border border-')} flex items-center justify-center mb-4 shadow-lg`}>
-                  <div className={stat.color}>{stat.icon}</div>
-                </div>
-                <p className="text-3xl font-black text-white tracking-tighter leading-none">{stat.value}</p>
-                <p className="text-[9px] text-[#6A6C6E] uppercase tracking-[0.2em] font-black mt-2">{stat.label}</p>
-              </div>
-            ))
+            <div className="rounded-[24px] bg-[#141414]/30 border border-dashed border-white/[0.08] p-6 text-center">
+              <p className="text-[7px] text-[#2D2D2D] font-black uppercase tracking-[0.4em] mb-3">Sin fase activa</p>
+              <Link href="/admin/seasons" className="inline-flex items-center gap-2 px-4 py-2 bg-white/[0.03] hover:bg-[#FF3131]/10 rounded-lg border border-white/[0.05] transition-all">
+                <span className="text-[7px] font-black text-white uppercase tracking-widest">Iniciar Nueva</span>
+              </Link>
+            </div>
           )}
-        </div>
+        </section>
 
-        {/* Global Activity Summary */}
-        <div className="relative overflow-hidden bg-[#141414]/50 backdrop-blur-xl rounded-[32px] p-6 border border-white/[0.04]">
-          <div className="flex items-center gap-4 mb-6">
-            <div className="w-12 h-12 rounded-2xl bg-[#0A0A0A] border border-[#202020] flex items-center justify-center shadow-xl">
-              <Activity className="w-6 h-6 text-[#FF3131]" />
+        {/* Stats Grid */}
+        <section className="grid grid-cols-2 gap-3">
+          {[
+            { label: 'Clubes', value: stats.clubs, icon: <Shield className="w-4 h-4" />, color: 'text-primary' },
+            { label: 'Atletas', value: stats.players, icon: <UserCog className="w-4 h-4" />, color: 'text-emerald-400' },
+            { label: 'Usuarios', value: stats.users, icon: <Users className="w-4 h-4" />, color: 'text-blue-400' },
+            { label: 'Eventos', value: stats.competitions, icon: <Trophy className="w-4 h-4" />, color: 'text-amber-400' },
+          ].map((item) => (
+            <div 
+              key={item.label}
+              className="group bg-[#141414] rounded-[20px] p-4 border border-white/[0.04] transition-all"
+            >
+              <div className={`${item.color} mb-2.5 opacity-40`}>{item.icon}</div>
+              <p className="text-2xl font-black text-white tracking-tighter leading-none mb-0.5">{item.value}</p>
+              <p className="text-[7px] text-[#6A6C6E] font-black uppercase tracking-widest leading-none">{item.label}</p>
+            </div>
+          ))}
+        </section>
+
+        {/* Global Infrastructure Status */}
+        <section className="bg-[#141414] rounded-[24px] p-5 border border-white/[0.04]">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-8 h-8 rounded-full bg-[#FF3131]/5 border border-[#FF3131]/20 flex items-center justify-center">
+              <Activity className="w-4 h-4 text-[#FF3131]" />
             </div>
             <div>
-              <p className="text-sm font-black text-white uppercase tracking-widest">Resumen de Actividad</p>
-              <p className="text-[10px] text-[#6A6C6E] font-bold uppercase tracking-tight">Estadísticas globales de la liga</p>
+              <p className="text-[10px] font-black text-white uppercase tracking-widest leading-none">Status Operativo</p>
+              <p className="text-[7px] text-[#6A6C6E] font-black uppercase tracking-[0.2em] mt-0.5">Infraestructure Monitoring</p>
             </div>
           </div>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between group">
-              <span className="text-[10px] font-black text-[#6A6C6E] uppercase tracking-[0.15em] group-hover:text-white transition-colors">Jugadores por Club</span>
-              <div className="flex items-center gap-4 flex-1 mx-6">
-                <div className="h-1.5 flex-1 bg-white/[0.05] rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-[#FF3131] to-orange-500 w-[65%]" />
-                </div>
-              </div>
-              <span className="text-sm font-black text-white tabular-nums">
-                {stats.clubs > 0 ? (stats.players / stats.clubs).toFixed(1) : '0'}
-              </span>
-            </div>
-            <div className="flex items-center justify-between group">
-              <span className="text-[10px] font-black text-[#6A6C6E] uppercase tracking-[0.15em] group-hover:text-white transition-colors">Tasa de Competitividad</span>
-              <div className="flex items-center gap-4 flex-1 mx-6">
-                <div className="h-1.5 flex-1 bg-white/[0.05] rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-[#FF3131] to-purple-600 w-[42%]" />
-                </div>
-              </div>
-              <span className="text-sm font-black text-white tabular-nums">{stats.competitions}</span>
-            </div>
-          </div>
-        </div>
 
-        {/* Admin Navigation Options */}
-        <div className="space-y-4 pt-2">
-          <h2 className="text-[10px] font-black text-[#6A6C6E] uppercase tracking-[0.3em] ml-2">Terminal de Aplicaciones</h2>
-          <div className="grid gap-3">
-            {quickActions.map((action, i) => (
-              <Link
-                key={action.href}
-                href={action.href}
-                className="group relative flex items-center gap-5 bg-[#141414] rounded-[24px] p-5 border border-white/[0.04] transition-all duration-300 hover:bg-[#1A1A1A] hover:border-[#FF3131]/20 active:scale-[0.98] shadow-xl overflow-hidden"
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-[#FF3131]/0 via-[#FF3131]/0 to-[#FF3131]/0 group-hover:from-[#FF3131]/5 transition-all duration-700" />
-                
-                <div className={`relative w-14 h-14 rounded-[18px] bg-[#0A0A0A] border border-[#202020] flex items-center justify-center transition-all duration-500 group-hover:rotate-6 group-hover:scale-110 shadow-lg`}>
-                  <div className={action.iconColor}>{action.icon}</div>
-                </div>
-                
-                <div className="relative flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-0.5">
-                    <p className="text-sm font-black text-white uppercase tracking-widest leading-none">{action.label}</p>
-                    <span className="text-[11px] font-black text-[#FF3131] tabular-nums bg-[#FF3131]/10 px-2 py-0.5 rounded-md border border-[#FF3131]/10">
-                      {action.count}
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-[#6A6C6E] font-bold uppercase tracking-tight">{action.description}</p>
-                </div>
-                <div className="relative w-8 h-8 rounded-full bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#2D2D2D] group-hover:text-white group-hover:border-[#FF3131]/30 transition-all">
-                  <ChevronRight size={18} />
-                </div>
-              </Link>
-            ))}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.04]">
+              <div className="flex items-center gap-2">
+                <Database className="w-3 h-3 text-[#2D2D2D]" />
+                <span className="text-[7px] font-black text-[#6A6C6E] uppercase tracking-widest">PostgreSQL</span>
+              </div>
+              <div className="w-1 h-1 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]" />
+            </div>
+            <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.04]">
+              <div className="flex items-center gap-2">
+                <Globe className="w-3 h-3 text-[#2D2D2D]" />
+                <span className="text-[7px] font-black text-[#6A6C6E] uppercase tracking-widest">Mercado</span>
+              </div>
+              <div className="w-1 h-1 rounded-full bg-[#FF3131] shadow-[0_0_5px_rgba(255,49,49,0.5)]" />
+            </div>
           </div>
+        </section>
+
+      </main>
+    </div>
+  )
+}
+
+function StatusRow({ icon, label, status, color }: { icon: any, label: string, status: string, color: string }) {
+  return (
+    <div className="flex items-center justify-between p-4 rounded-2xl bg-white/[0.02] border border-white/[0.04] group hover:bg-white/[0.05] transition-all">
+      <div className="flex items-center gap-4">
+        <div className="p-2.5 rounded-xl bg-[#0A0A0A] border border-[#202020] text-[#6A6C6E] group-hover:text-white transition-colors">
+          {icon}
         </div>
+        <p className="text-[10px] font-black text-[#6A6C6E] uppercase tracking-widest group-hover:text-white transition-colors">{label}</p>
+      </div>
+      <div className="flex items-center gap-2">
+        <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${color.replace('text-', 'bg-')}`} />
+        <p className={`text-[9px] font-black uppercase tracking-[0.2em] ${color}`}>{status}</p>
       </div>
     </div>
+  )
+}
+
+function Plus({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+    </svg>
   )
 }

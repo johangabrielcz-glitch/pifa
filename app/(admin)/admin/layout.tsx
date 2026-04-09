@@ -80,7 +80,7 @@ export default function AdminLayout({
       </div>
 
       {/* Premium Admin Header */}
-      <header className="sticky top-0 z-40 bg-[#141414]/80 backdrop-blur-2xl border-b border-white/[0.04] shadow-[0_1px_40px_rgba(0,0,0,0.4)]">
+      <header className="sticky top-0 z-40 bg-[#141414]/80 backdrop-blur-2xl border-b border-white/[0.04] shadow-[0_1px_40px_rgba(0,0,0,0.4)] pt-[env(safe-area-inset-top)]">
         <div className="flex items-center justify-between px-5 h-16">
           <div className="flex items-center gap-4">
             <div className="relative group">

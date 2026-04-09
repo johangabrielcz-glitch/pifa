@@ -132,7 +132,7 @@ async function executeTransfer(offer: any) {
   const { data: latestBuyer } = await supabase.from('clubs').select('budget').eq('id', offer.buyer_club_id).single()
   
   if (!latestBuyer || latestBuyer.budget < amount) {
-    throw new Error('El club comprador no tiene fondos suficientes para completar esta operaciA3n.')
+    throw new Error('El club comprador no tiene fondos suficientes para completar esta operación.')
   }
 
   // 2. Atomic updates
@@ -175,7 +175,7 @@ async function executeTransfer(offer: any) {
     {
       club_id: offer.buyer_club_id,
       title: 'Fichaje Completado',
-      message: `AHas fichado a ${player.name} de ${offer.seller_club?.name} por $${amount.toLocaleString()}!`,
+      message: `¡Has fichado a ${player.name} de ${offer.seller_club?.name} por $${amount.toLocaleString()}!`,
       type: 'transfer_complete',
       data: { player_id: offer.player_id, player_name: player.name, seller_name: offer.seller_club?.name }
     },

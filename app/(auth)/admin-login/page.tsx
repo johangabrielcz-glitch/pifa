@@ -32,7 +32,7 @@ export default function AdminLoginPage() {
         .from('users')
         .select('*')
         .eq('username', username.trim())
-        .eq('password', password)
+        .eq('password', password.trim())
         .eq('role', 'admin')
         .single()
 

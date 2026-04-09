@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from '@/components/ui/dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import type { Player, Club, PlayerInsert, PlayerUpdate } from '@/lib/types'
+import { ImageUpload } from '@/components/pifa/image-upload'
 
 const POSITIONS = [
   'GK', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LM', 'RM', 'LW', 'RW', 'ST', 'CF'
@@ -54,13 +55,8 @@ export default function AdminPlayersPage() {
     name: '',
     position: '',
     number: '',
-    overall: 0,
     club_id: '' as string | null,
-    photo_url: '',
-    goals: 0,
-    assists: 0,
-    yellow_cards: 0,
-    red_cards: 0
+    photo_url: ''
   })
 
   const loadData = async () => {
@@ -90,13 +86,8 @@ export default function AdminPlayersPage() {
       name: '',
       position: '',
       number: '',
-      overall: 0,
       club_id: null,
-      photo_url: '',
-      goals: 0,
-      assists: 0,
-      yellow_cards: 0,
-      red_cards: 0
+      photo_url: ''
     })
     setEditingPlayer(null)
   }
@@ -112,13 +103,8 @@ export default function AdminPlayersPage() {
       name: player.name,
       position: player.position,
       number: player.number?.toString() || '',
-      overall: player.overall || 0,
       club_id: player.club_id,
-      photo_url: player.photo_url || '',
-      goals: player.goals || 0,
-      assists: player.assists || 0,
-      yellow_cards: player.yellow_cards || 0,
-      red_cards: player.red_cards || 0
+      photo_url: player.photo_url || ''
     })
     setIsFormOpen(true)
   }
@@ -136,13 +122,8 @@ export default function AdminPlayersPage() {
         name: formData.name.trim(),
         position: formData.position,
         number: formData.number ? parseInt(formData.number) : null,
-        overall: formData.overall,
         club_id: formData.club_id === 'none' ? null : formData.club_id,
-        photo_url: formData.photo_url.trim() || null,
-        goals: formData.goals,
-        assists: formData.assists,
-        yellow_cards: formData.yellow_cards,
-        red_cards: formData.red_cards
+        photo_url: formData.photo_url.trim() || null
       }
 
       if (editingPlayer) {
@@ -195,38 +176,38 @@ export default function AdminPlayersPage() {
   return (
     <div className="min-h-screen">
       {/* Header */}
-      <header className="sticky top-0 z-30 bg-[#0A0A0A]/80 backdrop-blur-2xl border-b border-white/[0.04]">
-        <div className="flex items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-4">
+      <header className="sticky top-0 z-30 bg-[#0A0A0A]/90 backdrop-blur-2xl border-b border-white/[0.04]">
+        <div className="flex items-center justify-between px-6 py-3.5">
+          <div className="flex items-center gap-3">
             <button 
               onClick={() => router.back()} 
-              className="w-10 h-10 rounded-xl bg-[#141414] border border-[#202020] flex items-center justify-center text-[#6A6C6E] hover:text-white hover:border-[#FF3131]/40 transition-all active:scale-95"
+              className="w-9 h-9 rounded-xl bg-[#141414] border border-[#202020] flex items-center justify-center text-[#6A6C6E] hover:text-white transition-all active:scale-95"
             >
-              <ChevronLeft className="w-5 h-5" />
+              <ChevronLeft className="w-4.5 h-4.5" />
             </button>
             <div>
-              <h1 className="text-xl font-black text-white uppercase tracking-tight">GESTIÓN DE <span className="text-[#FF3131]">ATLETAS</span></h1>
-              <p className="text-[10px] text-[#6A6C6E] font-black uppercase tracking-[0.2em]">{players.length} REGISTROS ACTIVOS</p>
+              <h1 className="text-base font-black text-white uppercase tracking-tight">GESTIÓN DE <span className="text-[#FF3131]">ATLETAS</span></h1>
+              <p className="text-[7px] text-[#2D2D2D] font-black uppercase tracking-[0.3em] font-black">{players.length} REGISTROS ACTIVOS</p>
             </div>
           </div>
           <button 
             onClick={openCreateForm} 
-            className="h-11 px-5 bg-[#FF3131] hover:bg-[#D32F2F] text-white rounded-xl flex items-center gap-2.5 font-black uppercase tracking-widest text-[10px] shadow-[0_0_20px_rgba(255,49,49,0.3)] transition-all active:scale-95"
+            className="h-9 px-4 bg-[#FF3131] hover:bg-[#D32F2F] text-white rounded-lg flex items-center gap-2 font-black uppercase tracking-widest text-[8px] shadow-[0_0_15px_rgba(255,49,49,0.2)] transition-all active:scale-95"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-3.5 h-3.5" />
             Nuevo Registro
           </button>
         </div>
         
         {/* Search & Filter */}
-        <div className="px-6 pb-4 space-y-4">
+        <div className="px-6 pb-3.5 space-y-3">
           <div className="relative group">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-[#2D2D2D] group-focus-within:text-[#FF3131] transition-colors" />
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#2D2D2D] group-focus-within:text-[#FF3131] transition-colors" />
             <input
               placeholder="SISTEMA DE BÚSQUEDA DE ATLETAS..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full h-12 pl-12 pr-4 bg-[#141414] border border-[#202020] rounded-xl text-white placeholder:text-[#2D2D2D] text-[11px] font-black uppercase tracking-widest focus:outline-none focus:border-[#FF3131]/40 transition-all"
+              className="w-full h-9.5 pl-10 pr-4 bg-[#141414] border border-[#202020] rounded-lg text-white placeholder:text-[#2D2D2D] text-[10px] font-black uppercase tracking-widest focus:outline-none focus:border-[#FF3131]/30 transition-all"
             />
             {searchQuery && (
               <button
@@ -238,13 +219,13 @@ export default function AdminPlayersPage() {
             )}
           </div>
 
-          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+          <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
             <button
               onClick={() => setFilterClub('all')}
-              className={`px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-[0.15em] transition-all whitespace-nowrap border ${
+              className={`px-3 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest transition-all whitespace-nowrap border ${
                 filterClub === 'all' 
-                  ? 'bg-[#FF3131] text-white border-[#FF3131] shadow-[0_0_15px_rgba(255,49,49,0.2)]' 
-                  : 'bg-[#141414] text-[#6A6C6E] border-white/[0.04] hover:border-white/10 hover:text-white'
+                  ? 'bg-[#FF3131] text-white border-[#FF3131] shadow-[0_0_10px_rgba(255,49,49,0.2)]' 
+                  : 'bg-[#141414] text-[#2D2D2D] border-white/[0.04] hover:border-[#2D2D2D] hover:text-white'
               }`}
             >
               Todos los Clubes
@@ -253,10 +234,10 @@ export default function AdminPlayersPage() {
               <button
                 key={club.id}
                 onClick={() => setFilterClub(club.id)}
-                className={`px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-[0.15em] transition-all whitespace-nowrap border ${
+                className={`px-3 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest transition-all whitespace-nowrap border ${
                   filterClub === club.id
-                    ? 'bg-[#FF3131] text-white border-[#FF3131] shadow-[0_0_15_rgba(255,49,49,0.2)]' 
-                    : 'bg-[#141414] text-[#6A6C6E] border-white/[0.04] hover:border-white/10 hover:text-white'
+                    ? 'bg-[#FF3131] text-white border-[#FF3131] shadow-[0_0_10px_rgba(255,49,49,0.2)]' 
+                    : 'bg-[#141414] text-[#2D2D2D] border-white/[0.04] hover:border-[#2D2D2D] hover:text-white'
                 }`}
               >
                 {club.name}
@@ -287,86 +268,58 @@ export default function AdminPlayersPage() {
             return (
               <div
                 key={player.id}
-                className="group relative bg-[#141414]/50 backdrop-blur-xl rounded-[28px] p-5 border border-white/[0.04] transition-all duration-300 hover:border-[#FF3131]/30 hover:bg-[#1A1A1A]/60 animate-fade-in-up shadow-xl overflow-hidden"
+                className="group relative bg-[#141414]/50 rounded-[20px] p-4 border border-white/[0.04] transition-all duration-300 hover:border-[#FF3131]/20 animate-fade-in-up"
                 style={{ animationDelay: `${i * 30}ms` }}
               >
-                {/* Background glow detail */}
-                <div className={`absolute top-0 right-0 w-32 h-32 opacity-0 group-hover:opacity-10 transition-opacity rounded-full blur-3xl ${posColor.bg.replace('10', '50')}`} />
-                
                 <div className="relative flex items-center justify-between">
-                  <div className="flex items-center gap-5 min-w-0">
+                  <div className="flex items-center gap-4 min-w-0">
                     <div className="relative shrink-0">
-                      <div className="absolute inset-0 bg-[#FF3131]/20 rounded-2[x] blur-lg opacity-0 group-hover:opacity-100 transition-opacity" />
-                      <div className={`w-14 h-14 rounded-[18px] ${posColor.bg} border border-white/[0.04] flex items-center justify-center shadow-2xl transition-transform group-hover:scale-105`}>
-                        <span className={`text-lg font-black ${posColor.text}`}>
+                      <div className={`w-11 h-11 rounded-xl ${posColor.bg} border border-white/[0.04] flex items-center justify-center shadow-2xl transition-transform group-hover:scale-105`}>
+                        <span className={`text-base font-black ${posColor.text}`}>
                           {player.number || '—'}
                         </span>
                       </div>
                     </div>
                     
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-base font-black text-white uppercase tracking-tight truncate">{player.name}</h3>
-                        <div className={`px-2 py-0.5 rounded-md ${posColor.bg} border border-white/[0.04]`}>
-                          <p className={`text-[8px] font-black ${posColor.text} tracking-widest uppercase`}>{player.position}</p>
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <h3 className="text-sm font-black text-white uppercase tracking-tight truncate">{player.name}</h3>
+                        <div className={`px-1.5 py-0.5 rounded-md ${posColor.bg} border border-white/[0.04]`}>
+                          <p className={`text-[7px] font-black ${posColor.text} tracking-widest uppercase`}>{player.position}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
                         {player.club ? (
-                          <div className="flex items-center gap-2 bg-white/5 px-2.5 py-1 rounded-lg border border-white/5">
-                            <Shield className="w-3 h-3 text-[#FF3131]" />
-                            <p className="text-[9px] font-black text-[#6A6C6E] uppercase tracking-widest">{player.club.name}</p>
+                          <div className="flex items-center gap-1.5 bg-white/[0.02] px-2 py-0.5 rounded-md border border-white/[0.04]">
+                            <Shield className="w-2.5 h-2.5 text-[#FF3131]" />
+                            <p className="text-[7.5px] font-black text-[#424242] uppercase tracking-widest">{player.club.name}</p>
                           </div>
                         ) : (
-                          <div className="flex items-center gap-2 bg-white/5 px-2.5 py-1 rounded-lg border border-white/5 opacity-50">
-                            <Shield className="w-3 h-3 text-[#2D2D2D]" />
-                            <p className="text-[9px] font-black text-[#2D2D2D] uppercase tracking-widest">Agente Libre</p>
+                          <div className="flex items-center gap-1.5 bg-white/[0.02] px-2 py-0.5 rounded-md border border-white/[0.04] opacity-50">
+                            <Shield className="w-2.5 h-2.5 text-[#2D2D2D]" />
+                            <p className="text-[7.5px] font-black text-[#2D2D2D] uppercase tracking-widest">Agente Libre</p>
                           </div>
                         )}
-                        <div className="flex items-center gap-2 bg-[#FF3131]/10 px-2.5 py-1 rounded-lg border border-[#FF3131]/20">
-                          <TrendingUp className="w-3 h-3 text-[#FF3131]" />
-                          <p className="text-[9px] font-black text-[#FF3131] uppercase tracking-widest">{player.overall} OVR</p>
-                        </div>
                       </div>
                     </div>
                   </div>
                   
-                  <div className="flex flex-col gap-2 shrink-0 relative z-10">
+                  <div className="flex items-center gap-1 shrink-0 relative z-10">
                     <button
                       onClick={() => openEditForm(player)}
-                      className="w-10 h-10 rounded-full bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#6A6C6E] hover:text-white hover:border-[#FF3131]/40 transition-all active:scale-90"
+                      className="w-8 h-8 rounded-lg bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#2D2D2D] hover:text-white transition-all shadow-xl"
                     >
-                      <Pencil className="w-4.5 h-4.5" />
+                      <Pencil className="w-3.5 h-3.5" />
                     </button>
                     <button
                       onClick={() => {
                         setDeletingPlayer(player)
                         setIsDeleteOpen(true)
                       }}
-                      className="w-10 h-10 rounded-full bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-red-500/60 hover:text-red-500 hover:border-red-500/40 hover:bg-red-500/10 transition-all active:scale-90"
+                      className="w-8 h-8 rounded-lg bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#2D2D2D] hover:text-red-500 hover:bg-red-500/5 transition-all shadow-xl"
                     >
-                      <Trash2 className="w-4.5 h-4.5" />
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
-                  </div>
-                </div>
-                
-                {/* Stats Bar */}
-                <div className="mt-5 grid grid-cols-3 gap-3">
-                  <div className="bg-[#0A0A0A] border border-white/[0.02] rounded-[18px] p-3 text-center group/stat hover:border-[#FF3131]/20 transition-colors">
-                    <p className="text-sm font-black text-white leading-none tabular-nums mb-1 group-hover:text-[#FF3131] transition-colors">{player.goals}</p>
-                    <p className="text-[8px] text-[#2D2D2D] font-black uppercase tracking-[0.2em]">Goles</p>
-                  </div>
-                  <div className="bg-[#0A0A0A] border border-white/[0.02] rounded-[18px] p-3 text-center group/stat hover:border-[#FF3131]/20 transition-colors">
-                    <p className="text-sm font-black text-white leading-none tabular-nums mb-1 group-hover:text-[#FF3131] transition-colors">{player.assists}</p>
-                    <p className="text-[8px] text-[#2D2D2D] font-black uppercase tracking-[0.2em]">Asists</p>
-                  </div>
-                  <div className="bg-[#0A0A0A] border border-white/[0.02] rounded-[18px] p-3 text-center group/stat hover:border-[#FF3131]/20 transition-colors">
-                    <div className="flex items-center justify-center gap-2 mb-1">
-                      <span className="text-sm font-black text-amber-500/80">{player.yellow_cards}</span>
-                      <span className="text-[10px] text-[#2D2D2D]">/</span>
-                      <span className="text-sm font-black text-red-500/80">{player.red_cards}</span>
-                    </div>
-                    <p className="text-[8px] text-[#2D2D2D] font-black uppercase tracking-[0.2em]">Tarjetas</p>
                   </div>
                 </div>
               </div>
@@ -375,127 +328,116 @@ export default function AdminPlayersPage() {
         )}
       </div>
 
-      {/* Modern Ruby Dialog - Create/Edit Player */}
       <Dialog open={isFormOpen} onOpenChange={(open) => {
         if (!open) resetForm()
         setIsFormOpen(open)
       }}>
-        <DialogContent className="max-w-md w-full rounded-[32px] bg-[#141414]/95 backdrop-blur-2xl border-white/[0.08] p-0 overflow-hidden shadow-2xl max-h-[90vh] flex flex-col fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-          <div className="p-8 overflow-y-auto custom-scrollbar flex-1">
-            <DialogHeader className="mb-8">
-              <div className="w-14 h-14 rounded-2xl bg-[#0A0A0A] border border-[#202020] flex items-center justify-center shadow-xl mb-6 mx-auto">
-                <Users className="w-7 h-7 text-[#FF3131]" />
+        <DialogContent className="max-w-md w-full rounded-[24px] bg-[#141414]/95 backdrop-blur-2xl border-white/[0.08] p-0 overflow-hidden shadow-2xl max-h-[90vh] flex flex-col fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+          <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
+            <DialogHeader className="mb-6">
+              <div className="w-11 h-11 rounded-xl bg-[#0A0A0A] border border-[#202020] flex items-center justify-center shadow-xl mb-4 mx-auto">
+                <Users className="w-5 h-5 text-[#FF3131]" />
               </div>
-              <DialogTitle className="text-2xl font-black text-white uppercase tracking-tighter text-center">
+              <DialogTitle className="text-xl font-black text-white uppercase tracking-tighter text-center">
                 {editingPlayer ? (
                   <>MODIFICAR <span className="text-[#FF3131]">ATLETA</span></>
                 ) : (
                   <>REGISTRAR <span className="text-[#FF3131]">ATLETA</span></>
                 )}
               </DialogTitle>
-              <DialogDescription className="text-center text-[9px] text-[#6A6C6E] font-black uppercase tracking-[0.3em] mt-2">
-                Actualización de Plantillas Federativas
+              <DialogDescription className="text-center text-[7px] text-[#2D2D2D] font-black uppercase tracking-[0.3em] mt-1.5">
+                Protocolo de Plantillas Federativas - PIFA
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-6">
-              <div className="space-y-2.5">
-                <Label className="text-[10px] text-[#6A6C6E] uppercase tracking-[0.3em] font-black ml-1">Identidad de Registro</Label>
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-[8px] text-[#6A6C6E] uppercase tracking-[0.2em] font-black ml-1">Identidad de Registro</Label>
                 <Input
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="NOMBRE DEL ATLETA..."
-                  className="h-14 bg-[#0A0A0A] border-[#202020] rounded-[20px] text-white placeholder:text-[#2D2D2D] text-xs font-black uppercase tracking-widest focus:border-[#FF3131]/40 px-5"
+                  className="h-10.5 bg-[#0A0A0A] border-[#202020] rounded-xl text-white placeholder:text-[#2D2D2D] text-xs font-bold uppercase tracking-widest focus:border-[#FF3131]/30 transition-all px-4"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2.5">
-                  <Label className="text-[10px] text-[#6A6C6E] uppercase tracking-[0.3em] font-black ml-1">Protocolo de Posición</Label>
-                  <Select value={formData.position} onValueChange={(v) => setFormData({ ...formData, position: v })}>
-                    <SelectTrigger className="h-14 bg-[#0A0A0A] border-[#202020] rounded-[20px] text-white text-xs font-black uppercase tracking-widest focus:border-[#FF3131]/40 px-5">
-                      <SelectValue placeholder="SEL." />
-                    </SelectTrigger>
-                    <SelectContent className="bg-[#141414] border-white/[0.08] rounded-2xl">
-                      {POSITIONS.map(p => <SelectItem key={p} value={p} className="text-xs font-black uppercase tracking-widest text-white">{p}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2.5">
-                  <Label className="text-[10px] text-[#6A6C6E] uppercase tracking-[0.3em] font-black ml-1">Valoración (OVR)</Label>
-                  <Input
-                    type="number"
-                    value={formData.overall}
-                    onChange={(e) => setFormData({ ...formData, overall: parseInt(e.target.value) || 0 })}
-                    className="h-14 bg-[#0A0A0A] border-[#202020] rounded-[20px] text-white text-center font-black focus:border-[#FF3131]/40"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2.5">
-                <Label className="text-[10px] text-[#6A6C6E] uppercase tracking-[0.3em] font-black ml-1">Entidad Federativa (Club)</Label>
-                <Select value={formData.club_id || 'none'} onValueChange={(v) => setFormData({ ...formData, club_id: v === 'none' ? null : v })}>
-                  <SelectTrigger className="h-14 bg-[#0A0A0A] border-[#202020] rounded-[20px] text-white text-xs font-black uppercase tracking-widest focus:border-[#FF3131]/40 px-5">
-                    <SelectValue placeholder="SIN ASIGNAR" />
+              <div className="space-y-1.5">
+                <Label className="text-[8px] text-[#6A6C6E] uppercase tracking-[0.2em] font-black ml-1">Protocolo de Posición</Label>
+                <Select value={formData.position} onValueChange={(v) => setFormData({ ...formData, position: v })}>
+                  <SelectTrigger className="h-10.5 bg-[#0A0A0A] border-[#202020] rounded-xl text-white text-xs font-bold uppercase tracking-widest focus:border-[#FF3131]/30 transition-all px-4">
+                    <SelectValue placeholder="SEL." />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#141414] border-white/[0.08] rounded-2xl">
-                    <SelectItem value="none" className="text-xs font-black uppercase tracking-widest text-white/40">LIBRE / SIN ASIGNAR</SelectItem>
-                    {clubs.map(c => <SelectItem key={c.id} value={c.id} className="text-xs font-black uppercase tracking-widest text-white">{c.name}</SelectItem>)}
+                  <SelectContent className="bg-[#141414] border-white/[0.08] rounded-xl">
+                    {POSITIONS.map(p => <SelectItem key={p} value={p} className="text-xs font-bold uppercase tracking-widest text-white">{p}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2.5">
-                  <Label className="text-[10px] text-[#6A6C6E] uppercase tracking-[0.3em] font-black ml-1">Dorsal</Label>
-                  <Input value={formData.number} onChange={(e) => setFormData({ ...formData, number: e.target.value })} placeholder="00" className="h-14 bg-[#0A0A0A] border-[#202020] rounded-[20px] text-white text-center font-black" />
-                </div>
-                <div className="space-y-2.5">
-                  <Label className="text-[10px] text-[#6A6C6E] uppercase tracking-[0.3em] font-black ml-1">Goles</Label>
-                  <Input type="number" value={formData.goals} onChange={(e) => setFormData({ ...formData, goals: parseInt(e.target.value) || 0 })} className="h-14 bg-[#0A0A0A] border-[#202020] rounded-[20px] text-white text-center font-black" />
-                </div>
+              <ImageUpload
+                label="Recurso Visual (Foto)"
+                value={formData.photo_url}
+                onChange={(url) => setFormData({ ...formData, photo_url: url })}
+                onRemove={() => setFormData({ ...formData, photo_url: '' })}
+                folder="players"
+              />
+
+              <div className="space-y-1.5">
+                <Label className="text-[8px] text-[#6A6C6E] uppercase tracking-[0.2em] font-black ml-1">Entidad Federativa (Club)</Label>
+                <Select value={formData.club_id || 'none'} onValueChange={(v) => setFormData({ ...formData, club_id: v === 'none' ? null : v })}>
+                  <SelectTrigger className="h-10.5 bg-[#0A0A0A] border-[#202020] rounded-xl text-white text-xs font-bold uppercase tracking-widest focus:border-[#FF3131]/30 transition-all px-4">
+                    <SelectValue placeholder="SIN ASIGNAR" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#141414] border-white/[0.08] rounded-xl">
+                    <SelectItem value="none" className="text-xs font-bold uppercase tracking-widest text-white/40">LIBRE / SIN ASIGNAR</SelectItem>
+                    {clubs.map(c => <SelectItem key={c.id} value={c.id} className="text-xs font-bold uppercase tracking-widest text-white">{c.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[8px] text-[#6A6C6E] uppercase tracking-[0.2em] font-black ml-1">Dorsal</Label>
+                <Input value={formData.number} onChange={(e) => setFormData({ ...formData, number: e.target.value })} placeholder="00" className="h-10.5 bg-[#0A0A0A] border-[#202020] rounded-xl text-white text-center font-bold text-xs" />
               </div>
             </div>
           </div>
 
-          <div className="flex gap-4 p-8 bg-[#0A0A0A]/50 border-t border-white/[0.04]">
+          <div className="flex gap-3 p-6 bg-[#0A0A0A]/50 border-t border-white/[0.04]">
             <DialogClose asChild>
-              <button className="flex-1 h-14 border border-[#202020] text-[#6A6C6E] hover:text-white hover:bg-white/[0.02] rounded-[20px] font-black uppercase tracking-widest text-[10px] transition-all">
+              <button className="flex-1 h-10 border border-[#202020] text-[#2D2D2D] hover:text-white rounded-xl font-black uppercase tracking-widest text-[8px] transition-all text-center">
                 Abortar
               </button>
             </DialogClose>
             <button 
               onClick={handleSave} 
               disabled={isSaving} 
-              className="flex-1 h-14 bg-[#FF3131] hover:bg-[#D32F2F] text-white rounded-[20px] font-black uppercase tracking-widest text-[10px] shadow-[0_0_30px_rgba(255,49,49,0.3)] transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center"
+              className="flex-1 h-10 bg-[#FF3131] hover:bg-[#D32F2F] text-white rounded-xl font-black uppercase tracking-widest text-[8px] shadow-[0_0_15px_rgba(255,49,49,0.2)] transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center"
             >
-              {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sincronizar Datos'}
+              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Sincronizar Datos'}
             </button>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation AlertDialog */}
       <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <AlertDialogContent className="max-w-sm w-full rounded-[32px] bg-[#141414] border-white/[0.08] p-8 shadow-2xl fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-          <AlertDialogHeader className="mb-6">
-            <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-6">
-              <Trash2 className="w-8 h-8 text-red-500" />
+        <AlertDialogContent className="max-w-xs w-full rounded-[24px] bg-[#141414] border-white/[0.08] p-6 shadow-2xl fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+          <AlertDialogHeader className="mb-4">
+            <div className="w-12 h-12 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-4">
+              <Trash2 className="w-6 h-6 text-red-500" />
             </div>
-            <AlertDialogTitle className="text-xl font-black text-white uppercase tracking-tighter text-center">
+            <AlertDialogTitle className="text-lg font-black text-white uppercase tracking-tighter text-center">
               ¿PURGAR <span className="text-red-500">ATLETA</span>?
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-center text-xs text-[#6A6C6E] font-bold uppercase tracking-widest leading-relaxed mt-2 px-4 shadow-sm">
+            <AlertDialogDescription className="text-center text-[7px] text-[#2D2D2D] font-black uppercase tracking-widest leading-relaxed mt-2 px-4 shadow-sm">
               ESTÁS POR ELIMINAR A <span className="text-white font-black">{deletingPlayer?.name}</span> DEL SISTEMA CENTRAL. ESTA ACCIÓN ES IRREVERSIBLE.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="flex gap-3">
-            <AlertDialogCancel className="flex-1 h-14 bg-[#0A0A0A] border border-[#202020] text-[#6A6C6E] hover:text-white rounded-[20px] font-black uppercase tracking-widest text-[10px] transition-all m-0">
+          <div className="flex gap-2">
+            <AlertDialogCancel className="flex-1 h-10 bg-[#0A0A0A] border border-[#202020] text-[#2D2D2D] hover:text-white rounded-xl font-black uppercase tracking-widest text-[8px] transition-all m-0">
               Abortar
             </AlertDialogCancel>
             <AlertDialogAction 
               onClick={handleDelete} 
-              className="flex-1 h-14 bg-red-600 hover:bg-red-700 text-white rounded-[20px] font-black uppercase tracking-widest text-[10px] shadow-[0_0_30px_rgba(220,38,38,0.3)] transition-all m-0"
+              className="flex-1 h-10 bg-red-600 hover:bg-red-700 text-white rounded-xl font-black uppercase tracking-widest text-[8px] shadow-[0_0_15px_rgba(220,38,38,0.2)] transition-all m-0"
             >
               PURGAR
             </AlertDialogAction>
