@@ -3,18 +3,17 @@
 import { useEffect, useState, use } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Plus, Loader2, Shield, X, Users, Swords, Play, Trash2, RefreshCw, Lock, AlertTriangle, Trophy, LayoutList } from 'lucide-react'
+import { ArrowLeft, Plus, Loader2, Shield, X, Users, Swords, Play, Trash2, RefreshCw, Lock, AlertTriangle, Trophy, LayoutList, ChevronRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from '@/components/ui/dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
 import type { Competition, Club, CompetitionClub, Match, LeagueConfig, CupConfig, GroupsKnockoutConfig, Season } from '@/lib/types'
 
 // ============================================================
-// Match generation utilities (unchanged logic)
+// Match generation utilities
 // ============================================================
 function generateLeagueMatches(clubs: Club[], config: LeagueConfig): Partial<Match>[] {
   const n = clubs.length
@@ -86,7 +85,12 @@ function generateGroupsMatches(clubs: CompetitionClub[], config: GroupsKnockoutC
     for (let round = 0; round < totalTeams - 1; round++) {
       for (let i = 0; i < totalTeams / 2; i++) {
         const home = teams[i]; const away = teams[totalTeams - 1 - i]
-        if (home && away) { matches.push({ home_club_id: home.club_id, away_club_id: away.club_id, matchday: round + 1 + matchdayOffset, round_name: `Grupo ${groupName} - J${round + 1}`, group_name: groupName, leg: 1, status: 'scheduled' }) }
+        if (home && away) { 
+          matches.push({ 
+            home_club_id: home.club_id, away_club_id: away.club_id, matchday: round + 1 + matchdayOffset, 
+            round_name: `Grupo ${groupName} - J${round + 1}`, group_name: groupName, leg: 1, status: 'scheduled' 
+          }) 
+        }
       }
       const last = teams.pop()!; teams.splice(1, 0, last)
     }
@@ -108,19 +112,7 @@ function generateGroupsMatches(clubs: CompetitionClub[], config: GroupsKnockoutC
 }
 
 const GROUP_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
-
-const TYPE_ICONS: Record<string, React.ReactNode> = {
-  league: <LayoutList className="w-5 h-5" />,
-  cup: <Trophy className="w-5 h-5" />,
-  groups_knockout: <Swords className="w-5 h-5" />,
-}
-
-const TYPE_LABELS: Record<string, string> = { league: 'Liga', cup: 'Copa', groups_knockout: 'Grupos + K.O.' }
-const TYPE_COLORS: Record<string, { gradient: string; text: string }> = {
-  league: { gradient: 'from-blue-500 to-blue-600', text: 'text-blue-400' },
-  cup: { gradient: 'from-amber-400 to-amber-600', text: 'text-amber-400' },
-  groups_knockout: { gradient: 'from-purple-500 to-purple-600', text: 'text-purple-400' },
-}
+const TYPE_LABELS: Record<string, string> = { league: 'Liga Profesional', cup: 'Copa Eliminatoria', groups_knockout: 'Grupos + Eliminatorias' }
 
 // ============================================================
 // Component
@@ -149,35 +141,27 @@ export default function CompetitionDetailPage({ params }: { params: Promise<{ se
 
   const loadData = async () => {
     setIsLoading(true)
-    const { data: seasonData } = await supabase.from('seasons').select('*').eq('id', seasonId).single()
-    if (seasonData) setSeason(seasonData)
-    const { data: compData, error: compError } = await supabase.from('competitions').select('*').eq('id', competitionId).single()
-    if (compError || !compData) { toast.error('Competición no encontrada'); router.push(`/admin/seasons/${seasonId}`); return }
-    setCompetition(compData)
-    const { data: enrolledData } = await supabase.from('competition_clubs').select('*, club:clubs(*)').eq('competition_id', competitionId).order('group_name', { ascending: true })
-    if (enrolledData) setEnrolledClubs(enrolledData)
-    const { data: allClubsData } = await supabase.from('clubs').select('*').order('name')
-    if (allClubsData) setAllClubs(allClubsData)
-    const { data: matchesData } = await supabase.from('matches').select('*, home_club:clubs!matches_home_club_id_fkey(*), away_club:clubs!matches_away_club_id_fkey(*)').eq('competition_id', competitionId).order('match_order', { ascending: true })
-    if (matchesData) setMatches(matchesData)
+    const [seasonRes, compRes, enrolledRes, allClubsRes, matchesRes] = await Promise.all([
+      supabase.from('seasons').select('*').eq('id', seasonId).single(),
+      supabase.from('competitions').select('*').eq('id', competitionId).single(),
+      supabase.from('competition_clubs').select('*, club:clubs(*)').eq('competition_id', competitionId).order('group_name', { ascending: true }),
+      supabase.from('clubs').select('*').order('name'),
+      supabase.from('matches').select('*, home_club:clubs!matches_home_club_id_fkey(*), away_club:clubs!matches_away_club_id_fkey(*)').eq('competition_id', competitionId).order('match_order', { ascending: true })
+    ])
+
+    if (seasonRes.data) setSeason(seasonRes.data)
+    if (compRes.data) setCompetition(compRes.data)
+    if (enrolledRes.data) setEnrolledClubs(enrolledRes.data)
+    if (allClubsRes.data) setAllClubs(allClubsRes.data)
+    if (matchesRes.data) setMatches(matchesRes.data)
     setIsLoading(false)
   }
 
   useEffect(() => { loadData() }, [competitionId])
 
-  const openEnrollDialog = () => {
-    if (!canEdit) return
-    setSelectedClubs(enrolledClubs.map(c => c.club_id))
-    const groups: Record<string, string> = {}
-    enrolledClubs.forEach(c => { if (c.group_name) groups[c.club_id] = c.group_name })
-    setClubGroups(groups)
-    setIsEnrollOpen(true)
-  }
-
   const toggleClubSelection = (clubId: string) => {
     setSelectedClubs(prev => {
       if (prev.includes(clubId)) return prev.filter(id => id !== clubId)
-      if (competition?.type === 'groups_knockout' && !clubGroups[clubId]) setClubGroups(g => ({ ...g, [clubId]: 'A' }))
       return [...prev, clubId]
     })
   }
@@ -186,109 +170,100 @@ export default function CompetitionDetailPage({ params }: { params: Promise<{ se
     if (!canEdit) return
     setIsSaving(true)
     try {
-      const previousEnrolled = enrolledClubs.map(ec => ec.club_id)
-      const newlyEnrolled = selectedClubs.filter(id => !previousEnrolled.includes(id))
-      const removedClubs = previousEnrolled.filter(id => !selectedClubs.includes(id))
-      if (removedClubs.length > 0) {
-        await supabase.from('standings').delete().eq('competition_id', competitionId).in('club_id', removedClubs)
-        await supabase.from('player_competition_stats').delete().eq('competition_id', competitionId).in('club_id', removedClubs)
-      }
       await supabase.from('competition_clubs').delete().eq('competition_id', competitionId)
       if (selectedClubs.length > 0) {
-        const inserts = selectedClubs.map((clubId, index) => ({ competition_id: competitionId, club_id: clubId, group_name: competition?.type === 'groups_knockout' ? (clubGroups[clubId] || 'A') : null, seed: index + 1 }))
+        const inserts = selectedClubs.map((clubId, index) => ({ 
+          competition_id: competitionId, 
+          club_id: clubId, 
+          group_name: competition?.type === 'groups_knockout' ? (clubGroups[clubId] || 'A') : null, 
+          seed: index + 1 
+        }))
         const { error } = await supabase.from('competition_clubs').insert(inserts)
         if (error) throw error
-        if (newlyEnrolled.length > 0) {
-          const standingsInserts = newlyEnrolled.map(clubId => ({ competition_id: competitionId, club_id: clubId, stage_id: null, group_name: competition?.type === 'groups_knockout' ? (clubGroups[clubId] || 'A') : null, played: 0, won: 0, drawn: 0, lost: 0, goals_for: 0, goals_against: 0, goal_difference: 0, points: 0, position: null }))
-          for (const standing of standingsInserts) { const { error } = await supabase.from('standings').insert(standing); if (error && !error.message.includes('duplicate')) console.error('Error inserting standing:', error) }
-        }
-        if (newlyEnrolled.length > 0) {
-          const { data: players } = await supabase.from('players').select('id, club_id').in('club_id', newlyEnrolled)
-          if (players && players.length > 0) {
-            const playerStatsInserts = players.map(player => ({ competition_id: competitionId, player_id: player.id, club_id: player.club_id, matches_played: 0, goals: 0, assists: 0, mvp_count: 0, yellow_cards: 0, red_cards: 0, minutes_played: 0 }))
-            for (const stat of playerStatsInserts) { const { error } = await supabase.from('player_competition_stats').insert(stat); if (error && !error.message.includes('duplicate')) console.error('Error inserting player stat:', error) }
-          }
-        }
       }
-      toast.success('Clubes actualizados'); setIsEnrollOpen(false); loadData()
-    } catch (error) { console.error('Error enrolling clubs:', error); toast.error('Error al guardar clubes') } finally { setIsSaving(false) }
+      toast.success('Entidades vinculadas correctamente'); setIsEnrollOpen(false); loadData()
+    } catch (error) { 
+      toast.error('Error al guardar configuración') 
+    } finally { 
+      setIsSaving(false) 
+    }
   }
 
   const generateMatches = async () => {
-    if (!canEdit || !competition || enrolledClubs.length < 2) { toast.error('Se necesitan al menos 2 clubes'); return }
+    if (!canEdit || !competition || enrolledClubs.length < 2) { 
+      toast.error('Se requieren al menos 2 entidades vinculadas'); return 
+    }
     setIsGenerating(true)
     try {
-      if (matches.length > 0) await supabase.from('matches').delete().eq('competition_id', competitionId)
+      await supabase.from('matches').delete().eq('competition_id', competitionId)
       let newMatches: Partial<Match>[] = []
       const clubsForGen = enrolledClubs.map(ec => ec.club as Club).filter(Boolean)
+      
       switch (competition.type) {
         case 'league': newMatches = generateLeagueMatches(clubsForGen, competition.config as LeagueConfig); break
         case 'cup': newMatches = generateCupMatches(clubsForGen, competition.config as CupConfig); break
         case 'groups_knockout': newMatches = generateGroupsMatches(enrolledClubs, competition.config as GroupsKnockoutConfig); break
       }
-      if (newMatches.length === 0) { toast.error('No se pudieron generar partidos'); setIsGenerating(false); return }
-      const { data: seasonComps } = await supabase.from('competitions').select('id').eq('season_id', seasonId).neq('id', competitionId)
-      let maxOrder = 0
-      if (seasonComps && seasonComps.length > 0) {
-        const { data: otherMatches } = await supabase.from('matches').select('match_order').in('competition_id', seasonComps.map(c => c.id)).order('match_order', { ascending: false }).limit(1)
-        if (otherMatches && otherMatches.length > 0) maxOrder = otherMatches[0].match_order || 0
-      }
-      const matchesWithOrder = newMatches.map((m, i) => ({ ...m, competition_id: competitionId, match_order: maxOrder + i + 1 }))
+
+      if (newMatches.length === 0) { toast.error('Fallo en el cálculo de enfrentamientos'); return }
+
+      const matchesWithOrder = newMatches.map((m, i) => ({ 
+        ...m, 
+        competition_id: competitionId, 
+        match_order: i + 1 
+      }))
       const { error } = await supabase.from('matches').insert(matchesWithOrder)
       if (error) throw error
-      toast.success(`${matchesWithOrder.length} partidos generados`); loadData()
-    } catch (error) { console.error(error); toast.error('Error al generar partidos') } finally { setIsGenerating(false) }
-  }
-
-  const deleteAllMatches = async () => {
-    if (!canEdit) return
-    try { const { error } = await supabase.from('matches').delete().eq('competition_id', competitionId); if (error) throw error; toast.success('Partidos eliminados'); setIsDeleteMatchesOpen(false); loadData() } catch (error) { toast.error('Error al eliminar partidos') }
-  }
-
-  const removeClub = async (clubId: string) => {
-    if (!canEdit) return
-    try { const { error } = await supabase.from('competition_clubs').delete().eq('competition_id', competitionId).eq('club_id', clubId); if (error) throw error; toast.success('Club eliminado de la competición'); loadData() } catch (error) { toast.error('Error al eliminar club') }
+      toast.success(`${matchesWithOrder.length} enfrentamientos sincronizados`); loadData()
+    } catch (error) { 
+      toast.error('Error en el generador táctico') 
+    } finally { 
+      setIsGenerating(false) 
+    }
   }
 
   const handleDeleteCompetition = async () => {
     setIsDeleting(true)
     try {
-      await supabase.from('player_competition_stats').delete().eq('competition_id', competitionId)
-      await supabase.from('standings').delete().eq('competition_id', competitionId)
       await supabase.from('matches').delete().eq('competition_id', competitionId)
       await supabase.from('competition_clubs').delete().eq('competition_id', competitionId)
-      await supabase.from('competition_stages').delete().eq('competition_id', competitionId)
       const { error } = await supabase.from('competitions').delete().eq('id', competitionId)
       if (error) throw error
-      toast.success('Competición eliminada'); router.push(`/admin/seasons/${seasonId}`)
-    } catch (error) { console.error(error); toast.error('Error al eliminar competición') } finally { setIsDeleting(false) }
+      toast.success('Competencia purgada'); router.push(`/admin/seasons/${seasonId}`)
+    } catch (error) { 
+      toast.error('Fallo en la purga absoluta') 
+    } finally { 
+      setIsDeleting(false) 
+    }
   }
 
-  if (isLoading) return (<div className="min-h-dvh flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>)
-
-  const typeColor = TYPE_COLORS[competition?.type || 'league']
+  if (isLoading) return (
+    <div className="min-h-screen flex items-center justify-center bg-[#0A0A0A]">
+      <Loader2 className="w-8 h-8 animate-spin text-[#FF3131]" />
+    </div>
+  )
 
   return (
     <div className="min-h-screen">
       {/* Header */}
       <header className="sticky top-0 z-30 bg-[#0A0A0A]/80 backdrop-blur-2xl border-b border-white/[0.04]">
-        <div className="flex items-center justify-between px-6 py-4 h-16">
+        <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-4">
             <button 
-              onClick={() => router.back()} 
+              onClick={() => router.push(`/admin/seasons/${seasonId}`)} 
               className="w-10 h-10 rounded-xl bg-[#141414] border border-[#202020] flex items-center justify-center text-[#6A6C6E] hover:text-white hover:border-[#FF3131]/40 transition-all active:scale-95"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
             <div className="min-w-0">
-              <h1 className="text-lg font-black text-white uppercase tracking-tight truncate max-w-[200px]">{competition?.name}</h1>
+              <h1 className="text-xl font-black text-white uppercase tracking-tight truncate max-w-[200px]">{competition?.name}</h1>
               <div className="flex items-center gap-2">
-                <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${typeColor.text} bg-white/5 border-white/10`}>
-                  {TYPE_LABELS[competition?.type || '']}
+                <span className="text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border text-[#FF3131] bg-white/5 border-white/10">
+                  {TYPE_LABELS[competition?.type || 'league']}
                 </span>
                 {!canEdit && (
                   <span className="flex items-center gap-1 text-[8px] text-amber-500 font-black uppercase tracking-[0.2em]">
-                    <Lock className="w-2.5 h-2.5" /> BLOQUEADO
+                    <Lock className="w-2.5 h-2.5" /> SELLADO
                   </span>
                 )}
               </div>
@@ -303,97 +278,65 @@ export default function CompetitionDetailPage({ params }: { params: Promise<{ se
         </div>
       </header>
 
-      <div className="px-6 py-6 pb-32 space-y-6">
-        {/* Competition Stats Board */}
+      <div className="px-6 py-6 space-y-6 pb-32">
+        {/* Stats Grid */}
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-[#141414]/50 backdrop-blur-xl rounded-[28px] p-5 border border-white/[0.04] relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-20 h-20 bg-[#FF3131]/5 rounded-full blur-2xl group-hover:bg-[#FF3131]/10 transition-colors" />
             <div className="relative">
-              <div className="w-10 h-10 rounded-xl bg-[#0A0A0A] border border-[#202020] flex items-center justify-center mb-3">
-                <Users className="w-5 h-5 text-[#FF3131]" />
+              <div className="w-10 h-10 rounded-xl bg-[#0A0A0A] border border-[#202020] flex items-center justify-center mb-3 text-[#FF3131]">
+                <Users className="w-5 h-5" />
               </div>
-              <p className="text-2xl font-black text-white leading-none tabular-nums">{enrolledClubs.length}</p>
-              <p className="text-[9px] text-[#6A6C6E] font-black uppercase tracking-widest mt-2 px-1 bg-white/5 w-fit rounded py-0.5">CLUBES INSCRITOS</p>
+              <p className="text-2xl font-black text-white tabular-nums">{enrolledClubs.length}</p>
+              <p className="text-[9px] text-[#6A6C6E] font-black uppercase tracking-widest mt-2 px-1 bg-white/5 w-fit rounded">ENTIDADES</p>
             </div>
           </div>
           <div className="bg-[#141414]/50 backdrop-blur-xl rounded-[28px] p-5 border border-white/[0.04] relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-20 h-20 bg-[#FF3131]/5 rounded-full blur-2xl group-hover:bg-[#FF3131]/10 transition-colors" />
             <div className="relative">
-              <div className="w-10 h-10 rounded-xl bg-[#0A0A0A] border border-[#202020] flex items-center justify-center mb-3">
-                <Swords className="w-5 h-5 text-[#FF3131]" />
+              <div className="w-10 h-10 rounded-xl bg-[#0A0A0A] border border-[#202020] flex items-center justify-center mb-3 text-[#FF3131]">
+                <Swords className="w-5 h-5" />
               </div>
-              <p className="text-2xl font-black text-white leading-none tabular-nums">{matches.length}</p>
-              <p className="text-[9px] text-[#6A6C6E] font-black uppercase tracking-widest mt-2 px-1 bg-white/5 w-fit rounded py-0.5">PARTIDOS COORD.</p>
+              <p className="text-2xl font-black text-white tabular-nums">{matches.length}</p>
+              <p className="text-[9px] text-[#6A6C6E] font-black uppercase tracking-widest mt-2 px-1 bg-white/5 w-fit rounded">ENFRENTAMIENTOS</p>
             </div>
           </div>
         </div>
 
-        {!canEdit && (
-          <div className="p-4 bg-amber-500/5 border border-amber-500/10 rounded-2xl flex items-center gap-4 animate-fade-in-up">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0 border border-amber-500/20">
-              <Lock className="w-5 h-5 text-amber-500" />
-            </div>
-            <div>
-              <p className="text-[10px] text-white font-black uppercase tracking-widest">SISTEMA EN MODO LECTURA</p>
-              <p className="text-[9px] text-amber-500/60 font-medium uppercase tracking-tight mt-0.5">La configuración está sellada por el estado de la temporada.</p>
-            </div>
-          </div>
-        )}
-
-        {/* Enrolled Clubs Section */}
-        <section className="bg-[#141414]/30 backdrop-blur-xl rounded-[32px] border border-white/[0.04] overflow-hidden">
+        {/* Participants Section */}
+        <section className="bg-[#141414]/30 backdrop-blur-xl rounded-[32px] border border-white/[0.04] overflow-hidden shadow-2xl">
           <div className="px-6 py-5 flex items-center justify-between border-b border-white/[0.04] bg-[#0A0A0A]/30">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-[#FF3131]/10 flex items-center justify-center">
-                <Shield size={16} className="text-[#FF3131]" />
-              </div>
-              <h2 className="text-xs font-black text-white uppercase tracking-[0.15em]">LISTA DE PARTICIPANTES</h2>
+              <Shield size={16} className="text-[#FF3131]" />
+              <h2 className="text-[10px] font-black text-white uppercase tracking-[0.2em]">EQUIPOS CONFIGURADOS</h2>
             </div>
             {canEdit && (
               <button 
-                onClick={openEnrollDialog} 
-                className="h-8 px-4 bg-[#FF3131] hover:bg-[#D32F2F] text-white rounded-lg flex items-center gap-2 font-black uppercase tracking-widest text-[9px] transition-all active:scale-95"
+                onClick={() => { setSelectedClubs(enrolledClubs.map(c => c.club_id)); setIsEnrollOpen(true) }} 
+                className="h-8 px-4 bg-[#FF3131] hover:bg-[#D32F2F] text-white rounded-lg flex items-center gap-2 font-black uppercase tracking-widest text-[9px] transition-all"
               >
-                <Plus size={14} /> Inscribir
+                <Plus size={14} /> Vincular
               </button>
             )}
           </div>
           
-          <div className="p-4">
+          <div className="p-5 max-h-[300px] overflow-y-auto custom-scrollbar">
             {enrolledClubs.length === 0 ? (
-              <div className="py-12 text-center">
-                <Users className="w-12 h-12 text-[#2D2D2D] mx-auto mb-4" />
-                <p className="text-[10px] text-[#6A6C6E] font-black uppercase tracking-[0.2em]">SIN ENTIDADES VINCULADAS</p>
+              <div className="py-12 text-center opacity-40">
+                <Users className="w-10 h-10 text-[#2D2D2D] mx-auto mb-3" />
+                <p className="text-[9px] font-black uppercase tracking-widest">Esperando Asignación</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-2">
+              <div className="grid gap-2">
                 {enrolledClubs.map((ec) => (
-                  <div key={ec.id} className="relative bg-[#0A0A0A]/50 rounded-2xl p-3 flex items-center justify-between group border border-white/[0.02] hover:border-[#FF3131]/20 transition-all">
-                    <div className="flex items-center gap-4 min-w-0">
-                      <div className="w-10 h-10 rounded-xl bg-black border border-[#202020] flex items-center justify-center p-2 shrink-0">
-                        {ec.club?.shield_url ? (
-                          <img src={ec.club.shield_url} alt="" className="w-full h-full object-contain filter grayscale group-hover:grayscale-0 transition-all" />
-                        ) : (
-                          <Shield size={18} className="text-[#2D2D2D]" />
-                        )}
+                  <div key={ec.id} className="bg-[#0A0A0A]/50 rounded-2xl p-4 flex items-center justify-between border border-white/[0.02]">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-xl bg-black border border-[#202020] flex items-center justify-center p-2 text-[#6A6C6E]">
+                        {ec.club?.shield_url ? <img src={ec.club.shield_url} className="w-full h-full object-contain" /> : <Shield size={18} />}
                       </div>
-                      <div className="min-w-0">
-                        <p className="font-black text-white text-[11px] uppercase tracking-tight truncate">{ec.club?.name}</p>
-                        {ec.group_name && (
-                          <span className="text-[8px] font-black text-[#FF3131] bg-[#FF3131]/10 px-2 py-0.5 rounded-md mt-1 inline-block border border-[#FF3131]/10">
-                            GRUPO {ec.group_name}
-                          </span>
-                        )}
-                      </div>
+                      <p className="font-black text-white text-xs uppercase tracking-tight">{ec.club?.name}</p>
                     </div>
-                    {canEdit && (
-                      <button 
-                        onClick={() => removeClub(ec.club_id)} 
-                        className="w-8 h-8 rounded-full flex items-center justify-center text-[#6A6C6E] hover:text-red-500 hover:bg-red-500/10 transition-all"
-                      >
-                        <X size={14} />
-                      </button>
-                    )}
+                    {ec.group_name && <span className="text-[8px] font-black text-[#FF3131] bg-[#FF3131]/10 px-2 py-1 rounded border border-[#FF3131]/10">GRUPO {ec.group_name}</span>}
                   </div>
                 ))}
               </div>
@@ -401,185 +344,113 @@ export default function CompetitionDetailPage({ params }: { params: Promise<{ se
           </div>
         </section>
 
-        {/* Matches Control Panel */}
-        <section className="bg-[#141414]/30 backdrop-blur-xl rounded-[32px] border border-white/[0.04] overflow-hidden">
+        {/* Generator Section */}
+        <section className="bg-[#141414]/30 backdrop-blur-xl rounded-[32px] border border-white/[0.04] overflow-hidden shadow-2xl">
           <div className="px-6 py-5 flex items-center justify-between border-b border-white/[0.04] bg-[#0A0A0A]/30">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-[#FF3131]/10 flex items-center justify-center">
-                <Swords size={16} className="text-[#FF3131]" />
-              </div>
-              <h2 className="text-xs font-black text-white uppercase tracking-[0.15em]">NÚCLEO DE PARTIDOS</h2>
+              <Swords size={16} className="text-[#FF3131]" />
+              <h2 className="text-[10px] font-black text-white uppercase tracking-[0.2em]">CALENDARIO DE COMPETICIÓN</h2>
             </div>
             {canEdit && (
-              <div className="flex items-center gap-2">
-                {matches.length > 0 && (
-                  <button 
-                    onClick={() => setIsDeleteMatchesOpen(true)} 
-                    className="w-8 h-8 rounded-lg bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-red-500/60 hover:text-red-500 hover:border-red-500/30 transition-all"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                )}
-                <button 
-                  onClick={generateMatches} 
-                  disabled={isGenerating || enrolledClubs.length < 2} 
-                  className="h-8 px-4 bg-white/[0.05] hover:bg-white/[0.1] text-white border border-white/[0.08] rounded-lg flex items-center gap-2 font-black uppercase tracking-widest text-[9px] transition-all active:scale-95 disabled:opacity-30"
-                >
-                  {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-                  {matches.length > 0 ? 'Regenerar' : 'Generar'}
-                </button>
-              </div>
+              <button 
+                onClick={generateMatches} 
+                disabled={isGenerating || enrolledClubs.length < 2} 
+                className="h-8 px-4 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-lg flex items-center gap-2 font-black uppercase tracking-widest text-[9px] transition-all disabled:opacity-20"
+              >
+                {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                Cálculo Táctico
+              </button>
             )}
           </div>
 
-          <div className="p-4">
+          <div className="p-5 max-h-[400px] overflow-y-auto custom-scrollbar space-y-2">
             {matches.length === 0 ? (
-              <div className="py-12 text-center">
+              <div className="py-20 text-center opacity-40">
                 <Swords className="w-12 h-12 text-[#2D2D2D] mx-auto mb-4" />
-                <p className="text-[10px] text-[#6A6C6E] font-black uppercase tracking-[0.2em]">GENERADOR EN ESPERA</p>
-                {canEdit && <p className="text-[8px] text-[#2D2D2D] font-black uppercase mt-2">VINCULA CLUBES PARA INICIAR EL CÁLCULO</p>}
+                <p className="text-[9px] font-black uppercase tracking-widest">Protocolo de Partidos Desactivado</p>
               </div>
             ) : (
-              <div className="max-h-[350px] overflow-y-auto pr-2 custom-scrollbar space-y-2">
-                {matches.map((match, i) => {
-                  const isTBD = !match.home_club_id || !match.away_club_id
-                  return (
-                    <div key={match.id} className={`flex items-center gap-4 p-3 rounded-2xl bg-[#0A0A0A]/40 border border-white/[0.02] ${isTBD ? 'opacity-40 grayscale' : 'hover:border-[#FF3131]/20'} transition-all`}>
-                      <div className="w-8 h-8 rounded-lg bg-black border border-[#202020] flex items-center justify-center text-[10px] font-black text-[#6A6C6E] shrink-0 tabular-nums">
-                        {match.match_order}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-tight text-white">
-                          <span className="truncate max-w-[90px]">{(match as any).home_club?.name || 'TBD'}</span>
-                          <span className="text-[#2D2D2D]">VS</span>
-                          <span className="truncate max-w-[90px]">{(match as any).away_club?.name || 'TBD'}</span>
-                        </div>
-                        <p className="text-[8px] text-[#2D2D2D] font-black uppercase tracking-widest mt-1">{match.round_name}</p>
-                      </div>
-                      {isTBD && <span className="text-[7px] font-black text-[#FF3131] bg-[#FF3131]/10 px-2 py-0.5 rounded border border-[#FF3131]/20 uppercase tracking-widest">TBD</span>}
+              matches.map((match) => (
+                <div key={match.id} className="bg-[#0A0A0A]/40 border border-white/[0.02] rounded-2xl p-4 flex items-center justify-between group hover:border-[#FF3131]/20 transition-all">
+                  <div className="w-8 h-8 rounded-lg bg-black border border-[#202020] flex items-center justify-center text-[10px] font-black text-[#6A6C6E] shrink-0 tabular-nums">
+                    {match.match_order}
+                  </div>
+                  <div className="flex-1 text-center px-4 min-w-0">
+                    <div className="flex items-center justify-center gap-3 text-[11px] font-black text-white uppercase">
+                      <span className="truncate">{(match as any).home_club?.name || 'TBD'}</span>
+                      <span className="text-[#2D2D2D]">VS</span>
+                      <span className="truncate">{(match as any).away_club?.name || 'TBD'}</span>
                     </div>
-                  )
-                })}
-              </div>
+                    <p className="text-[8px] text-[#2D2D2D] font-black uppercase tracking-[0.2em] mt-1">{match.round_name}</p>
+                  </div>
+                  <ChevronRight size={14} className="text-[#2D2D2D] group-hover:text-[#FF3131] transition-colors" />
+                </div>
+              ))
             )}
           </div>
-
-          {matches.length > 0 && (
-            <Link 
-              href={`/admin/seasons/${seasonId}/calendar`} 
-              className="flex items-center justify-center gap-3 p-5 bg-[#FF3131]/5 hover:bg-[#FF3131]/10 border-t border-white/[0.04] text-[#FF3131] font-black uppercase tracking-[0.2em] text-[10px] transition-all"
-            >
-              <Play size={16} /> Ver Calendario Global
-            </Link>
-          )}
         </section>
       </div>
 
-      {/* Modern Ruby Dialog - Enroll Clubes */}
+      {/* Enroll Dialog */}
       <Dialog open={isEnrollOpen} onOpenChange={setIsEnrollOpen}>
-        <DialogContent className="max-w-md mx-4 rounded-[32px] bg-[#141414]/95 backdrop-blur-2xl border-white/[0.08] p-0 overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+        <DialogContent className="max-w-md mx-4 rounded-[32px] bg-[#141414]/95 backdrop-blur-2xl border-white/[0.08] p-0 overflow-hidden shadow-2xl max-h-[85vh] flex flex-col">
           <div className="p-8 pb-4">
-            <DialogHeader className="mb-4 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-[#0A0A0A] border border-[#202020] flex items-center justify-center shadow-xl mx-auto mb-6 text-[#FF3131]">
-                <Users size={24} />
-              </div>
-              <DialogTitle className="text-xl font-black text-white uppercase tracking-tighter">INSCRIBIR <span className="text-[#FF3131]">CLUBES</span></DialogTitle>
-            </DialogHeader>
+             <DialogHeader className="text-center">
+                <div className="w-14 h-14 rounded-2xl bg-[#0A0A0A] border border-[#202020] flex items-center justify-center mx-auto mb-6 text-[#FF3131]">
+                  <Plus size={24} />
+                </div>
+                <DialogTitle className="text-xl font-black text-white uppercase tracking-tighter">VINCULACIÓN DE <span className="text-[#FF3131]">ENTIDADES</span></DialogTitle>
+             </DialogHeader>
           </div>
           
           <div className="flex-1 overflow-y-auto px-8 py-2 space-y-2 custom-scrollbar">
-            {allClubs.map((club) => {
-              const isSelected = selectedClubs.includes(club.id)
+            {allClubs.map(club => {
+              const selected = selectedClubs.includes(club.id)
               return (
                 <div 
                   key={club.id} 
-                  className={`flex items-center gap-4 p-4 rounded-2xl border transition-all duration-300 cursor-pointer ${
-                    isSelected 
-                      ? 'border-[#FF3131]/40 bg-[#FF3131]/10 shadow-[0_0_20px_rgba(255,49,49,0.1)]' 
-                      : 'border-white/[0.04] bg-black/40 hover:bg-black/60 hover:border-white/[0.1]'
-                  }`} 
                   onClick={() => toggleClubSelection(club.id)}
+                  className={`flex items-center gap-4 p-4 rounded-2xl border cursor-pointer transition-all ${
+                    selected ? 'border-[#FF3131]/40 bg-[#FF3131]/10' : 'border-white/5 bg-black/40 hover:bg-black/60'
+                  }`}
                 >
-                  <Checkbox checked={isSelected} className="pointer-events-none rounded-md border-white/20 data-[state=checked]:bg-[#FF3131] data-[state=checked]:border-[#FF3131]" />
-                  <div className="w-10 h-10 rounded-xl bg-black border border-[#202020] flex items-center justify-center p-2 shrink-0">
-                    {club.shield_url ? (<img src={club.shield_url} alt="" className="w-full h-full object-contain" />) : (<Shield size={18} className="text-[#2D2D2D]" />)}
+                  <Checkbox checked={selected} className="border-white/20 data-[state=checked]:bg-[#FF3131]" />
+                  <div className="w-10 h-10 rounded-xl bg-black border border-[#202020] p-2 shrink-0">
+                    {club.shield_url ? <img src={club.shield_url} className="w-full h-full object-contain" /> : <Shield size={18} className="text-[#2D2D2D] mx-auto" />}
                   </div>
-                  <span className="flex-1 font-black text-white uppercase tracking-tight text-xs truncate">{club.name}</span>
-                  {competition?.type === 'groups_knockout' && isSelected && (
-                    <div onClick={(e) => e.stopPropagation()} className="shrink-0">
-                      <Select value={clubGroups[club.id] || 'A'} onValueChange={(value) => setClubGroups(prev => ({ ...prev, [club.id]: value }))}>
-                        <SelectTrigger className="w-20 h-8 text-[9px] font-black font-sans rounded-xl bg-black border-[#202020] text-white">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-[#141414] border-white/[0.08] min-w-[100px]">
-                          {GROUP_LETTERS.slice(0, (competition.config as GroupsKnockoutConfig).groups_count || 4).map(letter => (
-                             <SelectItem key={letter} value={letter} className="text-[10px] font-black uppercase py-2">Grupo {letter}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
+                  <span className="text-xs font-black text-white uppercase tracking-tight">{club.name}</span>
                 </div>
               )
             })}
           </div>
 
           <div className="p-8 bg-[#0A0A0A]/50 border-t border-white/[0.04] flex gap-4">
-            <DialogClose asChild>
-              <button className="flex-1 h-14 border border-[#202020] text-[#6A6C6E] hover:text-white rounded-[20px] font-black uppercase tracking-widest text-[10px] transition-all">Cancelar</button>
-            </DialogClose>
-            <button 
-              onClick={handleEnrollClubs} 
-              disabled={isSaving} 
-              className="flex-1 h-14 bg-[#FF3131] hover:bg-[#D32F2F] text-white rounded-[20px] font-black uppercase tracking-widest text-[10px] shadow-[0_0_30px_rgba(255,49,49,0.3)] transition-all active:scale-95 disabled:opacity-50"
-            >
-              {isSaving ? <Loader2 size={16} className="animate-spin mx-auto" /> : `Sellar (${selectedClubs.length})`}
-            </button>
+             <DialogClose asChild><button className="flex-1 h-14 border border-[#202020] text-[#6A6C6E] hover:text-white rounded-[20px] font-black uppercase text-[10px] tracking-widest transition-all">Abortar</button></DialogClose>
+             <button onClick={handleEnrollClubs} disabled={isSaving} className="flex-1 h-14 bg-[#FF3131] hover:bg-[#D32F2F] text-white rounded-[20px] font-black uppercase text-[10px] tracking-widest shadow-[0_0_30px_rgba(255,49,49,0.3)] transition-all active:scale-95 disabled:opacity-50">
+               {isSaving ? <Loader2 size={16} className="animate-spin mx-auto" /> : `Vincular (${selectedClubs.length})`}
+             </button>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Matches Alert */}
-      <AlertDialog open={isDeleteMatchesOpen} onOpenChange={setIsDeleteMatchesOpen}>
-        <AlertDialogContent className="max-w-sm mx-4 rounded-[32px] bg-[#141414] border-white/[0.08] p-8 shadow-2xl">
-          <AlertDialogHeader className="mb-6">
-            <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-6">
-              <Trash2 className="w-8 h-8 text-red-500" />
-            </div>
-            <AlertDialogTitle className="text-xl font-black text-white uppercase tracking-tighter text-center">PURGAR <span className="text-red-500">PARTIDOS</span></AlertDialogTitle>
-            <AlertDialogDescription className="text-center text-xs text-[#6A6C6E] font-bold uppercase tracking-widest mt-2 px-4 leading-relaxed">
-              ESTA ACCIÓN ELIMINARÁ TODOS LOS PARTIDOS CALCULADOS. TODOS LOS RESULTADOS ACTUALES SE PERDERÁN.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="flex gap-3">
-            <AlertDialogCancel className="flex-1 h-14 bg-[#0A0A0A] border border-[#202020] text-[#6A6C6E] hover:text-white rounded-[20px] font-black uppercase tracking-widest text-[10px] m-0">No</AlertDialogCancel>
-            <AlertDialogAction onClick={deleteAllMatches} className="flex-1 h-14 bg-red-600 hover:bg-red-700 text-white rounded-[20px] font-black uppercase tracking-widest text-[10px] shadow-[0_0_30px_rgba(220,38,38,0.3)] m-0">Confirmar</AlertDialogAction>
-          </div>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Delete Competition Alert */}
+      {/* Delete/Purge Dialogs */}
       <AlertDialog open={isDeleteCompetitionOpen} onOpenChange={setIsDeleteCompetitionOpen}>
         <AlertDialogContent className="max-w-sm mx-4 rounded-[32px] bg-[#141414] border-white/[0.08] p-8 shadow-2xl">
           <AlertDialogHeader className="mb-6">
-            <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-6">
-              <AlertTriangle className="w-8 h-8 text-red-500" />
+            <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-6 text-red-500">
+              <AlertTriangle size={32} />
             </div>
-            <AlertDialogTitle className="text-xl font-black text-white uppercase tracking-tighter text-center">ELIMINAR <span className="text-red-500">COMPETICIÓN</span></AlertDialogTitle>
+            <AlertDialogTitle className="text-xl font-black text-white uppercase tracking-tighter text-center">ELIMINAR <span className="text-red-500">PROGRAMA</span></AlertDialogTitle>
             <AlertDialogDescription className="text-center text-[10px] text-[#6A6C6E] font-bold uppercase tracking-widest mt-2 px-4 leading-relaxed">
-              ESTÁS POR PURGAR <span className="text-white font-black">{competition?.name}</span>. ESTO ELIMINARÁ PERMANENTEMENTE CLUBES INSCRITOS, PARTIDOS Y ESTADÍSTICAS GENERADAS.
+              ¿CONFIRMAS LA PURGA ABSOLUTA DE <span className="text-white font-black">{competition?.name}</span>? TODOS LOS REGISTROS Y PARTIDOS SERÁN ELIMINADOS.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="flex gap-3">
-            <AlertDialogCancel className="flex-1 h-14 bg-[#0A0A0A] border border-[#202020] text-[#6A6C6E] hover:text-white rounded-[20px] font-black uppercase tracking-widest text-[10px] m-0 text-center">Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteCompetition} disabled={isDeleting} className="flex-1 h-14 bg-red-600 hover:bg-red-700 text-white rounded-[20px] font-black uppercase tracking-widest text-[10px] shadow-[0_0_30px_rgba(220,38,38,0.3)] m-0">
-               {isDeleting ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'Confirmar Purgado'}
-            </AlertDialogAction>
+             <AlertDialogCancel className="flex-1 h-14 bg-[#0A0A0A] border border-[#202020] text-[#6A6C6E] hover:text-white rounded-[20px] font-black uppercase tracking-[0.1em] text-[10px]">No</AlertDialogCancel>
+             <AlertDialogAction onClick={handleDeleteCompetition} className="flex-1 h-14 bg-red-600 hover:bg-red-700 text-white rounded-[20px] font-black uppercase tracking-[0.1em] text-[10px] shadow-[0_0_30px_rgba(220,38,38,0.3)]">Purgar</AlertDialogAction>
           </div>
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  )
-}
   )
 }

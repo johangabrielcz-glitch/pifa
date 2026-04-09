@@ -1,48 +1,35 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Pencil, Trash2, Loader2, User, Search, X, Shield, ChevronLeft } from 'lucide-react'
+import { Plus, Pencil, Trash2, Loader2, User, Search, X, Shield, ChevronLeft, Users, Zap, TrendingUp } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from '@/components/ui/dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import type { Player, Club, PlayerInsert, PlayerUpdate } from '@/lib/types'
 
 const POSITIONS = [
-  { value: 'GK', label: 'Portero' },
-  { value: 'CB', label: 'Central' },
-  { value: 'LB', label: 'Lateral Izq.' },
-  { value: 'RB', label: 'Lateral Der.' },
-  { value: 'CDM', label: 'Mediocentro Def.' },
-  { value: 'CM', label: 'Mediocentro' },
-  { value: 'CAM', label: 'Mediapunta' },
-  { value: 'LM', label: 'Medio Izq.' },
-  { value: 'RM', label: 'Medio Der.' },
-  { value: 'LW', label: 'Extremo Izq.' },
-  { value: 'RW', label: 'Extremo Der.' },
-  { value: 'ST', label: 'Delantero' },
-  { value: 'CF', label: 'Falso 9' },
+  'GK', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LM', 'RM', 'LW', 'RW', 'ST', 'CF'
 ]
 
 const positionColors: Record<string, { bg: string; text: string; bar: string }> = {
-  GK: { bg: 'bg-amber-500/15', text: 'text-amber-400', bar: 'bg-amber-400' },
-  CB: { bg: 'bg-blue-500/15', text: 'text-blue-400', bar: 'bg-blue-400' },
-  LB: { bg: 'bg-blue-500/15', text: 'text-blue-400', bar: 'bg-blue-400' },
-  RB: { bg: 'bg-blue-500/15', text: 'text-blue-400', bar: 'bg-blue-400' },
-  CDM: { bg: 'bg-emerald-500/15', text: 'text-emerald-400', bar: 'bg-emerald-400' },
-  CM: { bg: 'bg-emerald-500/15', text: 'text-emerald-400', bar: 'bg-emerald-400' },
-  CAM: { bg: 'bg-emerald-500/15', text: 'text-emerald-400', bar: 'bg-emerald-400' },
-  LM: { bg: 'bg-emerald-500/15', text: 'text-emerald-400', bar: 'bg-emerald-400' },
-  RM: { bg: 'bg-emerald-500/15', text: 'text-emerald-400', bar: 'bg-emerald-400' },
-  LW: { bg: 'bg-rose-500/15', text: 'text-rose-400', bar: 'bg-rose-400' },
-  RW: { bg: 'bg-rose-500/15', text: 'text-rose-400', bar: 'bg-rose-400' },
-  ST: { bg: 'bg-rose-500/15', text: 'text-rose-400', bar: 'bg-rose-400' },
-  CF: { bg: 'bg-rose-500/15', text: 'text-rose-400', bar: 'bg-rose-400' },
+  GK: { bg: 'bg-amber-500/10', text: 'text-amber-400', bar: 'bg-amber-400' },
+  CB: { bg: 'bg-blue-500/10', text: 'text-blue-400', bar: 'bg-blue-400' },
+  LB: { bg: 'bg-blue-500/10', text: 'text-blue-400', bar: 'bg-blue-400' },
+  RB: { bg: 'bg-blue-500/10', text: 'text-blue-400', bar: 'bg-blue-400' },
+  CDM: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', bar: 'bg-emerald-400' },
+  CM: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', bar: 'bg-emerald-400' },
+  CAM: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', bar: 'bg-emerald-400' },
+  LM: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', bar: 'bg-emerald-400' },
+  RM: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', bar: 'bg-emerald-400' },
+  LW: { bg: 'bg-rose-500/10', text: 'text-rose-400', bar: 'bg-rose-400' },
+  RW: { bg: 'bg-rose-500/10', text: 'text-rose-400', bar: 'bg-rose-400' },
+  ST: { bg: 'bg-rose-500/10', text: 'text-rose-400', bar: 'bg-rose-400' },
+  CF: { bg: 'bg-rose-500/10', text: 'text-rose-400', bar: 'bg-rose-400' },
 }
 
 interface PlayerWithClub extends Player {
@@ -67,10 +54,13 @@ export default function AdminPlayersPage() {
     name: '',
     position: '',
     number: '',
-    age: '',
-    nationality: '',
+    overall: 0,
+    club_id: '' as string | null,
     photo_url: '',
-    club_id: '',
+    goals: 0,
+    assists: 0,
+    yellow_cards: 0,
+    red_cards: 0
   })
 
   const loadData = async () => {
@@ -100,10 +90,13 @@ export default function AdminPlayersPage() {
       name: '',
       position: '',
       number: '',
-      age: '',
-      nationality: '',
+      overall: 0,
+      club_id: null,
       photo_url: '',
-      club_id: '',
+      goals: 0,
+      assists: 0,
+      yellow_cards: 0,
+      red_cards: 0
     })
     setEditingPlayer(null)
   }
@@ -119,62 +112,58 @@ export default function AdminPlayersPage() {
       name: player.name,
       position: player.position,
       number: player.number?.toString() || '',
-      age: player.age?.toString() || '',
-      nationality: player.nationality || '',
-      photo_url: player.photo_url || '',
+      overall: player.overall || 0,
       club_id: player.club_id,
+      photo_url: player.photo_url || '',
+      goals: player.goals || 0,
+      assists: player.assists || 0,
+      yellow_cards: player.yellow_cards || 0,
+      red_cards: player.red_cards || 0
     })
     setIsFormOpen(true)
   }
 
   const handleSave = async () => {
-    if (!formData.name.trim() || !formData.position || !formData.club_id) {
-      toast.error('Nombre, posición y club son requeridos')
+    if (!formData.name.trim() || !formData.position) {
+      toast.error('Nombre y posición son requeridos')
       return
     }
 
     setIsSaving(true)
 
     try {
-      if (editingPlayer) {
-        const updateData: PlayerUpdate = {
-          name: formData.name.trim(),
-          position: formData.position,
-          number: formData.number ? parseInt(formData.number) : null,
-          age: formData.age ? parseInt(formData.age) : null,
-          nationality: formData.nationality.trim() || null,
-          photo_url: formData.photo_url.trim() || null,
-          club_id: formData.club_id,
-        }
+      const dataToSave = {
+        name: formData.name.trim(),
+        position: formData.position,
+        number: formData.number ? parseInt(formData.number) : null,
+        overall: formData.overall,
+        club_id: formData.club_id === 'none' ? null : formData.club_id,
+        photo_url: formData.photo_url.trim() || null,
+        goals: formData.goals,
+        assists: formData.assists,
+        yellow_cards: formData.yellow_cards,
+        red_cards: formData.red_cards
+      }
 
+      if (editingPlayer) {
         const { error } = await supabase
           .from('players')
-          .update(updateData)
+          .update(dataToSave)
           .eq('id', editingPlayer.id)
 
         if (error) throw error
-        toast.success('Jugador actualizado')
+        toast.success('Atleta actualizado correctamente')
       } else {
-        const insertData: PlayerInsert = {
-          name: formData.name.trim(),
-          position: formData.position,
-          number: formData.number ? parseInt(formData.number) : null,
-          age: formData.age ? parseInt(formData.age) : null,
-          nationality: formData.nationality.trim() || null,
-          photo_url: formData.photo_url.trim() || null,
-          club_id: formData.club_id,
-        }
-
-        const { error } = await supabase.from('players').insert(insertData)
+        const { error } = await supabase.from('players').insert(dataToSave)
         if (error) throw error
-        toast.success('Jugador creado')
+        toast.success('Atleta registrado en el sistema')
       }
 
       setIsFormOpen(false)
       resetForm()
       loadData()
     } catch (error) {
-      toast.error('Error al guardar el jugador')
+      toast.error('Error en la sincronización de datos')
       console.error(error)
     } finally {
       setIsSaving(false)
@@ -188,12 +177,12 @@ export default function AdminPlayersPage() {
       const { error } = await supabase.from('players').delete().eq('id', deletingPlayer.id)
       if (error) throw error
       
-      toast.success('Jugador eliminado')
+      toast.success('Atleta purgado del sistema')
       setIsDeleteOpen(false)
       setDeletingPlayer(null)
       loadData()
     } catch {
-      toast.error('Error al eliminar el jugador')
+      toast.error('Error al purgar los datos')
     }
   }
 
@@ -204,166 +193,185 @@ export default function AdminPlayersPage() {
   })
 
   return (
-    <div className="min-h-dvh bg-background safe-area-top">
+    <div className="min-h-screen">
       {/* Header */}
-      <header className="sticky top-[57px] z-30 bg-background/80 backdrop-blur-2xl border-b border-white/[0.06]">
-        <div className="flex items-center justify-between px-5 py-3">
-          <div className="flex items-center gap-3">
-            <button onClick={() => router.back()} className="p-2 -ml-2 text-muted-foreground hover:text-foreground rounded-xl transition-colors active:scale-95">
+      <header className="sticky top-0 z-30 bg-[#0A0A0A]/80 backdrop-blur-2xl border-b border-white/[0.04]">
+        <div className="flex items-center justify-between px-6 py-4">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => router.back()} 
+              className="w-10 h-10 rounded-xl bg-[#141414] border border-[#202020] flex items-center justify-center text-[#6A6C6E] hover:text-white hover:border-[#FF3131]/40 transition-all active:scale-95"
+            >
               <ChevronLeft className="w-5 h-5" />
             </button>
             <div>
-              <h1 className="text-lg font-bold">Jugadores</h1>
-              <p className="text-[10px] text-muted-foreground">{players.length} registrados</p>
+              <h1 className="text-xl font-black text-white uppercase tracking-tight">GESTIÓN DE <span className="text-[#FF3131]">ATLETAS</span></h1>
+              <p className="text-[10px] text-[#6A6C6E] font-black uppercase tracking-[0.2em]">{players.length} REGISTROS ACTIVOS</p>
             </div>
           </div>
-          <Button size="sm" onClick={openCreateForm} disabled={clubs.length === 0} className="bg-primary hover:bg-primary/90 rounded-xl gap-1.5 shadow-lg shadow-primary/20">
+          <button 
+            onClick={openCreateForm} 
+            className="h-11 px-5 bg-[#FF3131] hover:bg-[#D32F2F] text-white rounded-xl flex items-center gap-2.5 font-black uppercase tracking-widest text-[10px] shadow-[0_0_20px_rgba(255,49,49,0.3)] transition-all active:scale-95"
+          >
             <Plus className="w-4 h-4" />
-            Nuevo
-          </Button>
+            Nuevo Registro
+          </button>
         </div>
         
         {/* Search & Filter */}
-        <div className="px-5 pb-3 space-y-2.5">
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar jugadores..."
+        <div className="px-6 pb-4 space-y-4">
+          <div className="relative group">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-[#2D2D2D] group-focus-within:text-[#FF3131] transition-colors" />
+            <input
+              placeholder="SISTEMA DE BÚSQUEDA DE ATLETAS..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-11 h-11 bg-card/60 border-white/[0.06] rounded-xl focus:bg-card focus:border-primary/30 transition-all"
+              className="w-full h-12 pl-12 pr-4 bg-[#141414] border border-[#202020] rounded-xl text-white placeholder:text-[#2D2D2D] text-[11px] font-black uppercase tracking-widest focus:outline-none focus:border-[#FF3131]/40 transition-all"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-[#6A6C6E] hover:text-white p-1 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
             )}
           </div>
 
-          {/* Club filter pills */}
-          <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-0.5">
+          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
             <button
               onClick={() => setFilterClub('all')}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 ${
+              className={`px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-[0.15em] transition-all whitespace-nowrap border ${
                 filterClub === 'all' 
-                  ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20' 
-                  : 'bg-card/60 text-muted-foreground border border-white/[0.06] hover:bg-card/80'
+                  ? 'bg-[#FF3131] text-white border-[#FF3131] shadow-[0_0_15px_rgba(255,49,49,0.2)]' 
+                  : 'bg-[#141414] text-[#6A6C6E] border-white/[0.04] hover:border-white/10 hover:text-white'
               }`}
             >
-              Todos ({players.length})
+              Todos los Clubes
             </button>
-            {clubs.map(club => {
-              const count = players.filter(p => p.club_id === club.id).length
-              return (
-                <button
-                  key={club.id}
-                  onClick={() => setFilterClub(club.id)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 ${
-                    filterClub === club.id
-                      ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20' 
-                      : 'bg-card/60 text-muted-foreground border border-white/[0.06] hover:bg-card/80'
-                  }`}
-                >
-                  {club.name} ({count})
-                </button>
-              )
-            })}
+            {clubs.map(club => (
+              <button
+                key={club.id}
+                onClick={() => setFilterClub(club.id)}
+                className={`px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-[0.15em] transition-all whitespace-nowrap border ${
+                  filterClub === club.id
+                    ? 'bg-[#FF3131] text-white border-[#FF3131] shadow-[0_0_15_rgba(255,49,49,0.2)]' 
+                    : 'bg-[#141414] text-[#6A6C6E] border-white/[0.04] hover:border-white/10 hover:text-white'
+                }`}
+              >
+                {club.name}
+              </button>
+            ))}
           </div>
         </div>
       </header>
 
       {/* Players List */}
-      <div className="px-5 py-4 space-y-2 pb-24">
+      <div className="px-6 py-6 space-y-4 pb-32">
         {isLoading ? (
-          <div className="flex justify-center py-16">
-            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : clubs.length === 0 ? (
-          <div className="text-center py-16 animate-fade-in-up">
-            <div className="w-16 h-16 rounded-2xl bg-card/60 border border-white/[0.06] mx-auto mb-4 flex items-center justify-center">
-              <Shield className="w-8 h-8 text-muted-foreground/40" />
-            </div>
-            <p className="text-muted-foreground font-medium">Primero debes crear un club</p>
+          <div className="flex justify-center py-20">
+            <Loader2 className="w-8 h-8 animate-spin text-[#FF3131]" />
           </div>
         ) : filteredPlayers.length === 0 ? (
-          <div className="text-center py-16 animate-fade-in-up">
-            <div className="w-16 h-16 rounded-2xl bg-card/60 border border-white/[0.06] mx-auto mb-4 flex items-center justify-center">
-              <User className="w-8 h-8 text-muted-foreground/40" />
+          <div className="text-center py-20 bg-[#141414]/30 rounded-[32px] border border-dashed border-white/[0.06] animate-fade-in-up">
+            <div className="w-20 h-20 rounded-3xl bg-[#0A0A0A] border border-[#202020] mx-auto mb-6 flex items-center justify-center">
+              <User className="w-10 h-10 text-[#2D2D2D]" />
             </div>
-            <p className="text-muted-foreground font-medium">
-              {searchQuery || filterClub !== 'all' ? 'No se encontraron jugadores' : 'No hay jugadores registrados'}
+            <p className="text-[#6A6C6E] font-black uppercase tracking-[0.2em] text-xs px-10">
+              NO SE ENCONTRARON COINCIDENCIAS EN LA RED CENTRAL
             </p>
           </div>
         ) : (
           filteredPlayers.map((player, i) => {
-            const posColor = positionColors[player.position] || { bg: 'bg-muted/20', text: 'text-muted-foreground', bar: 'bg-muted' }
+            const posColor = positionColors[player.position] || { bg: 'bg-muted/10', text: 'text-muted-foreground', bar: 'bg-muted' }
             return (
               <div
                 key={player.id}
-                className="relative bg-card/60 backdrop-blur-sm rounded-2xl p-4 border border-white/[0.06] overflow-hidden transition-all duration-300 hover:bg-card/80 animate-fade-in-up"
+                className="group relative bg-[#141414]/50 backdrop-blur-xl rounded-[28px] p-5 border border-white/[0.04] transition-all duration-300 hover:border-[#FF3131]/30 hover:bg-[#1A1A1A]/60 animate-fade-in-up shadow-xl overflow-hidden"
                 style={{ animationDelay: `${i * 30}ms` }}
               >
-                {/* Position color bar */}
-                <div className={`absolute left-0 top-0 bottom-0 w-1 ${posColor.bar} rounded-l-2xl`} />
+                {/* Background glow detail */}
+                <div className={`absolute top-0 right-0 w-32 h-32 opacity-0 group-hover:opacity-10 transition-opacity rounded-full blur-3xl ${posColor.bg.replace('10', '50')}`} />
                 
-                <div className="flex items-center justify-between pl-2">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className={`w-11 h-11 rounded-xl ${posColor.bg} flex items-center justify-center shrink-0`}>
-                      <span className={`text-base font-bold ${posColor.text}`}>
-                        {player.number || '-'}
-                      </span>
+                <div className="relative flex items-center justify-between">
+                  <div className="flex items-center gap-5 min-w-0">
+                    <div className="relative shrink-0">
+                      <div className="absolute inset-0 bg-[#FF3131]/20 rounded-2[x] blur-lg opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <div className={`w-14 h-14 rounded-[18px] ${posColor.bg} border border-white/[0.04] flex items-center justify-center shadow-2xl transition-transform group-hover:scale-105`}>
+                        <span className={`text-lg font-black ${posColor.text}`}>
+                          {player.number || '—'}
+                        </span>
+                      </div>
                     </div>
                     
                     <div className="min-w-0">
-                      <p className="font-semibold text-foreground truncate">{player.name}</p>
-                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${posColor.bg} ${posColor.text}`}>
-                          {player.position}
-                        </span>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="text-base font-black text-white uppercase tracking-tight truncate">{player.name}</h3>
+                        <div className={`px-2 py-0.5 rounded-md ${posColor.bg} border border-white/[0.04]`}>
+                          <p className={`text-[8px] font-black ${posColor.text} tracking-widest uppercase`}>{player.position}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {player.club ? (
+                          <div className="flex items-center gap-2 bg-white/5 px-2.5 py-1 rounded-lg border border-white/5">
+                            <Shield className="w-3 h-3 text-[#FF3131]" />
+                            <p className="text-[9px] font-black text-[#6A6C6E] uppercase tracking-widest">{player.club.name}</p>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 bg-white/5 px-2.5 py-1 rounded-lg border border-white/5 opacity-50">
+                            <Shield className="w-3 h-3 text-[#2D2D2D]" />
+                            <p className="text-[9px] font-black text-[#2D2D2D] uppercase tracking-widest">Agente Libre</p>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 bg-[#FF3131]/10 px-2.5 py-1 rounded-lg border border-[#FF3131]/20">
+                          <TrendingUp className="w-3 h-3 text-[#FF3131]" />
+                          <p className="text-[9px] font-black text-[#FF3131] uppercase tracking-widest">{player.overall} OVR</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-col gap-2 shrink-0 relative z-10">
+                    <button
+                      onClick={() => openEditForm(player)}
+                      className="w-10 h-10 rounded-full bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#6A6C6E] hover:text-white hover:border-[#FF3131]/40 transition-all active:scale-90"
+                    >
+                      <Pencil className="w-4.5 h-4.5" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        setDeletingPlayer(player)
+                        setIsDeleteOpen(true)
+                      }}
+                      className="w-10 h-10 rounded-full bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-red-500/60 hover:text-red-500 hover:border-red-500/40 hover:bg-red-500/10 transition-all active:scale-90"
+                    >
+                      <Trash2 className="w-4.5 h-4.5" />
+                    </button>
                   </div>
                 </div>
                 
-                <div className="flex flex-col gap-2 shrink-0">
-                  <button
-                    onClick={() => openEditForm(player)}
-                    className="w-10 h-10 rounded-full bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#6A6C6E] hover:text-white hover:border-[#FF3131]/40 transition-all active:scale-90"
-                  >
-                    <Pencil className="w-4.5 h-4.5" />
-                  </button>
-                  <button
-                    onClick={() => {
-                      setDeletingPlayer(player)
-                      setIsDeleteOpen(true)
-                    }}
-                    className="w-10 h-10 rounded-full bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-red-500/60 hover:text-red-500 hover:border-red-500/40 hover:bg-red-500/10 transition-all active:scale-90"
-                  >
-                    <Trash2 className="w-4.5 h-4.5" />
-                  </button>
+                {/* Stats Bar */}
+                <div className="mt-5 grid grid-cols-3 gap-3">
+                  <div className="bg-[#0A0A0A] border border-white/[0.02] rounded-[18px] p-3 text-center group/stat hover:border-[#FF3131]/20 transition-colors">
+                    <p className="text-sm font-black text-white leading-none tabular-nums mb-1 group-hover:text-[#FF3131] transition-colors">{player.goals}</p>
+                    <p className="text-[8px] text-[#2D2D2D] font-black uppercase tracking-[0.2em]">Goles</p>
+                  </div>
+                  <div className="bg-[#0A0A0A] border border-white/[0.02] rounded-[18px] p-3 text-center group/stat hover:border-[#FF3131]/20 transition-colors">
+                    <p className="text-sm font-black text-white leading-none tabular-nums mb-1 group-hover:text-[#FF3131] transition-colors">{player.assists}</p>
+                    <p className="text-[8px] text-[#2D2D2D] font-black uppercase tracking-[0.2em]">Asists</p>
+                  </div>
+                  <div className="bg-[#0A0A0A] border border-white/[0.02] rounded-[18px] p-3 text-center group/stat hover:border-[#FF3131]/20 transition-colors">
+                    <div className="flex items-center justify-center gap-2 mb-1">
+                      <span className="text-sm font-black text-amber-500/80">{player.yellow_cards}</span>
+                      <span className="text-[10px] text-[#2D2D2D]">/</span>
+                      <span className="text-sm font-black text-red-500/80">{player.red_cards}</span>
+                    </div>
+                    <p className="text-[8px] text-[#2D2D2D] font-black uppercase tracking-[0.2em]">Tarjetas</p>
+                  </div>
                 </div>
               </div>
-              
-              {/* Player Stats Bar */}
-              <div className="mt-5 grid grid-cols-3 gap-2">
-                <div className="bg-[#0A0A0A]/50 border border-white/[0.04] rounded-xl px-3 py-2 text-center group/stat hover:border-[#FF3131]/20 transition-colors">
-                  <p className="text-xs font-black text-white leading-none tabular-nums group-hover:text-[#FF3131] transition-colors">{player.goals}</p>
-                  <p className="text-[7px] text-[#2D2D2D] font-black uppercase tracking-widest mt-1">Goles</p>
-                </div>
-                <div className="bg-[#0A0A0A]/50 border border-white/[0.04] rounded-xl px-3 py-2 text-center group/stat hover:border-[#FF3131]/20 transition-colors">
-                  <p className="text-xs font-black text-white leading-none tabular-nums group-hover:text-[#FF3131] transition-colors">{player.assists}</p>
-                  <p className="text-[7px] text-[#2D2D2D] font-black uppercase tracking-widest mt-1">Asistencias</p>
-                </div>
-                <div className="bg-[#0A0A0A]/50 border border-white/[0.04] rounded-xl px-3 py-2 text-center group/stat hover:border-[#FF3131]/20 transition-colors">
-                  <p className="text-xs font-black text-white leading-none tabular-nums group-hover:text-[#FF3131] transition-colors">
-                    <span className="text-amber-400">{player.yellow_cards}</span> / <span className="text-red-500">{player.red_cards}</span>
-                  </p>
-                  <p className="text-[7px] text-[#2D2D2D] font-black uppercase tracking-widest mt-1">Tarjetas</p>
-                </div>
-              </div>
-            </div>
-          ))
+            )
+          })
         )}
       </div>
 
@@ -388,18 +396,18 @@ export default function AdminPlayersPage() {
 
             <div className="space-y-6">
               <div className="space-y-2.5">
-                <Label className="text-[10px] text-[#6A6C6E] uppercase tracking-[0.3em] font-black ml-1">Identidad del Jugador</Label>
+                <Label className="text-[10px] text-[#6A6C6E] uppercase tracking-[0.3em] font-black ml-1">Identidad de Registro</Label>
                 <Input
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="LIONEL MESSI"
+                  placeholder="NOMBRE DEL ATLETA..."
                   className="h-14 bg-[#0A0A0A] border-[#202020] rounded-[20px] text-white placeholder:text-[#2D2D2D] text-xs font-black uppercase tracking-widest focus:border-[#FF3131]/40 px-5"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2.5">
-                  <Label className="text-[10px] text-[#6A6C6E] uppercase tracking-[0.3em] font-black ml-1">Posición</Label>
+                  <Label className="text-[10px] text-[#6A6C6E] uppercase tracking-[0.3em] font-black ml-1">Protocolo de Posición</Label>
                   <Select value={formData.position} onValueChange={(v) => setFormData({ ...formData, position: v })}>
                     <SelectTrigger className="h-14 bg-[#0A0A0A] border-[#202020] rounded-[20px] text-white text-xs font-black uppercase tracking-widest focus:border-[#FF3131]/40 px-5">
                       <SelectValue placeholder="SEL." />
@@ -415,7 +423,7 @@ export default function AdminPlayersPage() {
                     type="number"
                     value={formData.overall}
                     onChange={(e) => setFormData({ ...formData, overall: parseInt(e.target.value) || 0 })}
-                    className="h-14 bg-[#0A0A0A] border-[#202020] rounded-[20px] text-white text-center font-black transition-all focus:border-[#FF3131]/40"
+                    className="h-14 bg-[#0A0A0A] border-[#202020] rounded-[20px] text-white text-center font-black focus:border-[#FF3131]/40"
                   />
                 </div>
               </div>
@@ -427,30 +435,20 @@ export default function AdminPlayersPage() {
                     <SelectValue placeholder="SIN ASIGNAR" />
                   </SelectTrigger>
                   <SelectContent className="bg-[#141414] border-white/[0.08] rounded-2xl">
-                    <SelectItem value="none" className="text-xs font-black uppercase tracking-widest text-white/40">SIN ASIGNAR</SelectItem>
+                    <SelectItem value="none" className="text-xs font-black uppercase tracking-widest text-white/40">LIBRE / SIN ASIGNAR</SelectItem>
                     {clubs.map(c => <SelectItem key={c.id} value={c.id} className="text-xs font-black uppercase tracking-widest text-white">{c.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
 
-              <div className="space-y-2.5">
-                <Label className="text-[10px] text-[#6A6C6E] uppercase tracking-[0.3em] font-black ml-1">Imagen del Jugador (URL)</Label>
-                <Input
-                  value={formData.photo_url || ''}
-                  onChange={(e) => setFormData({ ...formData, photo_url: e.target.value })}
-                  placeholder="HTTPS://JUGADOR-PHOTO.PNG..."
-                  className="h-14 bg-[#0A0A0A] border-[#202020] rounded-[20px] text-white placeholder:text-[#2D2D2D] text-xs font-black uppercase tracking-widest focus:border-[#FF3131]/40 px-5"
-                />
-              </div>
-
               <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2.5">
+                  <Label className="text-[10px] text-[#6A6C6E] uppercase tracking-[0.3em] font-black ml-1">Dorsal</Label>
+                  <Input value={formData.number} onChange={(e) => setFormData({ ...formData, number: e.target.value })} placeholder="00" className="h-14 bg-[#0A0A0A] border-[#202020] rounded-[20px] text-white text-center font-black" />
+                </div>
                 <div className="space-y-2.5">
                   <Label className="text-[10px] text-[#6A6C6E] uppercase tracking-[0.3em] font-black ml-1">Goles</Label>
                   <Input type="number" value={formData.goals} onChange={(e) => setFormData({ ...formData, goals: parseInt(e.target.value) || 0 })} className="h-14 bg-[#0A0A0A] border-[#202020] rounded-[20px] text-white text-center font-black" />
-                </div>
-                <div className="space-y-2.5">
-                  <Label className="text-[10px] text-[#6A6C6E] uppercase tracking-[0.3em] font-black ml-1">Asistencias</Label>
-                  <Input type="number" value={formData.assists} onChange={(e) => setFormData({ ...formData, assists: parseInt(e.target.value) || 0 })} className="h-14 bg-[#0A0A0A] border-[#202020] rounded-[20px] text-white text-center font-black" />
                 </div>
               </div>
             </div>
@@ -467,7 +465,7 @@ export default function AdminPlayersPage() {
               disabled={isSaving} 
               className="flex-1 h-14 bg-[#FF3131] hover:bg-[#D32F2F] text-white rounded-[20px] font-black uppercase tracking-widest text-[10px] shadow-[0_0_30px_rgba(255,49,49,0.3)] transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center"
             >
-              {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sincronizar'}
+              {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sincronizar Datos'}
             </button>
           </div>
         </DialogContent>
@@ -481,21 +479,21 @@ export default function AdminPlayersPage() {
               <Trash2 className="w-8 h-8 text-red-500" />
             </div>
             <AlertDialogTitle className="text-xl font-black text-white uppercase tracking-tighter text-center">
-              ¿RETIRAR <span className="text-red-500">JUGADOR</span>?
+              ¿PURGAR <span className="text-red-500">ATLETA</span>?
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-center text-xs text-[#6A6C6E] font-bold uppercase tracking-widest mt-2">
-              ESTÁS POR ELIMINAR A <span className="text-white font-black">{deletingPlayer?.name}</span> DEL SISTEMA DE COMPETICIÓN CENTRAL.
+            <AlertDialogDescription className="text-center text-xs text-[#6A6C6E] font-bold uppercase tracking-widest leading-relaxed mt-2 px-4 shadow-sm">
+              ESTÁS POR ELIMINAR A <span className="text-white font-black">{deletingPlayer?.name}</span> DEL SISTEMA CENTRAL. ESTA ACCIÓN ES IRREVERSIBLE.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="flex gap-3">
             <AlertDialogCancel className="flex-1 h-14 bg-[#0A0A0A] border border-[#202020] text-[#6A6C6E] hover:text-white rounded-[20px] font-black uppercase tracking-widest text-[10px] transition-all m-0">
-              No
+              Abortar
             </AlertDialogCancel>
             <AlertDialogAction 
               onClick={handleDelete} 
               className="flex-1 h-14 bg-red-600 hover:bg-red-700 text-white rounded-[20px] font-black uppercase tracking-widest text-[10px] shadow-[0_0_30px_rgba(220,38,38,0.3)] transition-all m-0"
             >
-              Sí, Eliminar
+              PURGAR
             </AlertDialogAction>
           </div>
         </AlertDialogContent>
