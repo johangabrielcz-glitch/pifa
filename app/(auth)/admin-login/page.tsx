@@ -68,114 +68,124 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="min-h-dvh flex flex-col bg-background safe-area-top safe-area-bottom">
-      {/* Background gradient accent - Red tint for admin */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-pifa-red to-pifa-orange rounded-full blur-3xl opacity-15" />
-        <div className="absolute -bottom-40 -left-40 w-60 h-60 bg-pifa-red rounded-full blur-3xl opacity-10" />
+    <div className="min-h-dvh flex flex-col bg-[#0A0A0A] selection:bg-[#FF3131]/30">
+      {/* Dynamic Background - Ruby Theme */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-[#FF3131]/10 rounded-full blur-[120px] animate-pulse" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[#FF3131]/5 rounded-full blur-[100px]" />
+        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay" />
       </div>
 
       {/* Content */}
-      <div className="relative flex-1 flex flex-col px-6 pt-16">
-        {/* Logo & Title */}
-        <div className="flex flex-col items-center mb-12">
-          <div className="relative mb-6">
-            <div className="absolute inset-0 bg-pifa-red/20 rounded-full blur-xl" />
-            <div className="relative bg-card border border-border/50 rounded-full p-4">
-              <Shield className="w-12 h-12 text-pifa-red" />
-            </div>
-          </div>
-          <h1 className="text-3xl font-bold text-foreground tracking-tight">
-            Panel Admin
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Acceso exclusivo administradores
-          </p>
-        </div>
-
-        {/* Login Form */}
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Usuario Admin
-            </label>
-            <Input
-              type="text"
-              placeholder="Tu usuario de administrador"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              autoComplete="username"
-              autoCapitalize="none"
-              className="h-14 bg-card border-border/50 text-base placeholder:text-muted-foreground/50 focus:border-pifa-red/50 focus:ring-pifa-red/20"
-              disabled={isLoading}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Contraseña
-            </label>
-            <div className="relative">
-              <Input
-                type={showPassword ? 'text' : 'password'}
-                placeholder="Tu contraseña"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
-                className="h-14 bg-card border-border/50 text-base pr-14 placeholder:text-muted-foreground/50 focus:border-pifa-red/50 focus:ring-pifa-red/20"
-                disabled={isLoading}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-2"
-              >
-                {showPassword ? (
-                  <EyeOff className="w-5 h-5" />
-                ) : (
-                  <Eye className="w-5 h-5" />
-                )}
-              </button>
-            </div>
-          </div>
-
-          <Button
-            type="submit"
-            className="w-full h-14 text-base font-semibold bg-gradient-to-r from-pifa-red to-pifa-orange text-white hover:opacity-90 transition-opacity mt-6"
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                Verificando...
-              </>
-            ) : (
-              <>
-                Acceder al Panel
-                <ChevronRight className="w-5 h-5 ml-2" />
-              </>
-            )}
-          </Button>
-        </form>
-
-        {/* Spacer */}
-        <div className="flex-1 min-h-8" />
-
-        {/* User Login Link */}
-        <div className="pb-8">
-          <Link
-            href="/login"
-            className="flex items-center justify-center gap-2 w-full h-12 rounded-xl bg-card border border-border/50 text-sm text-muted-foreground hover:text-foreground hover:border-border transition-all touch-active"
-          >
-            <User className="w-4 h-4" />
-            <span>Acceso Directores Técnicos</span>
-          </Link>
+      <div className="relative flex-1 flex flex-col items-center justify-center px-6">
+        <div className="w-full max-w-sm space-y-10">
           
-          <div className="flex items-center justify-center gap-2 mt-6">
-            <PifaLogo size="sm" showText={false} />
-            <p className="text-xs text-muted-foreground/50">
-              PIFA Admin
-            </p>
+          {/* Admin Header Section */}
+          <div className="flex flex-col items-center text-center space-y-6">
+            <div className="relative group">
+              <div className="absolute inset-0 bg-[#FF3131]/20 rounded-full blur-2xl group-hover:bg-[#FF3131]/40 transition-all duration-700" />
+              <div className="relative w-24 h-24 bg-[#141414] border border-[#202020] rounded-[32px] flex items-center justify-center p-5 shadow-2xl">
+                <Shield className="w-12 h-12 text-[#FF3131]" />
+              </div>
+            </div>
+            
+            <div className="space-y-1">
+              <h1 className="text-4xl font-black text-white tracking-tighter uppercase leading-none">
+                PANEL <span className="text-[#FF3131]">ADMIN</span>
+              </h1>
+              <p className="text-[10px] font-bold text-[#6A6C6E] uppercase tracking-[0.4em] ml-1">
+                Authorized Personnel Only
+              </p>
+            </div>
+          </div>
+
+          {/* Admin Form Section */}
+          <form onSubmit={handleLogin} className="space-y-5">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-[#6A6C6E] uppercase tracking-widest ml-1">
+                System Administrator
+              </label>
+              <div className="relative group">
+                <Input
+                  type="text"
+                  placeholder="Usuario Administrativo"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  autoComplete="username"
+                  autoCapitalize="none"
+                  className="h-16 bg-[#141414]/50 border-[#202020] text-white rounded-2xl pl-12 focus:ring-[#FF3131]/20 focus:border-[#FF3131] transition-all duration-300 placeholder:text-[#2D2D2D] placeholder:font-bold placeholder:uppercase placeholder:text-[10px]"
+                  disabled={isLoading}
+                />
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#2D2D2D] group-focus-within:text-[#FF3131] transition-colors">
+                  <User size={20} />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-[#6A6C6E] uppercase tracking-widest ml-1">
+                Access Token
+              </label>
+              <div className="relative group">
+                <Input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Ingrese Contraseña"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  className="h-16 bg-[#141414]/50 border-[#202020] text-white rounded-2xl pl-12 pr-14 focus:ring-[#FF3131]/20 focus:border-[#FF3131] transition-all duration-300 placeholder:text-[#2D2D2D] placeholder:font-bold placeholder:uppercase placeholder:text-[10px]"
+                  disabled={isLoading}
+                />
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#2D2D2D] group-focus-within:text-[#FF3131] transition-colors">
+                  <Shield size={20} />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#2D2D2D] hover:text-white transition-colors"
+                >
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
+            </div>
+
+            <Button
+              type="submit"
+              className="w-full h-16 bg-[#FF3131] hover:bg-[#D32F2F] text-white font-black uppercase tracking-[0.2em] text-xs rounded-2xl shadow-[0_10px_30px_rgba(255,49,49,0.3)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 mt-4 h-16"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <div className="flex items-center gap-3">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Verificando</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span>Validar Credenciales</span>
+                  <ChevronRight size={18} />
+                </div>
+              )}
+            </Button>
+          </form>
+
+          {/* Admin Footer Section */}
+          <div className="pt-10 flex flex-col items-center space-y-6">
+            <Link
+              href="/login"
+              className="group flex items-center gap-3 px-6 py-3 rounded-full bg-[#141414] border border-[#202020] hover:border-[#FF3131]/30 transition-all duration-500"
+            >
+              <User className="w-4 h-4 text-[#6A6C6E] group-hover:text-[#FF3131] transition-colors" />
+              <span className="text-[10px] font-black text-[#6A6C6E] group-hover:text-white uppercase tracking-widest transition-colors">
+                Volver a Director Técnico
+              </span>
+            </Link>
+            
+            <div className="flex items-center gap-3">
+              <PifaLogo size="sm" showText={false} />
+              <p className="text-[9px] font-bold text-[#2D2D2D] uppercase tracking-[0.3em]">
+                PIFA Secure Infrastructure
+              </p>
+            </div>
           </div>
         </div>
       </div>

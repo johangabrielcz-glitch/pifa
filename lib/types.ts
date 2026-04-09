@@ -57,6 +57,21 @@ export interface Database {
         Insert: MatchAnnotationInsert
         Update: Partial<MatchAnnotation>
       }
+      market_offers: {
+        Row: MarketOffer
+        Insert: MarketOfferInsert
+        Update: Partial<MarketOffer>
+      }
+      notifications: {
+        Row: Notification
+        Insert: NotificationInsert
+        Update: Partial<Notification>
+      }
+      market_history: {
+        Row: MarketHistory
+        Insert: MarketHistoryInsert
+        Update: Partial<MarketHistory>
+      }
     }
   }
 }
@@ -150,6 +165,8 @@ export interface Player {
   age: number | null
   nationality: string | null
   photo_url: string | null
+  is_on_sale: boolean
+  sale_price: number | null
   created_at: string
   updated_at: string
 }
@@ -163,6 +180,8 @@ export interface PlayerInsert {
   age?: number | null
   nationality?: string | null
   photo_url?: string | null
+  is_on_sale?: boolean
+  sale_price?: number | null
   created_at?: string
   updated_at?: string
 }
@@ -176,7 +195,93 @@ export interface PlayerUpdate {
   age?: number | null
   nationality?: string | null
   photo_url?: string | null
+  is_on_sale?: boolean
+  sale_price?: number | null
   updated_at?: string
+}
+
+// ... (rest of the file until the end)
+
+// =============================================
+// MARKET & SYSTEM TYPES
+// =============================================
+
+export type MarketOfferStatus = 'pending' | 'accepted' | 'rejected' | 'countered' | 'cancelled'
+export type NotificationType = 
+  | 'offer_received' 
+  | 'offer_accepted' 
+  | 'offer_rejected' 
+  | 'offer_countered' 
+  | 'offer_cancelled'
+
+export interface MarketOffer {
+  id: string
+  player_id: string
+  buyer_club_id: string
+  seller_club_id: string
+  amount: number
+  status: MarketOfferStatus
+  previous_offer_id: string | null
+  created_at: string
+  updated_at: string
+  // Relations
+  player?: Player
+  buyer_club?: Club
+  seller_club?: Club
+}
+
+export interface MarketOfferInsert {
+  id?: string
+  player_id: string
+  buyer_club_id: string
+  seller_club_id: string
+  amount: number
+  status?: MarketOfferStatus
+  previous_offer_id?: string | null
+}
+
+export interface Notification {
+  id: string
+  club_id: string
+  title: string
+  message: string
+  type: NotificationType
+  data: any
+  is_read: boolean
+  created_at: string
+}
+
+export interface NotificationInsert {
+  id?: string
+  club_id: string
+  title: string
+  message: string
+  type: NotificationType
+  data?: any
+  is_read?: boolean
+}
+
+export interface MarketHistory {
+  id: string
+  player_id: string
+  from_club_id: string | null
+  to_club_id: string | null
+  amount: number
+  type: string
+  created_at: string
+  // Relations
+  player?: Player
+  from_club?: Club
+  to_club?: Club
+}
+
+export interface MarketHistoryInsert {
+  id?: string
+  player_id: string
+  from_club_id?: string | null
+  to_club_id?: string | null
+  amount: number
+  type?: string
 }
 
 // =============================================

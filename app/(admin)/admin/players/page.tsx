@@ -323,122 +323,181 @@ export default function AdminPlayersPage() {
                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${posColor.bg} ${posColor.text}`}>
                           {player.position}
                         </span>
-                        {player.club && (
-                          <span className="text-[10px] text-muted-foreground truncate max-w-[100px]">
-                            {player.club.name}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-0.5 shrink-0">
-                    <Button variant="ghost" size="sm" onClick={() => openEditForm(player)} className="h-9 w-9 p-0 text-muted-foreground hover:text-foreground rounded-xl">
-                      <Pencil className="w-4 h-4" />
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => { setDeletingPlayer(player); setIsDeleteOpen(true) }} className="h-9 w-9 p-0 text-destructive/60 hover:text-destructive hover:bg-destructive/10 rounded-xl">
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
                   </div>
                 </div>
                 
-                {(player.age || player.nationality) && (
-                  <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground pl-2">
-                    {player.age && <span>{player.age} años</span>}
-                    {player.age && player.nationality && <span className="opacity-40">•</span>}
-                    {player.nationality && <span>{player.nationality}</span>}
-                  </div>
-                )}
+                <div className="flex flex-col gap-2 shrink-0">
+                  <button
+                    onClick={() => openEditForm(player)}
+                    className="w-10 h-10 rounded-full bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#6A6C6E] hover:text-white hover:border-[#FF3131]/40 transition-all active:scale-90"
+                  >
+                    <Pencil className="w-4.5 h-4.5" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      setDeletingPlayer(player)
+                      setIsDeleteOpen(true)
+                    }}
+                    className="w-10 h-10 rounded-full bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-red-500/60 hover:text-red-500 hover:border-red-500/40 hover:bg-red-500/10 transition-all active:scale-90"
+                  >
+                    <Trash2 className="w-4.5 h-4.5" />
+                  </button>
+                </div>
               </div>
-            )
-          })
+              
+              {/* Player Stats Bar */}
+              <div className="mt-5 grid grid-cols-3 gap-2">
+                <div className="bg-[#0A0A0A]/50 border border-white/[0.04] rounded-xl px-3 py-2 text-center group/stat hover:border-[#FF3131]/20 transition-colors">
+                  <p className="text-xs font-black text-white leading-none tabular-nums group-hover:text-[#FF3131] transition-colors">{player.goals}</p>
+                  <p className="text-[7px] text-[#2D2D2D] font-black uppercase tracking-widest mt-1">Goles</p>
+                </div>
+                <div className="bg-[#0A0A0A]/50 border border-white/[0.04] rounded-xl px-3 py-2 text-center group/stat hover:border-[#FF3131]/20 transition-colors">
+                  <p className="text-xs font-black text-white leading-none tabular-nums group-hover:text-[#FF3131] transition-colors">{player.assists}</p>
+                  <p className="text-[7px] text-[#2D2D2D] font-black uppercase tracking-widest mt-1">Asistencias</p>
+                </div>
+                <div className="bg-[#0A0A0A]/50 border border-white/[0.04] rounded-xl px-3 py-2 text-center group/stat hover:border-[#FF3131]/20 transition-colors">
+                  <p className="text-xs font-black text-white leading-none tabular-nums group-hover:text-[#FF3131] transition-colors">
+                    <span className="text-amber-400">{player.yellow_cards}</span> / <span className="text-red-500">{player.red_cards}</span>
+                  </p>
+                  <p className="text-[7px] text-[#2D2D2D] font-black uppercase tracking-widest mt-1">Tarjetas</p>
+                </div>
+              </div>
+            </div>
+          ))
         )}
       </div>
 
-      {/* Create/Edit Dialog */}
+      {/* Modern Ruby Dialog - Create/Edit Player */}
       <Dialog open={isFormOpen} onOpenChange={(open) => {
         if (!open) resetForm()
         setIsFormOpen(open)
       }}>
-        <DialogContent className="max-w-md mx-4 rounded-2xl bg-card/95 backdrop-blur-xl border-white/[0.08] max-h-[85dvh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-foreground">
-              {editingPlayer ? 'Editar Jugador' : 'Nuevo Jugador'}
-            </DialogTitle>
-            <DialogDescription className="sr-only">
-              {editingPlayer ? 'Formulario para editar los datos del jugador' : 'Formulario para crear un nuevo jugador'}
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className="max-w-md mx-4 rounded-[32px] bg-[#141414]/95 backdrop-blur-2xl border-white/[0.08] p-0 overflow-hidden shadow-2xl max-h-[90vh] flex flex-col">
+          <div className="p-8 overflow-y-auto custom-scrollbar flex-1">
+            <DialogHeader className="mb-8">
+              <div className="w-14 h-14 rounded-2xl bg-[#0A0A0A] border border-[#202020] flex items-center justify-center shadow-xl mb-6 mx-auto">
+                <Users className="w-7 h-7 text-[#FF3131]" />
+              </div>
+              <DialogTitle className="text-2xl font-black text-white uppercase tracking-tighter text-center">
+                {editingPlayer ? 'MODIFICAR <span className="text-[#FF3131]">ATLETA</span>' : 'REGISTRAR <span className="text-[#FF3131]">ATLETA</span>'}
+              </DialogTitle>
+              <DialogDescription className="text-center text-[9px] text-[#6A6C6E] font-black uppercase tracking-[0.3em] mt-2">
+                Actualización de Plantillas Federativas
+              </DialogDescription>
+            </DialogHeader>
 
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Club</Label>
-              <Select value={formData.club_id || "__none__"} onValueChange={(value) => setFormData({ ...formData, club_id: value === "__none__" ? "" : value })}>
-                <SelectTrigger className="h-12 bg-background/50 border-white/[0.08] rounded-xl"><SelectValue placeholder="Seleccionar club" /></SelectTrigger>
-                <SelectContent className="bg-card/95 backdrop-blur-xl border-white/[0.08]">
-                  <SelectItem value="__none__" className="text-muted-foreground">Seleccionar club...</SelectItem>
-                  {clubs.map((club) => (<SelectItem key={club.id} value={club.id}>{club.name}</SelectItem>))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Nombre del Jugador</Label>
-              <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Lionel Messi" className="h-12 bg-background/50 border-white/[0.08] rounded-xl" />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Posición</Label>
-                <Select value={formData.position || "__none__"} onValueChange={(value) => setFormData({ ...formData, position: value === "__none__" ? "" : value })}>
-                  <SelectTrigger className="h-12 bg-background/50 border-white/[0.08] rounded-xl"><SelectValue placeholder="Posición" /></SelectTrigger>
-                  <SelectContent className="bg-card/95 backdrop-blur-xl border-white/[0.08]">
-                    <SelectItem value="__none__" className="text-muted-foreground">Seleccionar...</SelectItem>
-                    {POSITIONS.map((pos) => (<SelectItem key={pos.value} value={pos.value}>{pos.value}</SelectItem>))}
+            <div className="space-y-6">
+              <div className="space-y-2.5">
+                <Label className="text-[10px] text-[#6A6C6E] uppercase tracking-[0.3em] font-black ml-1">Identidad del Jugador</Label>
+                <Input
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="LIONEL MESSI"
+                  className="h-14 bg-[#0A0A0A] border-[#202020] rounded-[20px] text-white placeholder:text-[#2D2D2D] text-xs font-black uppercase tracking-widest focus:border-[#FF3131]/40 px-5"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2.5">
+                  <Label className="text-[10px] text-[#6A6C6E] uppercase tracking-[0.3em] font-black ml-1">Posición</Label>
+                  <Select value={formData.position} onValueChange={(v) => setFormData({ ...formData, position: v })}>
+                    <SelectTrigger className="h-14 bg-[#0A0A0A] border-[#202020] rounded-[20px] text-white text-xs font-black uppercase tracking-widest focus:border-[#FF3131]/40 px-5">
+                      <SelectValue placeholder="SEL." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#141414] border-white/[0.08] rounded-2xl">
+                      {POSITIONS.map(p => <SelectItem key={p} value={p} className="text-xs font-black uppercase tracking-widest text-white">{p}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2.5">
+                  <Label className="text-[10px] text-[#6A6C6E] uppercase tracking-[0.3em] font-black ml-1">Valoración (OVR)</Label>
+                  <Input
+                    type="number"
+                    value={formData.overall}
+                    onChange={(e) => setFormData({ ...formData, overall: parseInt(e.target.value) || 0 })}
+                    className="h-14 bg-[#0A0A0A] border-[#202020] rounded-[20px] text-white text-center font-black transition-all focus:border-[#FF3131]/40"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2.5">
+                <Label className="text-[10px] text-[#6A6C6E] uppercase tracking-[0.3em] font-black ml-1">Entidad Federativa (Club)</Label>
+                <Select value={formData.club_id || 'none'} onValueChange={(v) => setFormData({ ...formData, club_id: v === 'none' ? null : v })}>
+                  <SelectTrigger className="h-14 bg-[#0A0A0A] border-[#202020] rounded-[20px] text-white text-xs font-black uppercase tracking-widest focus:border-[#FF3131]/40 px-5">
+                    <SelectValue placeholder="SIN ASIGNAR" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#141414] border-white/[0.08] rounded-2xl">
+                    <SelectItem value="none" className="text-xs font-black uppercase tracking-widest text-white/40">SIN ASIGNAR</SelectItem>
+                    {clubs.map(c => <SelectItem key={c.id} value={c.id} className="text-xs font-black uppercase tracking-widest text-white">{c.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Dorsal</Label>
-                <Input type="number" value={formData.number} onChange={(e) => setFormData({ ...formData, number: e.target.value })} placeholder="10" min="1" max="99" className="h-12 bg-background/50 border-white/[0.08] rounded-xl" />
+
+              <div className="space-y-2.5">
+                <Label className="text-[10px] text-[#6A6C6E] uppercase tracking-[0.3em] font-black ml-1">Imagen del Jugador (URL)</Label>
+                <Input
+                  value={formData.photo_url || ''}
+                  onChange={(e) => setFormData({ ...formData, photo_url: e.target.value })}
+                  placeholder="HTTPS://JUGADOR-PHOTO.PNG..."
+                  className="h-14 bg-[#0A0A0A] border-[#202020] rounded-[20px] text-white placeholder:text-[#2D2D2D] text-xs font-black uppercase tracking-widest focus:border-[#FF3131]/40 px-5"
+                />
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Edad</Label>
-                <Input type="number" value={formData.age} onChange={(e) => setFormData({ ...formData, age: e.target.value })} placeholder="25" min="15" max="50" className="h-12 bg-background/50 border-white/[0.08] rounded-xl" />
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2.5">
+                  <Label className="text-[10px] text-[#6A6C6E] uppercase tracking-[0.3em] font-black ml-1">Goles</Label>
+                  <Input type="number" value={formData.goals} onChange={(e) => setFormData({ ...formData, goals: parseInt(e.target.value) || 0 })} className="h-14 bg-[#0A0A0A] border-[#202020] rounded-[20px] text-white text-center font-black" />
+                </div>
+                <div className="space-y-2.5">
+                  <Label className="text-[10px] text-[#6A6C6E] uppercase tracking-[0.3em] font-black ml-1">Asistencias</Label>
+                  <Input type="number" value={formData.assists} onChange={(e) => setFormData({ ...formData, assists: parseInt(e.target.value) || 0 })} className="h-14 bg-[#0A0A0A] border-[#202020] rounded-[20px] text-white text-center font-black" />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Nacionalidad</Label>
-                <Input value={formData.nationality} onChange={(e) => setFormData({ ...formData, nationality: e.target.value })} placeholder="Argentina" className="h-12 bg-background/50 border-white/[0.08] rounded-xl" />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground uppercase tracking-wider font-medium">URL de Foto (opcional)</Label>
-              <Input value={formData.photo_url} onChange={(e) => setFormData({ ...formData, photo_url: e.target.value })} placeholder="https://ejemplo.com/foto.png" className="h-12 bg-background/50 border-white/[0.08] rounded-xl" />
             </div>
           </div>
 
-          <DialogFooter className="gap-2 pt-2">
-            <DialogClose asChild><Button variant="outline" className="flex-1 h-12 border-white/[0.08] rounded-xl">Cancelar</Button></DialogClose>
-            <Button onClick={handleSave} disabled={isSaving} className="flex-1 h-12 bg-primary rounded-xl shadow-lg shadow-primary/20">
-              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Guardar'}
-            </Button>
-          </DialogFooter>
+          <div className="flex gap-4 p-8 bg-[#0A0A0A]/50 border-t border-white/[0.04]">
+            <DialogClose asChild>
+              <button className="flex-1 h-14 border border-[#202020] text-[#6A6C6E] hover:text-white hover:bg-white/[0.02] rounded-[20px] font-black uppercase tracking-widest text-[10px] transition-all">
+                Abortar
+              </button>
+            </DialogClose>
+            <button 
+              onClick={handleSave} 
+              disabled={isSaving} 
+              className="flex-1 h-14 bg-[#FF3131] hover:bg-[#D32F2F] text-white rounded-[20px] font-black uppercase tracking-widest text-[10px] shadow-[0_0_30px_rgba(255,49,49,0.3)] transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center"
+            >
+              {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sincronizar'}
+            </button>
+          </div>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation */}
+      {/* Delete Confirmation AlertDialog */}
       <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <AlertDialogContent className="max-w-sm mx-4 rounded-2xl bg-card/95 backdrop-blur-xl border-white/[0.08]">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-foreground">Eliminar Jugador</AlertDialogTitle>
-            <AlertDialogDescription>
-              ¿Eliminar a <strong className="text-foreground">{deletingPlayer?.name}</strong>? Esta acción no se puede deshacer.
+        <AlertDialogContent className="max-w-sm mx-4 rounded-[32px] bg-[#141414] border-white/[0.08] p-8 shadow-2xl">
+          <AlertDialogHeader className="mb-6">
+            <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-6">
+              <Trash2 className="w-8 h-8 text-red-500" />
+            </div>
+            <AlertDialogTitle className="text-xl font-black text-white uppercase tracking-tighter text-center">
+              ¿RETIRAR <span className="text-red-500">JUGADOR</span>?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-center text-xs text-[#6A6C6E] font-bold uppercase tracking-widest mt-2">
+              ESTÁS POR ELIMINAR A <span className="text-white font-black">{deletingPlayer?.name}</span> DEL SISTEMA DE COMPETICIÓN CENTRAL.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="gap-2">
-            <AlertDialogCancel className="flex-1 h-12 border-white/[0.08] rounded-xl">Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="flex-1 h-12 bg-destructive text-destructive-foreground rounded-xl">Eliminar</AlertDialogAction>
-          </AlertDialogFooter>
+          <div className="flex gap-3">
+            <AlertDialogCancel className="flex-1 h-14 bg-[#0A0A0A] border border-[#202020] text-[#6A6C6E] hover:text-white rounded-[20px] font-black uppercase tracking-widest text-[10px] transition-all m-0">
+              No
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDelete} 
+              className="flex-1 h-14 bg-red-600 hover:bg-red-700 text-white rounded-[20px] font-black uppercase tracking-widest text-[10px] shadow-[0_0_30px_rgba(220,38,38,0.3)] transition-all m-0"
+            >
+              Sí, Eliminar
+            </AlertDialogAction>
+          </div>
         </AlertDialogContent>
       </AlertDialog>
     </div>

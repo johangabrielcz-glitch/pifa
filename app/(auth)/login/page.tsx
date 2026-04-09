@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Eye, EyeOff, Loader2, ShieldCheck, ChevronRight } from 'lucide-react'
+import { Eye, EyeOff, Loader2, ShieldCheck, ChevronRight, User } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { PifaLogo } from '@/components/pifa/logo'
@@ -68,109 +68,122 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-dvh flex flex-col bg-background safe-area-top safe-area-bottom">
-      {/* Background gradient accent */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-pifa-gradient rounded-full blur-3xl opacity-20" />
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-pifa-gradient-gold rounded-full blur-3xl opacity-10" />
+    <div className="min-h-dvh flex flex-col bg-[#0A0A0A] selection:bg-[#00FF85]/30">
+      {/* Dynamic Background */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-[#00FF85]/10 rounded-full blur-[120px] animate-pulse" />
+        <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-[#00FF85]/5 rounded-full blur-[100px]" />
+        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay" />
       </div>
 
       {/* Content */}
-      <div className="relative flex-1 flex flex-col px-6 pt-16">
-        {/* Logo & Title */}
-        <div className="flex flex-col items-center mb-12">
-          <div className="mb-6 animate-pulse-glow rounded-full p-1">
-            <PifaLogo size="lg" showText={false} />
-          </div>
-          <h1 className="text-3xl font-bold text-foreground tracking-tight">
-            PIFA
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Director Técnico
-          </p>
-        </div>
-
-        {/* Login Form */}
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Usuario
-            </label>
-            <Input
-              type="text"
-              placeholder="Tu nombre de usuario"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              autoComplete="username"
-              autoCapitalize="none"
-              className="h-14 bg-card border-border/50 text-base placeholder:text-muted-foreground/50 focus:border-primary/50 focus:ring-primary/20"
-              disabled={isLoading}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Contraseña
-            </label>
-            <div className="relative">
-              <Input
-                type={showPassword ? 'text' : 'password'}
-                placeholder="Tu contraseña"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
-                className="h-14 bg-card border-border/50 text-base pr-14 placeholder:text-muted-foreground/50 focus:border-primary/50 focus:ring-primary/20"
-                disabled={isLoading}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-2"
-              >
-                {showPassword ? (
-                  <EyeOff className="w-5 h-5" />
-                ) : (
-                  <Eye className="w-5 h-5" />
-                )}
-              </button>
+      <div className="relative flex-1 flex flex-col items-center justify-center px-6">
+        <div className="w-full max-w-sm space-y-10">
+          
+          {/* Header Section */}
+          <div className="flex flex-col items-center text-center space-y-6">
+            <div className="relative group">
+              <div className="absolute inset-0 bg-[#00FF85]/20 rounded-full blur-2xl group-hover:bg-[#00FF85]/40 transition-all duration-700" />
+              <div className="relative w-24 h-24 bg-[#141414] border border-[#202020] rounded-[32px] flex items-center justify-center p-5 shadow-2xl">
+                <PifaLogo size="lg" showText={false} />
+              </div>
+            </div>
+            
+            <div className="space-y-1">
+              <h1 className="text-4xl font-black text-white tracking-tighter uppercase">
+                PIFA <span className="text-[#00FF85]">DT</span>
+              </h1>
+              <p className="text-[10px] font-bold text-[#6A6C6E] uppercase tracking-[0.4em] ml-1">
+                Football Management
+              </p>
             </div>
           </div>
 
-          <Button
-            type="submit"
-            className="w-full h-14 text-base font-semibold bg-pifa-gradient hover:opacity-90 transition-opacity mt-6 glow-orange"
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                Ingresando...
-              </>
-            ) : (
-              <>
-                Ingresar
-                <ChevronRight className="w-5 h-5 ml-2" />
-              </>
-            )}
-          </Button>
-        </form>
+          {/* Form Section */}
+          <form onSubmit={handleLogin} className="space-y-5">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-[#6A6C6E] uppercase tracking-widest ml-1">
+                Usuario
+              </label>
+              <div className="relative group">
+                <Input
+                  type="text"
+                  placeholder="Introduce tu usuario"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  autoComplete="username"
+                  autoCapitalize="none"
+                  className="h-16 bg-[#141414]/50 border-[#202020] text-white rounded-2xl pl-12 focus:ring-[#00FF85]/20 focus:border-[#00FF85] transition-all duration-300 placeholder:text-[#2D2D2D] placeholder:font-bold placeholder:uppercase placeholder:text-[10px]"
+                  disabled={isLoading}
+                />
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#2D2D2D] group-focus-within:text-[#00FF85] transition-colors">
+                  <User size={20} />
+                </div>
+              </div>
+            </div>
 
-        {/* Spacer */}
-        <div className="flex-1 min-h-8" />
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-[#6A6C6E] uppercase tracking-widest ml-1">
+                Contraseña
+              </label>
+              <div className="relative group">
+                <Input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Tu clave de acceso"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  className="h-16 bg-[#141414]/50 border-[#202020] text-white rounded-2xl pl-12 pr-14 focus:ring-[#00FF85]/20 focus:border-[#00FF85] transition-all duration-300 placeholder:text-[#2D2D2D] placeholder:font-bold placeholder:uppercase placeholder:text-[10px]"
+                  disabled={isLoading}
+                />
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#2D2D2D] group-focus-within:text-[#00FF85] transition-colors">
+                  <Eye size={20} />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[#2D2D2D] hover:text-white transition-colors"
+                >
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
+            </div>
 
-        {/* Admin Login Link */}
-        <div className="pb-8">
-          <Link
-            href="/admin-login"
-            className="flex items-center justify-center gap-2 w-full h-12 rounded-xl bg-card border border-border/50 text-sm text-muted-foreground hover:text-foreground hover:border-border transition-all touch-active"
-          >
-            <ShieldCheck className="w-4 h-4" />
-            <span>Acceso Administradores</span>
-          </Link>
-          
-          <p className="text-center text-xs text-muted-foreground/50 mt-6">
-            PIFA - Pebepe&apos;s International Football Asociación
-          </p>
+            <Button
+              type="submit"
+              className="w-full h-16 bg-[#00FF85] hover:bg-[#00E676] text-[#0A0A0A] font-black uppercase tracking-[0.2em] text-xs rounded-2xl shadow-[0_10px_30px_rgba(0,255,133,0.3)] hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 mt-4 h-16"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <div className="flex items-center gap-3">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Cargando</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span>Iniciar Sesión</span>
+                  <ChevronRight size={18} />
+                </div>
+              )}
+            </Button>
+          </form>
+
+          {/* Footer Section */}
+          <div className="pt-10 flex flex-col items-center space-y-6">
+            <Link
+              href="/admin-login"
+              className="group flex items-center gap-3 px-6 py-3 rounded-full bg-[#141414] border border-[#202020] hover:border-[#00FF85]/30 transition-all duration-500"
+            >
+              <ShieldCheck className="w-4 h-4 text-[#6A6C6E] group-hover:text-[#00FF85] transition-colors" />
+              <span className="text-[10px] font-black text-[#6A6C6E] group-hover:text-white uppercase tracking-widest transition-colors">
+                Panel Administradores
+              </span>
+            </Link>
+            
+            <p className="text-[9px] font-bold text-[#2D2D2D] uppercase tracking-[0.3em]">
+              PIFA · International Football Asociación
+            </p>
+          </div>
         </div>
       </div>
     </div>

@@ -12,21 +12,32 @@ interface UltimateCardProps {
     number: number | null
     nationality: string | null
     photo_url: string | null
+    is_on_sale?: boolean
+    sale_price?: number | null
   }
   stats?: {
     goals: number
     assists: number
     matches: number
   }
+  showPrice?: boolean
+  onClick?: () => void
   color?: string
 }
 
-export function UltimateCard({ player, stats, color = '#00FF85' }: UltimateCardProps) {
+export function UltimateCard({ player, stats, showPrice = false, onClick, color = '#00FF85' }: UltimateCardProps) {
   return (
-    <div className="group relative w-full aspect-[2/3] max-w-[220px] mx-auto animate-fade-in-up">
+    <div 
+      className={`group relative w-full aspect-[2/3] max-w-[220px] mx-auto animate-fade-in-up ${onClick ? 'cursor-pointer' : ''}`}
+      onClick={onClick}
+    >
       {/* Outer Glow & Border Layer */}
       <div 
-        className="absolute inset-x-0 inset-y-0 bg-[#141414] border border-white/5 transition-all duration-500 group-hover:border-[#00FF85]/50 group-hover:shadow-[0_0_30px_rgba(0,255,133,0.15)]"
+        className={`absolute inset-x-0 inset-y-0 bg-[#141414] border transition-all duration-500 ${
+          player.is_on_sale 
+            ? 'border-[#00FF85]/30 shadow-[0_0_20px_rgba(0,255,133,0.1)]' 
+            : 'border-white/5'
+        } group-hover:border-[#00FF85]/50 group-hover:shadow-[0_0_30px_rgba(0,255,133,0.15)]`}
         style={{ 
           clipPath: 'polygon(50% 0%, 100% 15%, 100% 85%, 50% 100%, 0% 85%, 0% 15%)',
         }}
@@ -34,12 +45,21 @@ export function UltimateCard({ player, stats, color = '#00FF85' }: UltimateCardP
         {/* Holographic Gradient Overlay */}
         <div className="absolute inset-0 bg-gradient-to-br from-[#00FF85]/5 via-transparent to-[#0A0A0A] opacity-50" />
         
+        {/* Price Tag (if on sale) */}
+        {(showPrice || player.is_on_sale) && player.sale_price && (
+          <div className="absolute top-[12%] right-[5%] z-30 bg-[#00FF85] text-[#0A0A0A] px-2 py-0.5 rounded font-black text-[9px] shadow-[0_0_10px_rgba(0,255,133,0.5)] transform rotate-12">
+            ${player.sale_price.toLocaleString()}
+          </div>
+        )}
+
         {/* Top Info Section: Position - Shifted Down */}
         <div className="relative pt-10 px-4 flex flex-col items-start gap-1 z-20">
           <span className="text-xl font-black text-white italic leading-none drop-shadow-lg">
             {player.number || '--'}
           </span>
-          <span className="text-[10px] font-black text-[#00FF85] uppercase tracking-widest bg-[#00FF85]/10 px-1.5 py-0.5 rounded">
+          <span className={`text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${
+            player.is_on_sale ? 'bg-[#00FF85] text-[#0A0A0A]' : 'bg-[#00FF85]/10 text-[#00FF85]'
+          }`}>
             {player.position}
           </span>
           {player.nationality && (

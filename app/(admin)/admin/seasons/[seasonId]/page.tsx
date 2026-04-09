@@ -199,45 +199,74 @@ export default function SeasonDetailPage({ params }: { params: Promise<{ seasonI
                       <div className="flex items-center gap-3 mt-1">
                         <span className={`text-[10px] font-bold ${typeConfig.icon}`}>{typeInfo?.label}</span>
                         <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                          <Users className="w-3 h-3" />{comp.clubs_count}
+      {/* Competitions Grid */}
+      <div className="px-6 py-6 space-y-6">
+        {isLoading ? (
+          <div className="flex justify-center py-20">
+            <Loader2 className="w-8 h-8 animate-spin text-[#FF3131]" />
+          </div>
+        ) : competitions.length === 0 ? (
+          <div className="text-center py-20 bg-[#141414]/30 rounded-[32px] border border-dashed border-white/[0.06] animate-fade-in-up">
+            <div className="w-20 h-20 rounded-3xl bg-[#0A0A0A] border border-[#202020] mx-auto mb-6 flex items-center justify-center">
+              <Trophy className="w-10 h-10 text-[#2D2D2D]" />
+            </div>
+            <p className="text-[#6A6C6E] font-black uppercase tracking-[0.2em] text-xs">
+              SIN COMPETENCIAS ACTIVAS EN ESTE CICLO
+            </p>
+          </div>
+        ) : (
+          <div className="grid gap-4">
+            {competitions.map((comp, i) => (
+              <div
+                key={comp.id}
+                className="group relative bg-[#141414]/50 backdrop-blur-xl rounded-[28px] p-6 border border-white/[0.04] transition-all duration-300 hover:border-[#FF3131]/30 hover:bg-[#1A1A1A]/60 animate-fade-in-up shadow-xl overflow-hidden cursor-pointer"
+                style={{ animationDelay: `${i * 50}ms` }}
+                onClick={() => router.push(`/admin/seasons/${seasonId}/competitions/${comp.id}`)}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-5">
+                    <div className="w-14 h-14 rounded-2xl bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#FF3131] shadow-2xl transition-transform group-hover:scale-110">
+                      <Trophy className="w-7 h-7" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-black text-white uppercase tracking-tight mb-1">{comp.name}</h3>
+                      <div className="flex items-center gap-3">
+                        <span className="text-[10px] font-black text-[#6A6C6E] uppercase tracking-widest bg-white/5 px-2 py-0.5 rounded-md border border-white/5">
+                          {comp.type === 'league' ? 'LIGA' : 
+                           comp.type === 'cup' ? 'COPA ELIMINACIÓN' : 
+                           'GRUPOS + K.O'}
                         </span>
-                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                          <Swords className="w-3 h-3" />{comp.matches_count}
-                        </span>
+                        <p className="text-[9px] text-[#2D2D2D] font-black uppercase tracking-widest">
+                          {comp.clubs_count || 0} EQUIPOS PARTICIPANTES
+                        </p>
                       </div>
                     </div>
-                    <ChevronRight className="w-5 h-5 text-muted-foreground/30 group-hover:text-foreground/50 transition-colors flex-shrink-0" />
-                  </Link>
-                )
-              })}
-            </div>
-          )}
-        </section>
+                  </div>
+                  
+                  <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => openEditForm(comp)}
+                      className="w-10 h-10 rounded-full bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#6A6C6E] hover:text-white hover:border-[#FF3131]/40 transition-all active:scale-90"
+                    >
+                      <Pencil className="w-4.5 h-4.5" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        setDeletingComp(comp)
+                        setIsDeleteOpen(true)
+                      }}
+                      className="w-10 h-10 rounded-full bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-red-500/60 hover:text-red-500 hover:border-red-500/40 hover:bg-red-500/10 transition-all active:scale-90"
+                    >
+                      <Trash2 className="w-4.5 h-4.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Create Competition Dialog */}
-      <Dialog open={isFormOpen} onOpenChange={(open) => { if (!open) { setIsFormOpen(false); resetForm() } }}>
-        <DialogContent className="max-w-sm mx-4 rounded-2xl bg-card/95 backdrop-blur-xl border-white/[0.08] max-h-[85vh] overflow-hidden flex flex-col">
-          <DialogHeader className="border-b border-white/[0.06] pb-4">
-            <DialogTitle className="text-foreground">Nueva Competición</DialogTitle>
-            <DialogDescription className="sr-only">Formulario para crear una nueva competición</DialogDescription>
-          </DialogHeader>
-          
-          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto space-y-5 py-4">
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Nombre *</Label>
-              <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Liga PIFA División 1" className="h-12 rounded-xl bg-background/50 border-white/[0.08]" />
-            </div>
-
-            <div className="space-y-3">
-              <Label className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Formato</Label>
-              <div className="grid gap-2">
-                {COMPETITION_TYPES.map((type) => (
-                  <button key={type.value} type="button" onClick={() => setFormData({ ...formData, type: type.value })}
-                    className={`flex items-center gap-3 p-3 rounded-xl border transition-all duration-200 ${formData.type === type.value ? 'border-primary bg-primary/10 shadow-md shadow-primary/10' : 'border-white/[0.06] bg-white/[0.02] hover:border-white/[0.1]'}`}>
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${formData.type === type.value ? 'bg-primary/20 text-primary' : 'bg-white/[0.04] text-muted-foreground'}`}>{type.icon}</div>
-                    <div className="text-left flex-1">
-                      <p className="font-semibold text-sm text-foreground">{type.label}</p>
                       <p className="text-xs text-muted-foreground">{type.description}</p>
                     </div>
                   </button>

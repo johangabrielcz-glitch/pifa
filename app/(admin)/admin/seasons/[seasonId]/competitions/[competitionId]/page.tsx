@@ -269,184 +269,252 @@ export default function CompetitionDetailPage({ params }: { params: Promise<{ se
   const typeColor = TYPE_COLORS[competition?.type || 'league']
 
   return (
-    <div className="min-h-dvh safe-area-top">
+    <div className="min-h-screen">
       {/* Header */}
-      <header className="sticky top-[57px] z-30 bg-background/80 backdrop-blur-2xl border-b border-white/[0.06]">
-        <div className="flex items-center justify-between px-4 h-14">
-          <div className="flex items-center gap-3">
-            <Link href={`/admin/seasons/${seasonId}`} className="p-2 -ml-2 rounded-xl active:scale-95 transition-transform"><ArrowLeft className="w-5 h-5 text-muted-foreground" /></Link>
-            <div>
-              <h1 className="font-bold text-foreground truncate max-w-[180px]">{competition?.name}</h1>
+      <header className="sticky top-0 z-30 bg-[#0A0A0A]/80 backdrop-blur-2xl border-b border-white/[0.04]">
+        <div className="flex items-center justify-between px-6 py-4 h-16">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => router.back()} 
+              className="w-10 h-10 rounded-xl bg-[#141414] border border-[#202020] flex items-center justify-center text-[#6A6C6E] hover:text-white hover:border-[#FF3131]/40 transition-all active:scale-95"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div className="min-w-0">
+              <h1 className="text-lg font-black text-white uppercase tracking-tight truncate max-w-[200px]">{competition?.name}</h1>
               <div className="flex items-center gap-2">
-                <span className={`text-[10px] font-bold ${typeColor.text}`}>{TYPE_LABELS[competition?.type || '']}</span>
-                {!canEdit && <span className="flex items-center gap-1 text-[9px] text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded font-medium"><Lock className="w-2.5 h-2.5" />Bloqueado</span>}
+                <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${typeColor.text} bg-white/5 border-white/10`}>
+                  {TYPE_LABELS[competition?.type || '']}
+                </span>
+                {!canEdit && (
+                  <span className="flex items-center gap-1 text-[8px] text-amber-500 font-black uppercase tracking-[0.2em]">
+                    <Lock className="w-2.5 h-2.5" /> BLOQUEADO
+                  </span>
+                )}
               </div>
             </div>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => setIsDeleteCompetitionOpen(true)} className="text-destructive/60 hover:text-destructive hover:bg-destructive/10 rounded-xl">
-            <Trash2 className="w-4 h-4" />
-          </Button>
+          <button 
+            onClick={() => setIsDeleteCompetitionOpen(true)} 
+            className="w-10 h-10 rounded-full bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-red-500/60 hover:text-red-500 hover:border-red-500/40 hover:bg-red-500/10 transition-all active:scale-90"
+          >
+            <Trash2 className="w-4.5 h-4.5" />
+          </button>
         </div>
       </header>
 
-      {/* Competition Hero */}
-      <div className="px-4 pt-4">
-        <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-br from-card via-card to-transparent border border-white/[0.06] p-5 animate-fade-in-up`}>
-          <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${typeColor.gradient} rounded-full blur-3xl opacity-10`} />
-          <div className="relative flex items-center gap-4">
-            <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${typeColor.gradient} flex items-center justify-center shadow-xl`}>
-              <div className="text-white">{TYPE_ICONS[competition?.type || 'league']}</div>
-            </div>
-            <div>
-              <h2 className="font-bold text-lg text-foreground">{competition?.name}</h2>
-              <div className="flex items-center gap-4 mt-1">
-                <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><Users className="w-3.5 h-3.5" />{enrolledClubs.length} clubes</span>
-                <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><Swords className="w-3.5 h-3.5" />{matches.length} partidos</span>
+      <div className="px-6 py-6 pb-32 space-y-6">
+        {/* Competition Stats Board */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-[#141414]/50 backdrop-blur-xl rounded-[28px] p-5 border border-white/[0.04] relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-[#FF3131]/5 rounded-full blur-2xl group-hover:bg-[#FF3131]/10 transition-colors" />
+            <div className="relative">
+              <div className="w-10 h-10 rounded-xl bg-[#0A0A0A] border border-[#202020] flex items-center justify-center mb-3">
+                <Users className="w-5 h-5 text-[#FF3131]" />
               </div>
+              <p className="text-2xl font-black text-white leading-none tabular-nums">{enrolledClubs.length}</p>
+              <p className="text-[9px] text-[#6A6C6E] font-black uppercase tracking-widest mt-2 px-1 bg-white/5 w-fit rounded py-0.5">CLUBES INSCRITOS</p>
+            </div>
+          </div>
+          <div className="bg-[#141414]/50 backdrop-blur-xl rounded-[28px] p-5 border border-white/[0.04] relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-[#FF3131]/5 rounded-full blur-2xl group-hover:bg-[#FF3131]/10 transition-colors" />
+            <div className="relative">
+              <div className="w-10 h-10 rounded-xl bg-[#0A0A0A] border border-[#202020] flex items-center justify-center mb-3">
+                <Swords className="w-5 h-5 text-[#FF3131]" />
+              </div>
+              <p className="text-2xl font-black text-white leading-none tabular-nums">{matches.length}</p>
+              <p className="text-[9px] text-[#6A6C6E] font-black uppercase tracking-widest mt-2 px-1 bg-white/5 w-fit rounded py-0.5">PARTIDOS COORD.</p>
             </div>
           </div>
         </div>
-      </div>
 
-      {!canEdit && (
-        <div className="mx-4 mt-3 p-3 bg-amber-500/6 border border-amber-500/15 rounded-xl flex items-center gap-3 animate-fade-in-up">
-          <Lock className="w-4 h-4 text-amber-500 flex-shrink-0" />
-          <p className="text-[11px] text-amber-500">La configuración está bloqueada. Solo puedes ver la información.</p>
-        </div>
-      )}
+        {!canEdit && (
+          <div className="p-4 bg-amber-500/5 border border-amber-500/10 rounded-2xl flex items-center gap-4 animate-fade-in-up">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0 border border-amber-500/20">
+              <Lock className="w-5 h-5 text-amber-500" />
+            </div>
+            <div>
+              <p className="text-[10px] text-white font-black uppercase tracking-widest">SISTEMA EN MODO LECTURA</p>
+              <p className="text-[9px] text-amber-500/60 font-medium uppercase tracking-tight mt-0.5">La configuración está sellada por el estado de la temporada.</p>
+            </div>
+          </div>
+        )}
 
-      <div className="px-4 py-4 pb-24 space-y-5">
-        
-        {/* Enrolled Clubs */}
-        <section className="bg-card/50 backdrop-blur-sm rounded-2xl border border-white/[0.06] overflow-hidden animate-fade-in-up" style={{ animationDelay: '60ms' }}>
-          <div className="flex items-center justify-between p-4 border-b border-white/[0.04] bg-white/[0.02]">
-            <h2 className="text-sm font-bold text-foreground">Clubes Inscritos ({enrolledClubs.length})</h2>
+        {/* Enrolled Clubs Section */}
+        <section className="bg-[#141414]/30 backdrop-blur-xl rounded-[32px] border border-white/[0.04] overflow-hidden">
+          <div className="px-6 py-5 flex items-center justify-between border-b border-white/[0.04] bg-[#0A0A0A]/30">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-[#FF3131]/10 flex items-center justify-center">
+                <Shield size={16} className="text-[#FF3131]" />
+              </div>
+              <h2 className="text-xs font-black text-white uppercase tracking-[0.15em]">LISTA DE PARTICIPANTES</h2>
+            </div>
             {canEdit && (
-              <Button onClick={openEnrollDialog} size="sm" variant="outline" className="gap-1.5 rounded-xl h-8 border-white/[0.08]">
-                <Plus className="w-3.5 h-3.5" />Inscribir
-              </Button>
+              <button 
+                onClick={openEnrollDialog} 
+                className="h-8 px-4 bg-[#FF3131] hover:bg-[#D32F2F] text-white rounded-lg flex items-center gap-2 font-black uppercase tracking-widest text-[9px] transition-all active:scale-95"
+              >
+                <Plus size={14} /> Inscribir
+              </button>
             )}
           </div>
           
-          {enrolledClubs.length === 0 ? (
-            <div className="text-center py-10">
-              <Users className="w-10 h-10 text-muted-foreground/20 mx-auto mb-2" />
-              <p className="text-muted-foreground text-sm font-medium">Sin clubes inscritos</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-px bg-white/[0.03]">
-              {enrolledClubs.map((ec) => (
-                <div key={ec.id} className="relative bg-card/80 p-3 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-white/[0.04] flex items-center justify-center overflow-hidden ring-1 ring-white/[0.06] shrink-0">
-                    {ec.club?.shield_url ? (
-                      <img src={ec.club.shield_url} alt="" className="w-7 h-7 object-contain" />
-                    ) : (
-                      <Shield className="w-5 h-5 text-muted-foreground/40" />
+          <div className="p-4">
+            {enrolledClubs.length === 0 ? (
+              <div className="py-12 text-center">
+                <Users className="w-12 h-12 text-[#2D2D2D] mx-auto mb-4" />
+                <p className="text-[10px] text-[#6A6C6E] font-black uppercase tracking-[0.2em]">SIN ENTIDADES VINCULADAS</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-2">
+                {enrolledClubs.map((ec) => (
+                  <div key={ec.id} className="relative bg-[#0A0A0A]/50 rounded-2xl p-3 flex items-center justify-between group border border-white/[0.02] hover:border-[#FF3131]/20 transition-all">
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-black border border-[#202020] flex items-center justify-center p-2 shrink-0">
+                        {ec.club?.shield_url ? (
+                          <img src={ec.club.shield_url} alt="" className="w-full h-full object-contain filter grayscale group-hover:grayscale-0 transition-all" />
+                        ) : (
+                          <Shield size={18} className="text-[#2D2D2D]" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-black text-white text-[11px] uppercase tracking-tight truncate">{ec.club?.name}</p>
+                        {ec.group_name && (
+                          <span className="text-[8px] font-black text-[#FF3131] bg-[#FF3131]/10 px-2 py-0.5 rounded-md mt-1 inline-block border border-[#FF3131]/10">
+                            GRUPO {ec.group_name}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {canEdit && (
+                      <button 
+                        onClick={() => removeClub(ec.club_id)} 
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-[#6A6C6E] hover:text-red-500 hover:bg-red-500/10 transition-all"
+                      >
+                        <X size={14} />
+                      </button>
                     )}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-foreground text-xs truncate">{ec.club?.name}</p>
-                    {ec.group_name && (
-                      <span className="text-[9px] font-bold text-purple-400 bg-purple-400/10 px-1.5 py-0.5 rounded mt-0.5 inline-block">
-                        Grupo {ec.group_name}
-                      </span>
-                    )}
-                  </div>
-                  {canEdit && (
-                    <Button variant="ghost" size="sm" onClick={() => removeClub(ec.club_id)} className="h-7 w-7 p-0 text-muted-foreground/40 hover:text-destructive rounded-lg absolute top-1 right-1">
-                      <X className="w-3 h-3" />
-                    </Button>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+          </div>
         </section>
 
-        {/* Matches Section */}
-        <section className="bg-card/50 backdrop-blur-sm rounded-2xl border border-white/[0.06] overflow-hidden animate-fade-in-up" style={{ animationDelay: '120ms' }}>
-          <div className="flex items-center justify-between p-4 border-b border-white/[0.04] bg-white/[0.02]">
-            <h2 className="text-sm font-bold text-foreground">Partidos ({matches.length})</h2>
+        {/* Matches Control Panel */}
+        <section className="bg-[#141414]/30 backdrop-blur-xl rounded-[32px] border border-white/[0.04] overflow-hidden">
+          <div className="px-6 py-5 flex items-center justify-between border-b border-white/[0.04] bg-[#0A0A0A]/30">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-[#FF3131]/10 flex items-center justify-center">
+                <Swords size={16} className="text-[#FF3131]" />
+              </div>
+              <h2 className="text-xs font-black text-white uppercase tracking-[0.15em]">NÚCLEO DE PARTIDOS</h2>
+            </div>
             {canEdit && (
               <div className="flex items-center gap-2">
                 {matches.length > 0 && (
-                  <Button onClick={() => setIsDeleteMatchesOpen(true)} size="sm" variant="ghost" className="gap-1.5 rounded-xl h-8 text-destructive/60 hover:text-destructive">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
+                  <button 
+                    onClick={() => setIsDeleteMatchesOpen(true)} 
+                    className="w-8 h-8 rounded-lg bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-red-500/60 hover:text-red-500 hover:border-red-500/30 transition-all"
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 )}
-                <Button onClick={generateMatches} disabled={isGenerating || enrolledClubs.length < 2} size="sm" variant="outline" className="gap-1.5 rounded-xl h-8 border-white/[0.08]">
-                  {isGenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                <button 
+                  onClick={generateMatches} 
+                  disabled={isGenerating || enrolledClubs.length < 2} 
+                  className="h-8 px-4 bg-white/[0.05] hover:bg-white/[0.1] text-white border border-white/[0.08] rounded-lg flex items-center gap-2 font-black uppercase tracking-widest text-[9px] transition-all active:scale-95 disabled:opacity-30"
+                >
+                  {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
                   {matches.length > 0 ? 'Regenerar' : 'Generar'}
-                </Button>
+                </button>
               </div>
             )}
           </div>
 
-          {matches.length === 0 ? (
-            <div className="text-center py-10">
-              <Swords className="w-10 h-10 text-muted-foreground/20 mx-auto mb-2" />
-              <p className="text-muted-foreground text-sm font-medium">Sin partidos generados</p>
-              {canEdit && <p className="text-xs text-muted-foreground/40 mt-1">Inscribe clubes y genera partidos</p>}
-            </div>
-          ) : (
-            <div className="max-h-[400px] overflow-y-auto">
-              {matches.map((match, i) => {
-                const isTBD = !match.home_club_id || !match.away_club_id
-                return (
-                  <div key={match.id} className={`flex items-center gap-2.5 px-4 py-2.5 border-b border-white/[0.03] last:border-0 ${isTBD ? 'opacity-40' : ''} hover:bg-white/[0.02] transition-colors`}>
-                    <div className="w-6 h-6 rounded-md bg-white/[0.04] flex items-center justify-center text-[10px] font-bold text-muted-foreground/50 shrink-0">
-                      {match.match_order}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 text-sm">
-                        <span className={`font-semibold truncate max-w-[80px] ${isTBD ? 'text-muted-foreground italic text-xs' : 'text-foreground'}`}>
-                          {(match as any).home_club?.name || 'TBD'}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground/30">vs</span>
-                        <span className={`font-semibold truncate max-w-[80px] ${isTBD ? 'text-muted-foreground italic text-xs' : 'text-foreground'}`}>
-                          {(match as any).away_club?.name || 'TBD'}
-                        </span>
+          <div className="p-4">
+            {matches.length === 0 ? (
+              <div className="py-12 text-center">
+                <Swords className="w-12 h-12 text-[#2D2D2D] mx-auto mb-4" />
+                <p className="text-[10px] text-[#6A6C6E] font-black uppercase tracking-[0.2em]">GENERADOR EN ESPERA</p>
+                {canEdit && <p className="text-[8px] text-[#2D2D2D] font-black uppercase mt-2">VINCULA CLUBES PARA INICIAR EL CÁLCULO</p>}
+              </div>
+            ) : (
+              <div className="max-h-[350px] overflow-y-auto pr-2 custom-scrollbar space-y-2">
+                {matches.map((match, i) => {
+                  const isTBD = !match.home_club_id || !match.away_club_id
+                  return (
+                    <div key={match.id} className={`flex items-center gap-4 p-3 rounded-2xl bg-[#0A0A0A]/40 border border-white/[0.02] ${isTBD ? 'opacity-40 grayscale' : 'hover:border-[#FF3131]/20'} transition-all`}>
+                      <div className="w-8 h-8 rounded-lg bg-black border border-[#202020] flex items-center justify-center text-[10px] font-black text-[#6A6C6E] shrink-0 tabular-nums">
+                        {match.match_order}
                       </div>
-                      <p className="text-[9px] text-muted-foreground/40 truncate">{match.round_name}</p>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-tight text-white">
+                          <span className="truncate max-w-[90px]">{(match as any).home_club?.name || 'TBD'}</span>
+                          <span className="text-[#2D2D2D]">VS</span>
+                          <span className="truncate max-w-[90px]">{(match as any).away_club?.name || 'TBD'}</span>
+                        </div>
+                        <p className="text-[8px] text-[#2D2D2D] font-black uppercase tracking-widest mt-1">{match.round_name}</p>
+                      </div>
+                      {isTBD && <span className="text-[7px] font-black text-[#FF3131] bg-[#FF3131]/10 px-2 py-0.5 rounded border border-[#FF3131]/20 uppercase tracking-widest">TBD</span>}
                     </div>
-                    {isTBD && <span className="text-[9px] text-amber-500/80 bg-amber-500/8 px-1.5 py-0.5 rounded font-medium">TBD</span>}
-                  </div>
-                )
-              })}
-            </div>
-          )}
+                  )
+                })}
+              </div>
+            )}
+          </div>
 
           {matches.length > 0 && (
-            <Link href={`/admin/seasons/${seasonId}/calendar`} className="flex items-center justify-center gap-2 p-3 border-t border-white/[0.04] bg-primary/5 text-primary font-semibold text-sm transition-colors hover:bg-primary/10 active:scale-[0.98]">
-              <Play className="w-4 h-4" />Ver Calendario Global
+            <Link 
+              href={`/admin/seasons/${seasonId}/calendar`} 
+              className="flex items-center justify-center gap-3 p-5 bg-[#FF3131]/5 hover:bg-[#FF3131]/10 border-t border-white/[0.04] text-[#FF3131] font-black uppercase tracking-[0.2em] text-[10px] transition-all"
+            >
+              <Play size={16} /> Ver Calendario Global
             </Link>
           )}
         </section>
       </div>
 
-      {/* Enroll Clubs Dialog */}
+      {/* Modern Ruby Dialog - Enroll Clubes */}
       <Dialog open={isEnrollOpen} onOpenChange={setIsEnrollOpen}>
-        <DialogContent className="max-w-sm mx-4 rounded-2xl bg-card/95 backdrop-blur-xl border-white/[0.08] max-h-[85vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="text-foreground">Inscribir Clubes</DialogTitle>
-            <DialogDescription className="sr-only">Selecciona los clubes que participarán en esta competición</DialogDescription>
-          </DialogHeader>
-          <div className="flex-1 overflow-y-auto py-2 space-y-2">
+        <DialogContent className="max-w-md mx-4 rounded-[32px] bg-[#141414]/95 backdrop-blur-2xl border-white/[0.08] p-0 overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+          <div className="p-8 pb-4">
+            <DialogHeader className="mb-4 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-[#0A0A0A] border border-[#202020] flex items-center justify-center shadow-xl mx-auto mb-6 text-[#FF3131]">
+                <Users size={24} />
+              </div>
+              <DialogTitle className="text-xl font-black text-white uppercase tracking-tighter">INSCRIBIR <span className="text-[#FF3131]">CLUBES</span></DialogTitle>
+            </DialogHeader>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto px-8 py-2 space-y-2 custom-scrollbar">
             {allClubs.map((club) => {
               const isSelected = selectedClubs.includes(club.id)
               return (
-                <div key={club.id} className={`flex items-center gap-3 p-3 rounded-xl border transition-all duration-200 cursor-pointer ${isSelected ? 'border-primary/40 bg-primary/8 shadow-md shadow-primary/5' : 'border-white/[0.06] bg-white/[0.02] hover:border-white/[0.1]'}`} onClick={() => toggleClubSelection(club.id)}>
-                  <Checkbox checked={isSelected} className="pointer-events-none" />
-                  <div className="w-8 h-8 rounded-lg bg-white/[0.04] flex items-center justify-center overflow-hidden ring-1 ring-white/[0.06]">
-                    {club.shield_url ? (<img src={club.shield_url} alt="" className="w-6 h-6 object-contain" />) : (<Shield className="w-4 h-4 text-muted-foreground/40" />)}
+                <div 
+                  key={club.id} 
+                  className={`flex items-center gap-4 p-4 rounded-2xl border transition-all duration-300 cursor-pointer ${
+                    isSelected 
+                      ? 'border-[#FF3131]/40 bg-[#FF3131]/10 shadow-[0_0_20px_rgba(255,49,49,0.1)]' 
+                      : 'border-white/[0.04] bg-black/40 hover:bg-black/60 hover:border-white/[0.1]'
+                  }`} 
+                  onClick={() => toggleClubSelection(club.id)}
+                >
+                  <Checkbox checked={isSelected} className="pointer-events-none rounded-md border-white/20 data-[state=checked]:bg-[#FF3131] data-[state=checked]:border-[#FF3131]" />
+                  <div className="w-10 h-10 rounded-xl bg-black border border-[#202020] flex items-center justify-center p-2 shrink-0">
+                    {club.shield_url ? (<img src={club.shield_url} alt="" className="w-full h-full object-contain" />) : (<Shield size={18} className="text-[#2D2D2D]" />)}
                   </div>
-                  <span className="flex-1 font-semibold text-sm text-foreground truncate">{club.name}</span>
+                  <span className="flex-1 font-black text-white uppercase tracking-tight text-xs truncate">{club.name}</span>
                   {competition?.type === 'groups_knockout' && isSelected && (
-                    <div onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+                    <div onClick={(e) => e.stopPropagation()} className="shrink-0">
                       <Select value={clubGroups[club.id] || 'A'} onValueChange={(value) => setClubGroups(prev => ({ ...prev, [club.id]: value }))}>
-                        <SelectTrigger className="w-16 h-7 text-xs rounded-lg bg-purple-400/10 border-purple-400/20 text-purple-400"><SelectValue /></SelectTrigger>
-                        <SelectContent className="bg-card/95 backdrop-blur-xl border-white/[0.08]">
-                          {GROUP_LETTERS.slice(0, (competition.config as GroupsKnockoutConfig).groups_count || 4).map(letter => (<SelectItem key={letter} value={letter}>Grupo {letter}</SelectItem>))}
+                        <SelectTrigger className="w-20 h-8 text-[9px] font-black font-sans rounded-xl bg-black border-[#202020] text-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#141414] border-white/[0.08] min-w-[100px]">
+                          {GROUP_LETTERS.slice(0, (competition.config as GroupsKnockoutConfig).groups_count || 4).map(letter => (
+                             <SelectItem key={letter} value={letter} className="text-[10px] font-black uppercase py-2">Grupo {letter}</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -455,54 +523,63 @@ export default function CompetitionDetailPage({ params }: { params: Promise<{ se
               )
             })}
           </div>
-          <DialogFooter className="gap-2 sm:gap-2 border-t border-white/[0.06] pt-4">
-            <DialogClose asChild><Button type="button" variant="ghost" className="rounded-xl">Cancelar</Button></DialogClose>
-            <Button onClick={handleEnrollClubs} disabled={isSaving} className="rounded-xl shadow-lg shadow-primary/20">
-              {isSaving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}Guardar ({selectedClubs.length})
-            </Button>
-          </DialogFooter>
+
+          <div className="p-8 bg-[#0A0A0A]/50 border-t border-white/[0.04] flex gap-4">
+            <DialogClose asChild>
+              <button className="flex-1 h-14 border border-[#202020] text-[#6A6C6E] hover:text-white rounded-[20px] font-black uppercase tracking-widest text-[10px] transition-all">Cancelar</button>
+            </DialogClose>
+            <button 
+              onClick={handleEnrollClubs} 
+              disabled={isSaving} 
+              className="flex-1 h-14 bg-[#FF3131] hover:bg-[#D32F2F] text-white rounded-[20px] font-black uppercase tracking-widest text-[10px] shadow-[0_0_30px_rgba(255,49,49,0.3)] transition-all active:scale-95 disabled:opacity-50"
+            >
+              {isSaving ? <Loader2 size={16} className="animate-spin mx-auto" /> : `Sellar (${selectedClubs.length})`}
+            </button>
+          </div>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Matches */}
+      {/* Delete Matches Alert */}
       <AlertDialog open={isDeleteMatchesOpen} onOpenChange={setIsDeleteMatchesOpen}>
-        <AlertDialogContent className="max-w-sm mx-4 rounded-2xl bg-card/95 backdrop-blur-xl border-white/[0.08]">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar partidos</AlertDialogTitle>
-            <AlertDialogDescription>Se eliminarán todos los partidos generados. Esta acción no se puede deshacer.</AlertDialogDescription>
+        <AlertDialogContent className="max-w-sm mx-4 rounded-[32px] bg-[#141414] border-white/[0.08] p-8 shadow-2xl">
+          <AlertDialogHeader className="mb-6">
+            <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-6">
+              <Trash2 className="w-8 h-8 text-red-500" />
+            </div>
+            <AlertDialogTitle className="text-xl font-black text-white uppercase tracking-tighter text-center">PURGAR <span className="text-red-500">PARTIDOS</span></AlertDialogTitle>
+            <AlertDialogDescription className="text-center text-xs text-[#6A6C6E] font-bold uppercase tracking-widest mt-2 px-4 leading-relaxed">
+              ESTA ACCIÓN ELIMINARÁ TODOS LOS PARTIDOS CALCULADOS. TODOS LOS RESULTADOS ACTUALES SE PERDERÁN.
+            </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={deleteAllMatches} className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90">Eliminar</AlertDialogAction>
-          </AlertDialogFooter>
+          <div className="flex gap-3">
+            <AlertDialogCancel className="flex-1 h-14 bg-[#0A0A0A] border border-[#202020] text-[#6A6C6E] hover:text-white rounded-[20px] font-black uppercase tracking-widest text-[10px] m-0">No</AlertDialogCancel>
+            <AlertDialogAction onClick={deleteAllMatches} className="flex-1 h-14 bg-red-600 hover:bg-red-700 text-white rounded-[20px] font-black uppercase tracking-widest text-[10px] shadow-[0_0_30px_rgba(220,38,38,0.3)] m-0">Confirmar</AlertDialogAction>
+          </div>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Delete Competition */}
+      {/* Delete Competition Alert */}
       <AlertDialog open={isDeleteCompetitionOpen} onOpenChange={setIsDeleteCompetitionOpen}>
-        <AlertDialogContent className="max-w-sm mx-4 rounded-2xl bg-card/95 backdrop-blur-xl border-white/[0.08]">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-destructive" />Eliminar Competición</AlertDialogTitle>
-            <AlertDialogDescription className="text-left">
-              <span className="font-semibold text-foreground block mb-2">{competition?.name}</span>
-              Esta acción eliminará permanentemente:
-              <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
-                <li>{enrolledClubs.length} clubes inscritos</li>
-                <li>{matches.length} partidos</li>
-                <li>Tabla de posiciones</li>
-                <li>Estadísticas de jugadores</li>
-              </ul>
-              <span className="block mt-3 text-destructive font-semibold">Esta acción no se puede deshacer.</span>
+        <AlertDialogContent className="max-w-sm mx-4 rounded-[32px] bg-[#141414] border-white/[0.08] p-8 shadow-2xl">
+          <AlertDialogHeader className="mb-6">
+            <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-6">
+              <AlertTriangle className="w-8 h-8 text-red-500" />
+            </div>
+            <AlertDialogTitle className="text-xl font-black text-white uppercase tracking-tighter text-center">ELIMINAR <span className="text-red-500">COMPETICIÓN</span></AlertDialogTitle>
+            <AlertDialogDescription className="text-center text-[10px] text-[#6A6C6E] font-bold uppercase tracking-widest mt-2 px-4 leading-relaxed">
+              ESTÁS POR PURGAR <span className="text-white font-black">{competition?.name}</span>. ESTO ELIMINARÁ PERMANENTEMENTE CLUBES INSCRITOS, PARTIDOS Y ESTADÍSTICAS GENERADAS.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteCompetition} disabled={isDeleting} className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              {isDeleting && <Loader2 className="w-4 h-4 animate-spin mr-2" />}Eliminar Competición
+          <div className="flex gap-3">
+            <AlertDialogCancel className="flex-1 h-14 bg-[#0A0A0A] border border-[#202020] text-[#6A6C6E] hover:text-white rounded-[20px] font-black uppercase tracking-widest text-[10px] m-0 text-center">Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteCompetition} disabled={isDeleting} className="flex-1 h-14 bg-red-600 hover:bg-red-700 text-white rounded-[20px] font-black uppercase tracking-widest text-[10px] shadow-[0_0_30px_rgba(220,38,38,0.3)] m-0">
+               {isDeleting ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'Confirmar Purgado'}
             </AlertDialogAction>
-          </AlertDialogFooter>
+          </div>
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  )
+}
   )
 }

@@ -212,47 +212,130 @@ export default function SeasonsPage() {
                   {finishedSeasons.map((season, i) => (
                     <div key={season.id} className="animate-fade-in-up opacity-70" style={{ animationDelay: `${i * 60}ms` }}>
                       {renderSeasonCard(season)}
+          seasons.map((season, i) => (
+            <div
+              key={season.id}
+              className="group relative bg-[#141414]/50 backdrop-blur-xl rounded-[28px] p-6 border border-white/[0.04] transition-all duration-300 hover:border-[#FF3131]/30 hover:bg-[#1A1A1A]/60 animate-fade-in-up shadow-xl overflow-hidden cursor-pointer"
+              style={{ animationDelay: `${i * 50}ms` }}
+              onClick={() => router.push(`/admin/seasons/${season.id}`)}
+            >
+              <div className="flex items-center justify-between relative z-10">
+                <div className="flex items-center gap-5">
+                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border shadow-2xl transition-transform group-hover:scale-110 ${
+                    season.status === 'active' 
+                      ? 'bg-[#FF3131]/20 border-[#FF3131]/30 text-[#FF3131]' 
+                      : 'bg-[#0A0A0A] border-[#202020] text-[#6A6C6E]'
+                  }`}>
+                    <Calendar className="w-7 h-7" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-white uppercase tracking-tight mb-1">{season.name}</h3>
+                    <div className="flex items-center gap-3">
+                      <div className={`flex items-center gap-2 px-2.5 py-1 rounded-full border font-black uppercase tracking-widest text-[8px] ${
+                        season.status === 'active'
+                          ? 'bg-[#FF3131]/10 text-[#FF3131] border-[#FF3131]/20 shadow-[0_0_10px_rgba(255,49,49,0.1)]'
+                          : 'bg-white/5 text-[#6A6C6E] border-white/10'
+                      }`}>
+                        <div className={`w-1.5 h-1.5 rounded-full ${season.status === 'active' ? 'bg-[#FF3131] animate-pulse' : 'bg-[#6A6C6E]'}`} />
+                        {season.status === 'active' ? 'ACTIVA' : 'SISTEMA STANDBY'}
+                      </div>
+                      <p className="text-[10px] text-[#2D2D2D] font-black uppercase tracking-widest">
+                        {season.competitions_count || 0} COMPETENCIAS
+                      </p>
                     </div>
-                  ))}
+                  </div>
                 </div>
-              </section>
-            )}
-          </>
+                
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      openEditForm(season)
+                    }}
+                    className="w-10 h-10 rounded-full bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#6A6C6E] hover:text-white hover:border-[#FF3131]/40 transition-all active:scale-90"
+                  >
+                    <Pencil className="w-4.5 h-4.5" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setDeletingSeason(season)
+                      setIsDeleteOpen(true)
+                    }}
+                    className="w-10 h-10 rounded-full bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-red-500/60 hover:text-red-500 hover:border-red-500/40 hover:bg-red-500/10 transition-all active:scale-90"
+                  >
+                    <Trash2 className="w-4.5 h-4.5" />
+                  </button>
+                </div>
+              </div>
+              
+              {/* Background Glow for active season */}
+              {season.status === 'active' && (
+                <div className="absolute -top-20 -right-20 w-40 h-40 bg-[#FF3131]/10 rounded-full blur-[80px] pointer-events-none" />
+              )}
+            </div>
+          ))
         )}
       </div>
 
-      {/* Create/Edit Dialog */}
-      <Dialog open={isFormOpen} onOpenChange={(open) => { if (!open) { setIsFormOpen(false); resetForm() } }}>
-        <DialogContent className="max-w-sm mx-4 rounded-2xl bg-card/95 backdrop-blur-xl border-white/[0.08]">
-          <DialogHeader>
-            <DialogTitle className="text-foreground">{editingSeason ? 'Editar Temporada' : 'Nueva Temporada'}</DialogTitle>
-            <DialogDescription className="sr-only">{editingSeason ? 'Formulario para editar la temporada' : 'Formulario para crear una nueva temporada'}</DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Nombre *</label>
-              <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Temporada 2024-2025" className="mt-1.5 h-12 rounded-xl bg-background/50 border-white/[0.08]" />
+      {/* Modern Ruby Dialog - Season Form */}
+      <Dialog open={isFormOpen} onOpenChange={(open) => { if (!open) resetForm(); setIsFormOpen(open) }}>
+        <DialogContent className="max-w-md mx-4 rounded-[32px] bg-[#141414]/95 backdrop-blur-2xl border-white/[0.08] p-0 overflow-hidden shadow-2xl">
+          <div className="p-8">
+            <DialogHeader className="mb-8">
+              <div className="w-14 h-14 rounded-2xl bg-[#0A0A0A] border border-[#202020] flex items-center justify-center shadow-xl mb-6 mx-auto">
+                <Calendar className="w-7 h-7 text-[#FF3131]" />
+              </div>
+              <DialogTitle className="text-2xl font-black text-white uppercase tracking-tighter text-center">
+                {editingSeason ? 'MODIFICAR <span className="text-[#FF3131]">CICLO</span>' : 'INSTALAR <span className="text-[#FF3131]">CICLO</span>'}
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-6">
+              <div className="space-y-2.5">
+                <Label className="text-[10px] text-[#6A6C6E] uppercase tracking-[0.3em] font-black ml-1">CÁDIGO DE TEMPORADA (NOMBRE)</Label>
+                <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="TEMPORADA 2024..." className="h-14 bg-[#0A0A0A] border-[#202020] rounded-[20px] text-white placeholder:text-[#2D2D2D] text-xs font-black uppercase tracking-widest focus:border-[#FF3131]/40 px-5" />
+              </div>
+
+              <div className="space-y-2.5">
+                <Label className="text-[10px] text-[#6A6C6E] uppercase tracking-[0.3em] font-black ml-1">ESTADO DEL SISTEMA (STATUS)</Label>
+                <Select value={formData.status} onValueChange={(v: 'pending' | 'active' | 'finished') => setFormData({ ...formData, status: v })}>
+                  <SelectTrigger className="h-14 bg-[#0A0A0A] border-[#202020] rounded-[20px] text-white text-xs font-black uppercase tracking-widest px-5"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-[#141414] border-white/[0.08]">
+                    <SelectItem value="pending" className="text-xs font-black uppercase tracking-widest text-[#6A6C6E]">PENDIENTE</SelectItem>
+                    <SelectItem value="active" className="text-xs font-black uppercase tracking-widest text-[#FF3131]">ACTIVA</SelectItem>
+                    <SelectItem value="finished" className="text-xs font-black uppercase tracking-widest text-emerald-500">FINALIZADA</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <DialogFooter className="gap-2 sm:gap-2">
-              <DialogClose asChild><Button type="button" variant="ghost" className="rounded-xl">Cancelar</Button></DialogClose>
-              <Button type="submit" disabled={isSaving} className="rounded-xl shadow-lg shadow-primary/20">
-                {isSaving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}{editingSeason ? 'Guardar' : 'Crear'}
-              </Button>
-            </DialogFooter>
-          </form>
+          </div>
+
+          <div className="flex gap-4 p-8 bg-[#0A0A0A]/50 border-t border-white/[0.04]">
+            <DialogClose asChild><button className="flex-1 h-14 border border-[#202020] text-[#6A6C6E] hover:text-white rounded-[20px] font-black uppercase tracking-widest text-[10px] transition-all">Abortar</button></DialogClose>
+            <button onClick={handleSave} disabled={isSaving} className="flex-1 h-14 bg-[#FF3131] hover:bg-[#D32F2F] text-white rounded-[20px] font-black uppercase tracking-widest text-[10px] shadow-[0_0_30px_rgba(255,49,49,0.3)] transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center">
+              {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sincronizar'}
+            </button>
+          </div>
         </DialogContent>
       </Dialog>
 
+      {/* Modern Ruby AlertDialog - Delete Season */}
       <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <AlertDialogContent className="max-w-sm mx-4 rounded-2xl bg-card/95 backdrop-blur-xl border-white/[0.08]">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar temporada</AlertDialogTitle>
-            <AlertDialogDescription>Se eliminarán todas las competiciones y partidos de esta temporada. Esta acción no se puede deshacer.</AlertDialogDescription>
+        <AlertDialogContent className="max-w-sm mx-4 rounded-[32px] bg-[#141414] border-white/[0.08] p-8 shadow-2xl">
+          <AlertDialogHeader className="mb-6">
+            <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-6">
+              <Trash2 className="w-8 h-8 text-red-500" />
+            </div>
+            <AlertDialogTitle className="text-xl font-black text-white uppercase tracking-tighter text-center">PURGAR <span className="text-red-500">CICLO</span></AlertDialogTitle>
+            <AlertDialogDescription className="text-center text-xs text-[#6A6C6E] font-bold uppercase tracking-widest mt-2 px-4 shadow-sm leading-relaxed">
+              ESTÁS POR ELIMINAR <span className="text-white font-black">{deletingSeason?.name}</span>. ESTA ACCIÓN PURGARA TODAS LAS COMPETICIONES Y PARTIDOS RELACIONADOS.
+            </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90">Eliminar</AlertDialogAction>
-          </AlertDialogFooter>
+          <div className="flex gap-3">
+            <AlertDialogCancel className="flex-1 h-14 bg-[#0A0A0A] border border-[#202020] text-[#6A6C6E] hover:text-white rounded-[20px] font-black uppercase tracking-widest text-[10px] m-0">No</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="flex-1 h-14 bg-red-600 hover:bg-red-700 text-white rounded-[20px] font-black uppercase tracking-widest text-[10px] shadow-[0_0_30px_rgba(220,38,38,0.3)] m-0">Confirmar</AlertDialogAction>
+          </div>
         </AlertDialogContent>
       </AlertDialog>
     </div>

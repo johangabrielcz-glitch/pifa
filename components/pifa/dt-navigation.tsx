@@ -1,8 +1,8 @@
 'use client'
 
-import { Home, Trophy, BarChart3, Calendar, Users } from 'lucide-react'
+import { Home, Trophy, BarChart3, Calendar, Users, ShoppingCart } from 'lucide-react'
 
-export type DtTab = 'home' | 'competitions' | 'stats' | 'calendar' | 'squad'
+export type DtTab = 'home' | 'competitions' | 'stats' | 'calendar' | 'squad' | 'market'
 
 interface DtNavigationProps {
   activeTab: DtTab
@@ -14,8 +14,9 @@ const tabs: { id: DtTab; label: string; icon: typeof Home }[] = [
   { id: 'home', label: 'Inicio', icon: Home },
   { id: 'competitions', label: 'Compet.', icon: Trophy },
   { id: 'stats', label: 'Stats', icon: BarChart3 },
-  { id: 'calendar', label: 'Calendario', icon: Calendar },
+  { id: 'calendar', label: 'Calen.', icon: Calendar },
   { id: 'squad', label: 'Plantilla', icon: Users },
+  { id: 'market', label: 'Mercado', icon: ShoppingCart },
 ]
 
 // Bottom Navigation Tab Component
