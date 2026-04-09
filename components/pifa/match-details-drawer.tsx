@@ -140,7 +140,7 @@ export function MatchDetailsDrawer({ matchId, isOpen, onClose }: MatchDetailsDra
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="bg-[#0A0A0A] border-white/5 text-white w-full sm:max-w-md p-0 overflow-y-auto no-scrollbar">
+      <SheetContent className="bg-[#0A0A0A] border-white/5 text-white w-full sm:max-w-md p-0 overflow-y-auto no-scrollbar pt-[env(safe-area-inset-top)]">
         <SheetHeader className="sr-only">
           <SheetTitle>Detalles del Partido</SheetTitle>
           <SheetDescription>Vista detallada de las estadísticas y resultado final del encuentro.</SheetDescription>
@@ -152,8 +152,8 @@ export function MatchDetailsDrawer({ matchId, isOpen, onClose }: MatchDetailsDra
         ) : match ? (
           <div className="flex flex-col h-full animate-fade-in">
             {/* Header / Scoreboard */}
-            <div className="relative h-48 bg-gradient-to-b from-[#141414] to-black border-b border-white/5 flex flex-col items-center justify-center p-6">
-              <div className="absolute top-4 left-6">
+            <div className="relative h-48 bg-gradient-to-b from-[#141414] to-black border-b border-white/5 flex flex-col items-center justify-center p-6 pt-12">
+              <div className="absolute top-8 left-6">
                 <p className="text-[10px] font-black text-[#6A6C6E] uppercase tracking-[0.2em]">Resultado Final</p>
               </div>
               

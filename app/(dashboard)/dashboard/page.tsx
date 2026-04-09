@@ -1201,7 +1201,7 @@ export default function DashboardPage() {
                                     setIsMatchDetailsOpen(true)
                                   }
                                 }}
-                                className={`w-full group relative overflow-hidden flex items-center gap-4 p-5 rounded-[24px] border transition-all duration-500 pt-9 pb-6 ${
+                                className={`w-full group relative overflow-hidden flex items-center gap-1.5 md:gap-4 p-3 md:p-5 rounded-[24px] border transition-all duration-500 pt-9 pb-6 ${
                                   isFinished 
                                     ? 'bg-[#141414]/90 border-white/[0.05] hover:border-[#00FF85]/30 hover:bg-[#141414]' 
                                     : 'bg-[#0A0A0A] border-white/[0.03] hover:border-white/10'
@@ -1215,11 +1215,11 @@ export default function DashboardPage() {
                                 </div>
 
                                 {/* Home Team */}
-                                <div className="flex-1 flex items-center justify-end gap-3.5 pr-2">
-                                  <span className={`text-[11px] font-black uppercase tracking-tighter truncate text-right ${isHome ? 'text-[#00FF85]' : 'text-white/60 group-hover:text-white'}`}>
+                                <div className="flex-1 flex items-center justify-end gap-2 md:gap-3.5 min-w-0 pr-1 md:pr-2">
+                                  <span className={`text-[9.5px] md:text-[11px] font-black uppercase tracking-tighter truncate text-right ${isHome ? 'text-[#00FF85]' : 'text-white/60 group-hover:text-white'}`}>
                                     {match.home_club?.name}
                                   </span>
-                                  <div className="w-14 h-14 rounded-2xl bg-black/50 border border-white/10 flex items-center justify-center p-3 shrink-0 shadow-2xl transition-transform duration-500 group-hover:scale-110">
+                                  <div className="w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl bg-black/50 border border-white/10 flex items-center justify-center p-2 md:p-3 shrink-0 shadow-2xl transition-transform duration-500 group-hover:scale-110">
                                     {match.home_club?.shield_url ? (
                                       <img src={match.home_club.shield_url} alt="" className="w-full h-full object-contain" />
                                     ) : (
@@ -1229,10 +1229,10 @@ export default function DashboardPage() {
                                 </div>
 
                                 {/* Center - Score/Status */}
-                                <div className="flex flex-col items-center justify-center w-24 shrink-0 px-2 py-2 rounded-[20px] bg-black/60 border border-white/5 shadow-inner">
+                                <div className="flex flex-col items-center justify-center w-20 md:w-24 shrink-0 px-1 md:px-2 py-2 rounded-[20px] bg-black/60 border border-white/5 shadow-inner">
                                   {isFinished ? (
                                     <>
-                                      <span className="text-xl font-black text-white italic tracking-tighter leading-none">
+                                      <span className="text-lg md:text-xl font-black text-white italic tracking-tighter leading-none">
                                         {match.home_score} — {match.away_score}
                                       </span>
                                       <div className={`mt-2 px-2 py-0.5 rounded-full border border-current/20 bg-current/[0.02] ${
@@ -1249,7 +1249,7 @@ export default function DashboardPage() {
                                         <span className="text-[9px] font-black text-white/40 tracking-widest">VS</span>
                                       </div>
                                       {match.deadline ? (
-                                          <div className="scale-[0.85] origin-center -my-1">
+                                          <div className="scale-[0.8] md:scale-[0.85] origin-center -my-1">
                                             <CountdownTimer deadline={match.deadline} size="sm" />
                                           </div>
                                       ) : (
@@ -1260,15 +1260,15 @@ export default function DashboardPage() {
                                 </div>
 
                                 {/* Away Team */}
-                                <div className="flex-1 flex items-center justify-start gap-3.5 pl-2">
-                                  <div className="w-14 h-14 rounded-2xl bg-black/50 border border-white/10 flex items-center justify-center p-3 shrink-0 shadow-2xl transition-transform duration-500 group-hover:scale-110">
+                                <div className="flex-1 flex items-center justify-start gap-2 md:gap-3.5 min-w-0 pl-1 md:pl-2">
+                                  <div className="w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl bg-black/50 border border-white/10 flex items-center justify-center p-2 md:p-3 shrink-0 shadow-2xl transition-transform duration-500 group-hover:scale-110">
                                     {match.away_club?.shield_url ? (
                                       <img src={match.away_club.shield_url} alt="" className="w-full h-full object-contain" />
                                     ) : (
                                       <Shield className="w-6 h-6 text-[#2D2D2D]" />
                                     )}
                                   </div>
-                                  <span className={`text-[11px] font-black uppercase tracking-tighter truncate text-left ${!isHome ? 'text-[#00FF85]' : 'text-white/60 group-hover:text-white'}`}>
+                                  <span className={`text-[9.5px] md:text-[11px] font-black uppercase tracking-tighter truncate text-left ${!isHome ? 'text-[#00FF85]' : 'text-white/60 group-hover:text-white'}`}>
                                     {match.away_club?.name}
                                   </span>
                                 </div>

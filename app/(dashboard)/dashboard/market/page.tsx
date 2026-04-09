@@ -7,21 +7,39 @@ import { ShoppingCart, History, Search, Filter, DollarSign, ArrowRight, User as 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { UltimateCard } from '@/components/pifa/ultimate-card'
-import { createOffer, handleOfferResponse } from '@/lib/market-engine'
+import { createOffer, handleOfferResponse, buyPlayerDirectly } from '@/lib/market-engine'
 import { toast } from 'sonner'
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 export default function MarketPage() {
-  const [activeTab, setActiveTab] = useState<'buy' | 'history' | 'my-offers'>('buy')
+  const [activeTab, setActiveTab] = useState<'buy' | 'history' | 'my-offers' | 'clubs'>('buy')
   const [playersOnSale, setPlayersOnSale] = useState<Player[]>([])
+  const [allClubs, setAllClubs] = useState<Club[]>([])
+  const [allPlayers, setAllPlayers] = useState<Player[]>([])
   const [history, setHistory] = useState<MarketHistory[]>([])
   const [myOffers, setMyOffers] = useState<MarketOffer[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [globalSearch, setGlobalSearch] = useState('')
   const [currentUserClub, setCurrentUserClub] = useState<Club | null>(null)
+  const [selectedClub, setSelectedClub] = useState<Club | null>(null)
   
   // Offer Modal State
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null)
   const [offerAmount, setOfferAmount] = useState<string>('')
+
+  // Buy Modal State
+  const [playerToBuy, setPlayerToBuy] = useState<Player | null>(null)
+  const [isBuying, setIsBuying] = useState(false)
 
   useEffect(() => {
     fetchInitialData()
@@ -45,7 +63,21 @@ export default function MarketPage() {
       .order('sale_price', { ascending: true })
     if (ps) setPlayersOnSale(ps)
 
-    // 3. Fetch History - Using explicit FK names
+    // 3. Fetch all clubs (excluding mine)
+    const { data: clbs } = await supabase
+      .from('clubs')
+      .select('*, users(full_name)')
+      .order('name', { ascending: true })
+    if (clbs) setAllClubs(clbs)
+
+    // 4. Fetch all players (for global search and dossiers)
+    const { data: allP } = await supabase
+      .from('players')
+      .select('*, club:clubs(*)')
+      .order('name', { ascending: true })
+    if (allP) setAllPlayers(allP)
+
+    // 5. Fetch History
     const { data: hist } = await supabase
       .from('market_history')
       .select('*, player:players(*), from_club:clubs!from_club_fk(*), to_club:clubs!to_club_fk(*)')
@@ -53,7 +85,7 @@ export default function MarketPage() {
       .limit(20)
     if (hist) setHistory(hist)
 
-    // 4. Fetch my offers - Using explicit FK names
+    // 6. Fetch my offers
     const authSession = JSON.parse(localStorage.getItem('pifa_auth_session') || '{}')
     if (authSession.club) {
       const { data: off } = await supabase
@@ -65,6 +97,22 @@ export default function MarketPage() {
     }
 
     setLoading(false)
+  }
+
+  async function handleBuyDirectly() {
+    if (!playerToBuy || !currentUserClub) return
+    setIsBuying(true)
+    
+    try {
+      await buyPlayerDirectly(playerToBuy, currentUserClub.id)
+      toast.success(`¡Has fichado a ${playerToBuy.name}!`)
+      setPlayerToBuy(null)
+      fetchInitialData() // Refresh
+    } catch (err: any) {
+      toast.error(err.message || 'Error en la compra')
+    } finally {
+      setIsBuying(false)
+    }
   }
 
   async function makeOffer() {
@@ -137,6 +185,15 @@ export default function MarketPage() {
             Mis Ofertas
           </button>
           <button
+            onClick={() => setActiveTab('clubs')}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+              activeTab === 'clubs' ? 'bg-[#00FF85] text-[#0A0A0A] shadow-[0_0_20px_rgba(0,255,133,0.2)]' : 'text-[#6A6C6E] hover:text-white'
+            }`}
+          >
+            <Shield className="w-3.5 h-3.5" />
+            Clubes
+          </button>
+          <button
             onClick={() => setActiveTab('history')}
             className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
               activeTab === 'history' ? 'bg-[#00FF85] text-[#0A0A0A] shadow-[0_0_20px_rgba(0,255,133,0.2)]' : 'text-[#6A6C6E] hover:text-white'
@@ -153,14 +210,79 @@ export default function MarketPage() {
           {activeTab === 'buy' && (
             <div className="space-y-6">
               {/* Search & Filter */}
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6A6C6E]" />
-                <Input 
-                  placeholder="Buscar jugador o posición..." 
-                  className="bg-[#141414] border-[#202020] pl-11 h-12 text-sm text-white rounded-xl focus:ring-[#00FF85]/20 focus:border-[#00FF85]"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6A6C6E]" />
+                  <Input 
+                    placeholder="Buscar en el mercado (en venta)..." 
+                    className="bg-[#141414] border-[#202020] pl-11 h-12 text-sm text-white rounded-xl focus:ring-[#00FF85]/20 focus:border-[#00FF85]"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                </div>
+                
+                {/* Global Search Bar */}
+                <div className="relative flex-1">
+                  <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6A6C6E]" />
+                  <Input 
+                    placeholder="Búsqueda Global (cualquier jugador)..." 
+                    className="bg-[#141414]/40 border-[#00FF85]/20 pl-11 h-12 text-sm text-white rounded-xl focus:ring-[#00FF85]/20 focus:border-[#00FF85]"
+                    value={globalSearch}
+                    onChange={(e) => setGlobalSearch(e.target.value)}
+                  />
+                  {globalSearch.length > 1 && (
+                    <div className="absolute top-14 left-0 right-0 z-50 bg-[#141414] border border-[#202020] rounded-2xl p-2 shadow-2xl max-h-60 overflow-y-auto">
+                      {allPlayers
+                        .filter(p => 
+                          (p.name.toLowerCase().includes(globalSearch.toLowerCase()) || 
+                          p.club?.name.toLowerCase().includes(globalSearch.toLowerCase())) &&
+                          p.club_id !== currentUserClub?.id
+                        )
+                        .slice(0, 5)
+                        .map(p => {
+                          const myActiveOffer = myOffers.find(o => o.player_id === p.id && (o.status === 'pending' || o.status === 'countered'))
+                          
+                          return (
+                            <button
+                              key={p.id}
+                              onClick={() => {
+                                if (!myActiveOffer) {
+                                  setSelectedPlayer(p)
+                                  setGlobalSearch('')
+                                }
+                              }}
+                              disabled={!!myActiveOffer}
+                              className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all group ${
+                                myActiveOffer ? 'opacity-60 cursor-not-allowed bg-white/5' : 'hover:bg-white/5'
+                              }`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-lg bg-[#0A0A0A] flex items-center justify-center border border-[#202020]">
+                                  <UserIcon className={`w-4 h-4 ${myActiveOffer ? 'text-blue-400' : 'text-[#00FF85]'}`} />
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-[11px] font-black text-white uppercase">{p.name}</p>
+                                    {myActiveOffer && (
+                                      <span className="text-[7px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded-md font-black uppercase tracking-widest">
+                                        En Negociación
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[9px] text-[#6A6C6E] font-bold uppercase">{p.club?.name || 'Agente Libre'}</p>
+                                </div>
+                              </div>
+                              {!myActiveOffer && <ArrowRight className="w-3.5 h-3.5 text-[#00FF85] opacity-0 group-hover:opacity-100 transition-opacity" />}
+                            </button>
+                          )
+                        })
+                      }
+                      {allPlayers.filter(p => p.name.toLowerCase().includes(globalSearch.toLowerCase())).length === 0 && (
+                        <p className="text-[10px] text-[#6A6C6E] p-4 text-center">No se encontraron jugadores</p>
+                      ) }
+                    </div>
+                  )}
+                </div>
               </div>
 
               {loading ? (
@@ -196,8 +318,7 @@ export default function MarketPage() {
                           showPrice={true}
                         />
                         {!isMine && (
-                          <div className="mt-3 px-2">
-                            {myActiveOffer ? (
+                             myActiveOffer ? (
                               <Button 
                                 className="w-full bg-red-500/10 border border-red-500/20 hover:bg-red-500 hover:text-white text-red-500 text-[10px] font-black uppercase tracking-widest h-10 transition-all duration-300 rounded-2xl"
                                 onClick={() => cancelMyOffer(myActiveOffer.id)}
@@ -205,14 +326,23 @@ export default function MarketPage() {
                                 Anular Oferta
                               </Button>
                             ) : (
-                              <Button 
-                                className="w-full bg-[#141414] border border-[#202020] hover:bg-[#00FF85] hover:text-[#0A0A0A] hover:border-[#00FF85] text-[#00FF85] text-[10px] font-black uppercase tracking-widest h-10 transition-all duration-300 rounded-2xl"
-                                onClick={() => setSelectedPlayer(player)}
-                              >
-                                Hacer Oferta
-                              </Button>
-                            )}
-                          </div>
+                              <div className="flex flex-col gap-2">
+                                <Button 
+                                  className="w-full bg-[#141414] border border-[#202020] hover:bg-[#00FF85] hover:text-[#0A0A0A] hover:border-[#00FF85] text-[#00FF85] text-[10px] font-black uppercase tracking-widest h-10 transition-all duration-300 rounded-2xl"
+                                  onClick={() => setSelectedPlayer(player)}
+                                >
+                                  Hacer Oferta
+                                </Button>
+                                {player.is_on_sale && player.sale_price && (
+                                  <Button 
+                                    className="w-full bg-[#00FF85] text-[#0A0A0A] text-[10px] font-black uppercase tracking-widest h-10 transition-all duration-300 rounded-2xl shadow-[0_5px_15px_rgba(0,255,133,0.2)]"
+                                    onClick={() => setPlayerToBuy(player)}
+                                  >
+                                    Compra Directa
+                                  </Button>
+                                )}
+                              </div>
+                            )
                         )}
                         {isMine && (
                           <div className="mt-3 text-center">
@@ -275,6 +405,110 @@ export default function MarketPage() {
                       )}
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'clubs' && (
+            <div className="space-y-6">
+              {!selectedClub ? (
+                <>
+                  <div className="relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6A6C6E]" />
+                    <Input 
+                      placeholder="Buscar club..." 
+                      className="bg-[#141414] border-[#202020] pl-11 h-12 text-sm text-white rounded-xl focus:ring-[#00FF85]/20"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {allClubs
+                      .filter(c => c.name.toLowerCase().includes(search.toLowerCase()) && c.id !== currentUserClub?.id)
+                      .map(club => (
+                        <button
+                          key={club.id}
+                          onClick={() => {
+                            setSelectedClub(club)
+                            setSearch('')
+                          }}
+                          className="group relative bg-[#141414] border border-[#202020] p-4 rounded-2xl text-left hover:border-[#00FF85]/30 transition-all duration-300 overflow-hidden"
+                        >
+                          <div className="absolute top-0 right-0 w-24 h-24 bg-[#00FF85]/5 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-[#00FF85]/10 transition-colors" />
+                          <div className="flex flex-col items-center gap-3 relative z-10 text-center">
+                            <div className="w-12 h-12 rounded-xl bg-[#0A0A0A] border border-[#202020] flex items-center justify-center p-2 shadow-inner">
+                              {club.shield_url ? (
+                                <img src={club.shield_url} alt="" className="w-full h-full object-contain" />
+                              ) : (
+                                <Shield className="w-6 h-6 text-[#6A6C6E]" />
+                              )}
+                            </div>
+                            <div>
+                              <h3 className="text-[11px] font-black text-white uppercase tracking-tighter mb-1 line-clamp-1">{club.name}</h3>
+                              <p className="text-[8px] text-[#00FF85] font-black uppercase tracking-wider">
+                                {club.users?.[0]?.full_name?.split(' ')[0] || 'DT PIFA'}
+                              </p>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-6">
+                  {/* Selected Club Header */}
+                  <div className="flex items-center justify-between bg-[#141414] border border-[#202020] p-6 rounded-[32px]">
+                    <div className="flex items-center gap-6">
+                      <div className="w-16 h-16 rounded-2xl bg-[#0A0A0A] p-3 border border-[#202020]">
+                        <img src={selectedClub.shield_url} alt="" className="w-full h-full object-contain" />
+                      </div>
+                      <div>
+                        <h2 className="text-2xl font-black text-white uppercase tracking-tighter">{selectedClub.name}</h2>
+                        <p className="text-[10px] text-[#6A6C6E] font-bold uppercase tracking-[0.2em] mt-1">Plantilla Actual</p>
+                      </div>
+                    </div>
+                    <Button 
+                      variant="ghost" 
+                      onClick={() => setSelectedClub(null)}
+                      className="text-[#6A6C6E] hover:text-white uppercase text-[10px] font-black"
+                    >
+                      Volver a Clubes
+                    </Button>
+                  </div>
+
+                  {/* Player Roster for Selected Club */}
+                  <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                    {allPlayers
+                      .filter(p => p.club_id === selectedClub.id)
+                      .map(player => {
+                        const myActiveOffer = myOffers.find(o => o.player_id === player.id && (o.status === 'pending' || o.status === 'countered'))
+                        
+                        return (
+                          <div key={player.id} className="relative group p-1">
+                            <UltimateCard player={player} showPrice={player.is_on_sale} />
+                            <div className="mt-3 px-1">
+                              {myActiveOffer ? (
+                                <Button 
+                                  className="w-full bg-red-500/10 border border-red-500/20 hover:bg-red-500 hover:text-white text-red-500 text-[8px] font-black uppercase tracking-widest h-8 transition-all duration-300 rounded-xl"
+                                  onClick={() => cancelMyOffer(myActiveOffer.id)}
+                                >
+                                  Anular Oferta
+                                </Button>
+                              ) : (
+                                <Button 
+                                  className="w-full bg-[#141414]/80 backdrop-blur-md border border-white/5 hover:bg-[#00FF85] hover:text-[#0A0A0A] text-[#00FF85] text-[8px] font-black uppercase tracking-widest h-8 transition-all duration-300 rounded-xl"
+                                  onClick={() => setSelectedPlayer(player)}
+                                >
+                                  Ofertar
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                  </div>
                 </div>
               )}
             </div>
@@ -407,6 +641,36 @@ export default function MarketPage() {
           </div>
         </div>
       )}
+      {/* Buy Confirmation Modal */}
+      <AlertDialog open={!!playerToBuy} onOpenChange={(open) => !open && setPlayerToBuy(null)}>
+        <AlertDialogContent className="bg-[#0A0A0A] border border-[#202020] rounded-[32px] p-8 max-w-md">
+          <AlertDialogHeader className="text-center">
+            <div className="w-20 h-20 mx-auto bg-[#00FF85]/10 rounded-3xl flex items-center justify-center border border-[#00FF85]/20 mb-6">
+              <ShoppingCart className="w-10 h-10 text-[#00FF85]" />
+            </div>
+            <AlertDialogTitle className="text-2xl font-black text-white uppercase tracking-tighter">
+              ¿Confirmar Traspaso?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-[#6A6C6E] text-xs font-bold uppercase tracking-widest mt-2 leading-relaxed">
+              Estás por comprar directamente a <span className="text-white">{playerToBuy?.name}</span> por <span className="text-[#00FF85] font-black">${playerToBuy?.sale_price?.toLocaleString()}</span>. 
+              <br/><br/>
+              Esta acción es irreversible y el dinero se descontará de tu presupuesto de inmediato.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="grid grid-cols-2 gap-4 mt-8 sm:space-x-0">
+            <AlertDialogCancel className="h-14 rounded-2xl bg-[#141414] border-[#202020] text-[#6A6C6E] hover:bg-[#202020] hover:text-white font-black uppercase text-[10px] tracking-widest">
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleBuyDirectly}
+              disabled={isBuying}
+              className="h-14 rounded-2xl bg-[#00FF85] text-[#0A0A0A] hover:bg-[#00cc6a] font-black uppercase text-[10px] tracking-widest shadow-[0_10px_30px_rgba(0,255,133,0.3)]"
+            >
+              {isBuying ? 'Procesando...' : 'Confirmar Compra'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

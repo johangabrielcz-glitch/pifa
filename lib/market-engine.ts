@@ -125,6 +125,72 @@ export async function handleOfferResponse(
   }
 }
 
+export async function buyPlayerDirectly(player: Player, buyerClubId: string) {
+  if (!player.is_on_sale || !player.sale_price) {
+    throw new Error('Este jugador no está a la venta directa.')
+  }
+
+  const amount = player.sale_price
+
+  // 1. Get clubs info
+  const { data: latestBuyer } = await supabase.from('clubs').select('*').eq('id', buyerClubId).single()
+  const { data: latestSeller } = await supabase.from('clubs').select('*').eq('id', player.club_id).single()
+
+  if (!latestBuyer || latestBuyer.budget < amount) {
+    throw new Error('No tienes presupuesto suficiente para esta compra.')
+  }
+
+  // 2. Perform transfer
+  // A. Subtract from buyer
+  await supabase.from('clubs').update({ budget: latestBuyer.budget - amount }).eq('id', buyerClubId)
+
+  // B. Add to seller
+  await supabase.from('clubs').update({ budget: (latestSeller?.budget || 0) + amount }).eq('id', player.club_id)
+
+  // C. Move player
+  await supabase.from('players').update({ 
+    club_id: buyerClubId, 
+    is_on_sale: false, 
+    sale_price: null 
+  }).eq('id', player.id)
+
+  // D. Invalidate all pending offers
+  await supabase
+    .from('market_offers')
+    .update({ status: 'cancelled' })
+    .eq('player_id', player.id)
+    .eq('status', 'pending')
+
+  // E. Record history
+  await supabase.from('market_history').insert({
+    player_id: player.id,
+    from_club_id: player.club_id,
+    to_club_id: buyerClubId,
+    amount: amount,
+    type: 'sale'
+  })
+
+  // F. Notify both - Special message for direct buy
+  await supabase.from('notifications').insert([
+    {
+      club_id: buyerClubId,
+      title: 'Compra Directa Completada',
+      message: `¡Has comprado a ${player.name} de ${latestSeller?.name} al contado por $${amount.toLocaleString()}!`,
+      type: 'transfer_complete',
+      data: { player_id: player.id, player_name: player.name, seller_name: latestSeller?.name }
+    },
+    {
+      club_id: player.club_id,
+      title: '¡Jugador Vendido!',
+      message: `${latestBuyer.name.toUpperCase()} ha pagado la cláusula de $${amount.toLocaleString()} por ${player.name}. El jugador ha sido transferido.`,
+      type: 'transfer_complete',
+      data: { player_id: player.id, player_name: player.name, buyer_name: latestBuyer.name }
+    }
+  ])
+
+  return true
+}
+
 async function executeTransfer(offer: any) {
   const { player, buyer_club, seller_club, amount } = offer
 
