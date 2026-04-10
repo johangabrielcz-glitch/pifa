@@ -51,14 +51,14 @@ export default function RootLayout({
             {children}
           </main>
         </div>
-        {/* <Toaster 
+        <Toaster 
           position="top-center" 
           richColors 
           closeButton
           toastOptions={{
             className: 'text-sm',
           }}
-        /> */}
+        />
         <Analytics />
       </body>
     </html>

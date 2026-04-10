@@ -1,49 +1,42 @@
 'use client'
 
-import { useEffect, Suspense } from 'react'
-import { useSearchParams, useRouter, usePathname } from 'next/navigation'
-import { syncPushToken } from '@/lib/push-notifications'
+import { useEffect } from 'react'
 
-function TokenCapture() {
-  const searchParams = useSearchParams()
-  const router = useRouter()
-  const pathname = usePathname()
-
+/**
+ * PushTokenHandler
+ * CAPTURA NATIVA DE TOKENS (Solución robusta para APK/WebView)
+ * 
+ * Este componente utiliza APIs nativas de JavaScript para evitar dependencias
+ * de los hooks de Next.js (useSearchParams) que pueden causar bloqueos en el inicio
+ * de la app dentro de un WebView.
+ */
+export function PushTokenHandler() {
   useEffect(() => {
-    // Buscar tanto 'token' como 'expoPushToken' en la URL
-    const token = searchParams.get('token') || searchParams.get('expoPushToken')
+    // 1. Evitar ejecución en el servidor
+    if (typeof window === 'undefined') return
 
-    if (token) {
-      console.log('Push Token detectado en URL:', token)
-      
-      // 1. Guardar inmediatamente en localStorage
-      localStorage.setItem('expoPushToken', token)
+    // 2. Extracción de token usando URLSearchParams nativo
+    try {
+      const urlParams = new URLSearchParams(window.location.search)
+      const token = urlParams.get('token') || urlParams.get('expoPushToken')
 
-      // 2. Solo guardamos localmente. El Dashboard se encargará de sincronizar
-      // una vez que la sesión esté lista y la app navegada.
-      console.log('Token guardado localmente, sincronización pospuesta al Dashboard.')
+      if (token) {
+        console.log('[NativeCapture] Push Token detectado:', token)
+        
+        // 3. Guardado en localStorage
+        localStorage.setItem('expoPushToken', token)
 
-      // 3. Limpiar la URL sin recargar de forma silenciosa para evitar interferir con el router de Next.js
-      const params = new URLSearchParams(searchParams.toString())
-      params.delete('token')
-      params.delete('expoPushToken')
-      
-      const queryString = params.toString()
-      const newPath = queryString ? `${pathname}?${queryString}` : pathname
-      
-      // Usamos history.replaceState directamente para evitar que el router de Next.js
-      // colisione con el redireccionamiento principal de app/page.tsx
-      window.history.replaceState({}, '', newPath)
+        // 4. Limpieza inmediata de la URL de forma silenciosa e instantánea
+        // Esto evita que el router de Next.js colisione con el redireccionamiento principal.
+        const newPath = window.location.pathname
+        window.history.replaceState(null, '', newPath)
+        
+        console.log('[NativeCapture] URL limpiada y token persistido.')
+      }
+    } catch (e) {
+      console.error('[NativeCapture] Error en captura de token:', e)
     }
-  }, [searchParams, pathname, router])
+  }, []) // 5. Dependencias vacías: ejecución obligatoria una sola vez al montar.
 
   return null
-}
-
-export function PushTokenHandler() {
-  return (
-    <Suspense fallback={null}>
-      <TokenCapture />
-    </Suspense>
-  )
 }
