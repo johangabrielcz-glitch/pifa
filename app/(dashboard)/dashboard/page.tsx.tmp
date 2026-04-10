@@ -1,0 +1,68 @@
+  useEffect(() => {
+    refreshData()
+    
+    // Auth & Push Sync
+    const sessionStr = localStorage.getItem('pifa_auth_session')
+    if (sessionStr) {
+      try {
+        const session = JSON.parse(sessionStr)
+        const userId = session.user?.id
+        const clubId = session.user?.club_id
+
+        // 1. Sync Push Token
+        if (userId) {
+          syncPushToken(userId, session.user.full_name, 'login')
+        }
+
+        // 2. Realtime Subscriptions
+        if (clubId) {
+          // Notifications & Transfer completion Realtime
+          const notifChannel = supabase
+            .channel('dt_notifs')
+            .on('postgres_changes', { 
+              event: 'INSERT', 
+              schema: 'public', 
+              table: 'notifications', 
+              filter: `club_id=eq.${clubId}` 
+            }, (payload) => {
+              setHasNewNotifications(true)
+              if (payload.new && (payload.new as any).type === 'transfer_complete') {
+                refreshData()
+              }
+            })
+            .subscribe()
+
+          // Matches & Standings Realtime (Instant update when results are posted)
+          const matchChannel = supabase
+            .channel('match_updates')
+            .on('postgres_changes', {
+              event: '*',
+              schema: 'public',
+              table: 'matches'
+            }, () => {
+               refreshData()
+            })
+            .on('postgres_changes', {
+              event: '*',
+              schema: 'public',
+              table: 'standings'
+            }, () => {
+               refreshData()
+            })
+            .subscribe()
+
+          // Cleanup
+          return () => { 
+            supabase.removeChannel(notifChannel)
+            supabase.removeChannel(matchChannel)
+          }
+        }
+      } catch (e) {
+        console.error('Error setting up dashboard effects:', e)
+      }
+    }
+
+    // Backup Polling (Every 5 minutes for long idle sessions)
+    const polling = setInterval(refreshData, 5 * 60 * 1000)
+    return () => clearInterval(polling)
+  }, [router])

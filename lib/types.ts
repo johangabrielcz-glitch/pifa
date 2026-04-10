@@ -72,6 +72,11 @@ export interface Database {
         Insert: MarketHistoryInsert
         Update: Partial<MarketHistory>
       }
+      user_push_tokens: {
+        Row: UserPushToken
+        Insert: UserPushTokenInsert
+        Update: UserPushTokenUpdate
+      }
     }
   }
 }
@@ -580,4 +585,28 @@ export interface MatchAnnotationInsert {
   starting_xi?: string[]
   substitutes_in?: string[]
   updated_at?: string
+}
+
+// =============================================
+// PUSH NOTIFICATION TYPES
+// =============================================
+
+export interface UserPushToken {
+  user_id: string
+  expo_push_token: string
+  device_info: any | null
+  created_at: string
+}
+
+export interface UserPushTokenInsert {
+  user_id: string
+  expo_push_token: string
+  device_info?: any | null
+  created_at?: string
+}
+
+export interface UserPushTokenUpdate {
+  user_id?: string
+  expo_push_token?: string
+  device_info?: any | null
 }

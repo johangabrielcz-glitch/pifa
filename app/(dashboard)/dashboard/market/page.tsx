@@ -33,7 +33,9 @@ export default function MarketPage() {
   const [currentUserClub, setCurrentUserClub] = useState<Club | null>(null)
   const [selectedClub, setSelectedClub] = useState<Club | null>(null)
   const [historyPage, setHistoryPage] = useState(0)
+  const [rosterPage, setRosterPage] = useState(0)
   const itemsPerHistoryPage = 3
+  const itemsPerRosterPage = 4
   
   // Offer Modal State
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null)
@@ -434,6 +436,7 @@ export default function MarketPage() {
                           key={club.id}
                           onClick={() => {
                             setSelectedClub(club)
+                            setRosterPage(0)
                             setSearch('')
                           }}
                           className="group relative bg-[#141414] border border-[#202020] p-4 rounded-2xl text-left hover:border-[#00FF85]/30 transition-all duration-300 overflow-hidden"
@@ -478,39 +481,75 @@ export default function MarketPage() {
                     >
                       Volver a Clubes
                     </Button>
-                  </div>
+                                    {/* Player Roster for Selected Club */}
+                  <div className="space-y-4">
+                    {(() => {
+                      const filteredRoster = allPlayers.filter(p => p.club_id === selectedClub.id)
+                      const totalPages = Math.ceil(filteredRoster.length / itemsPerRosterPage)
+                      const currentPage = Math.min(rosterPage, totalPages - 1)
+                      const paginatedRoster = filteredRoster.slice(currentPage * itemsPerRosterPage, (currentPage + 1) * itemsPerRosterPage)
 
-                  {/* Player Roster for Selected Club */}
-                  <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-                    {allPlayers
-                      .filter(p => p.club_id === selectedClub.id)
-                      .map(player => {
-                        const myActiveOffer = myOffers.find(o => o.player_id === player.id && (o.status === 'pending' || o.status === 'countered'))
-                        
-                        return (
-                          <div key={player.id} className="relative group p-1">
-                            <UltimateCard player={player} showPrice={player.is_on_sale} />
-                            <div className="mt-3 px-1">
-                              {myActiveOffer ? (
-                                <Button 
-                                  className="w-full bg-red-500/10 border border-red-500/20 hover:bg-red-500 hover:text-white text-red-500 text-[8px] font-black uppercase tracking-widest h-8 transition-all duration-300 rounded-xl"
-                                  onClick={() => cancelMyOffer(myActiveOffer.id)}
-                                >
-                                  Anular Oferta
-                                </Button>
-                              ) : (
-                                <Button 
-                                  className="w-full bg-[#141414]/80 backdrop-blur-md border border-white/5 hover:bg-[#00FF85] hover:text-[#0A0A0A] text-[#00FF85] text-[8px] font-black uppercase tracking-widest h-8 transition-all duration-300 rounded-xl"
-                                  onClick={() => setSelectedPlayer(player)}
-                                >
-                                  Ofertar
-                                </Button>
-                              )}
-                            </div>
+                      return (
+                        <>
+                          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                            {paginatedRoster.map(player => {
+                              const myActiveOffer = myOffers.find(o => o.player_id === player.id && (o.status === 'pending' || o.status === 'countered'))
+                              
+                              return (
+                                <div key={player.id} className="relative group p-1">
+                                  <UltimateCard player={player} showPrice={player.is_on_sale} />
+                                  <div className="mt-3 px-1">
+                                    {myActiveOffer ? (
+                                      <Button 
+                                        className="w-full bg-red-500/10 border border-red-500/20 hover:bg-red-500 hover:text-white text-red-500 text-[8px] font-black uppercase tracking-widest h-8 transition-all duration-300 rounded-xl"
+                                        onClick={() => cancelMyOffer(myActiveOffer.id)}
+                                      >
+                                        Anular Oferta
+                                      </Button>
+                                    ) : (
+                                      <Button 
+                                        className="w-full bg-[#141414]/80 backdrop-blur-md border border-white/5 hover:bg-[#00FF85] hover:text-[#0A0A0A] text-[#00FF85] text-[8px] font-black uppercase tracking-widest h-8 transition-all duration-300 rounded-xl"
+                                        onClick={() => setSelectedPlayer(player)}
+                                      >
+                                        Ofertar
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            })}
                           </div>
-                        )
-                      })}
+
+                          {/* Roster Pagination Controls */}
+                          {totalPages > 1 && (
+                            <div className="flex items-center justify-between bg-[#141414] p-2 rounded-2xl border border-white/[0.03] mt-2">
+                              <button 
+                                onClick={() => setRosterPage(p => Math.max(0, p - 1))}
+                                disabled={currentPage === 0}
+                                className="p-3 bg-[#0A0A0A] rounded-xl border border-white/5 text-[#6A6C6E] hover:text-white disabled:opacity-20 transition-all active:scale-95"
+                              >
+                                <ArrowRight className="w-5 h-5 rotate-180" />
+                              </button>
+                              
+                              <div className="flex flex-col items-center">
+                                <span className="text-[11px] font-black text-[#00FF85] uppercase tracking-[0.2em]">Página {currentPage + 1} de {totalPages}</span>
+                                <span className="text-[8px] text-[#A0A2A4] font-bold uppercase mt-0.5">{filteredRoster.length} jugadores</span>
+                              </div>
+
+                              <button 
+                                onClick={() => setRosterPage(p => Math.min(totalPages - 1, p + 1))}
+                                disabled={currentPage === totalPages - 1}
+                                className="p-3 bg-[#0A0A0A] rounded-xl border border-white/5 text-[#6A6C6E] hover:text-white disabled:opacity-20 transition-all active:scale-95"
+                              >
+                                <ArrowRight className="w-5 h-5" />
+                              </button>
+                            </div>
+                          )}
+                        </>
+                      )
+                    })()}
                   </div>
+ </div>
                 </div>
               )}
             </div>

@@ -93,6 +93,9 @@ export default function DashboardPage() {
   const [isMatchDetailsOpen, setIsMatchDetailsOpen] = useState(false)
   const [selectedRounds, setSelectedRounds] = useState<Record<string, string>>({})
   const [calendarPage, setCalendarPage] = useState(0)
+  const [scorersPage, setScorersPage] = useState(0)
+  const [assistsPage, setAssistsPage] = useState(0)
+  const [mvpsPage, setMvpsPage] = useState(0)
 
   const refreshData = async () => {
     const stored = localStorage.getItem('pifa_auth_session')
@@ -254,66 +257,23 @@ export default function DashboardPage() {
       console.error('Error refreshing data:', e)
     } finally {
       setIsLoading(false)
+      console.log('Dashboard data loaded / loading state cleared.')
     }
   }
-
   useEffect(() => {
     refreshData()
+  }, [])
 
-    // Realtime subscriptions
-    const sessionStr = localStorage.getItem('pifa_auth_session')
-    if (sessionStr) {
-      const session = JSON.parse(sessionStr)
-      if (session.user?.club_id) {
-        const clubId = session.user.club_id
-
-        // 1. Notifications & Transfer completion Realtime
-        const notifChannel = supabase
-          .channel('dt_notifs')
-          .on('postgres_changes', { 
-            event: 'INSERT', 
-            schema: 'public', 
-            table: 'notifications', 
-            filter: `club_id=eq.${clubId}` 
-          }, (payload) => {
-            setHasNewNotifications(true)
-            if (payload.new && (payload.new as any).type === 'transfer_complete') {
-              refreshData()
-            }
-          })
-          .subscribe()
-
-        // 2. Matches & Standings Realtime (Instant update when results are posted)
-        const matchChannel = supabase
-          .channel('match_updates')
-          .on('postgres_changes', {
-            event: '*',
-            schema: 'public',
-            table: 'matches'
-          }, () => {
-             // We refresh for any change in matches (score update, status change, deadline resolution)
-             refreshData()
-          })
-          .on('postgres_changes', {
-            event: '*',
-            schema: 'public',
-            table: 'standings'
-          }, () => {
-             refreshData()
-          })
-          .subscribe()
-
-        // 3. Backup Polling (Every 5 minutes for long idle sessions)
-        const polling = setInterval(refreshData, 5 * 60 * 1000)
-        
-        return () => { 
-          supabase.removeChannel(notifChannel)
-          supabase.removeChannel(matchChannel)
-          clearInterval(polling)
-        }
+  // Failsafe for loading state
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (isLoading) {
+        console.warn('Dashboard loading timeout reached, forcing unlock.')
+        setIsLoading(false)
       }
-    }
-  }, [router])
+    }, 5000)
+    return () => clearTimeout(timer)
+  }, [isLoading])
 
   const handleLogout = async () => {
     if (user) {
@@ -1113,50 +1073,109 @@ export default function DashboardPage() {
 
                 const medals = ['🥇', '🥈', '🥉']
 
-                const renderRanking = (title: string, icon: React.ReactNode, list: typeof topScorers, valueKey: 'goals' | 'assists' | 'mvps', color: string) => (
-                  <div className="bg-card rounded-2xl border border-border overflow-hidden pifa-shadow animate-fade-in-up">
-                    <div className={`flex items-center gap-2 p-4 border-b border-border bg-gradient-to-r ${color}`}>
-                      {icon}
-                      <h3 className="text-sm font-bold text-foreground">{title}</h3>
-                      <span className="ml-auto text-[10px] text-muted-foreground font-medium">{list.length} jugadores</span>
-                    </div>
-                    {list.length === 0 ? (
-                      <div className="p-4 text-center text-xs text-muted-foreground">Sin datos</div>
-                    ) : (
-                      <div className="divide-y divide-border">
-                        {list.map((entry, i) => {
-                          const isMine = entry.player?.club_id === club?.id
-                          return (
-                            <div key={entry.player?.id} className={`flex items-center gap-3 px-4 py-2.5 ${isMine ? 'bg-primary/5' : ''}`}>
-                              <div className="w-6 text-center shrink-0">
-                                {i < 3 ? (
-                                  <span className="text-sm">{medals[i]}</span>
-                                ) : (
-                                  <span className="text-xs font-bold text-muted-foreground">{i + 1}</span>
-                                )}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className={`text-sm font-medium truncate ${isMine ? 'text-primary' : 'text-foreground'}`}>
-                                  {entry.player?.name}
-                                </p>
-                                <p className="text-[10px] text-muted-foreground">{entry.player?.position} · {entry.played} PJ</p>
-                              </div>
-                              <span className={`text-base font-bold ${isMine ? 'text-primary' : 'text-foreground'}`}>
-                                {entry[valueKey]}
-                              </span>
-                            </div>
-                          )
-                        })}
+                const renderRanking = (
+                  title: string, 
+                  icon: React.ReactNode, 
+                  list: typeof topScorers, 
+                  valueKey: 'goals' | 'assists' | 'mvps', 
+                  color: string, 
+                  currentPage: number, 
+                  onPageChange: (page: number) => void
+                ) => {
+                  const itemsPerPage = 5
+                  const totalPages = Math.ceil(list.length / itemsPerPage)
+                  const safeCurrentPage = Math.min(currentPage, Math.max(0, totalPages - 1))
+                  const pageItems = list.slice(safeCurrentPage * itemsPerPage, (safeCurrentPage + 1) * itemsPerPage)
+
+                  return (
+                    <div className="bg-[#141414] rounded-3xl border border-white/[0.05] overflow-hidden shadow-2xl animate-fade-in-up">
+                      <div className={`flex items-center justify-between p-5 border-b border-white/[0.05] bg-gradient-to-r ${color}`}>
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-black/40 border border-white/10 flex items-center justify-center shadow-inner">
+                            {icon}
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-black text-white uppercase tracking-tight">{title}</h3>
+                            <p className="text-[9px] text-white/40 font-bold uppercase tracking-widest leading-none mt-1">Ranking Global</p>
+                          </div>
+                        </div>
+                        
+                        {totalPages > 1 && (
+                          <div className="flex items-center gap-1.5 bg-black/30 p-1 rounded-lg border border-white/5">
+                            <button 
+                              onClick={() => onPageChange(Math.max(0, safeCurrentPage - 1))}
+                              disabled={safeCurrentPage === 0}
+                              className="p-1 text-white/40 hover:text-white disabled:opacity-20 transition-colors"
+                            >
+                              <ChevronDown className="w-4 h-4 rotate-90" />
+                            </button>
+                            <span className="text-[10px] font-black text-white/80 min-w-[30px] text-center">
+                              {safeCurrentPage + 1}/{totalPages}
+                            </span>
+                            <button 
+                              onClick={() => onPageChange(Math.min(totalPages - 1, safeCurrentPage + 1))}
+                              disabled={safeCurrentPage === totalPages - 1}
+                              className="p-1 text-white/40 hover:text-white disabled:opacity-20 transition-colors"
+                            >
+                              <ChevronDown className="w-4 h-4 -rotate-90" />
+                            </button>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                )
+
+                      {list.length === 0 ? (
+                        <div className="p-10 text-center">
+                          <p className="text-[10px] text-white/20 font-black uppercase tracking-[0.2em]">Sin datos disponibles</p>
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-white/[0.03]">
+                          {pageItems.map((entry, idx) => {
+                            const actualIndex = safeCurrentPage * itemsPerPage + idx
+                            const isMine = entry.player?.club_id === club?.id
+                            return (
+                              <div key={entry.player?.id} className={`flex items-center gap-4 px-5 py-4 transition-colors hover:bg-white/[0.02] ${isMine ? 'bg-[#00FF85]/5' : ''}`}>
+                                <div className="w-8 h-8 rounded-lg bg-black/40 border border-white/5 flex items-center justify-center shrink-0">
+                                  {actualIndex < 3 ? (
+                                    <span className="text-base">{medals[actualIndex]}</span>
+                                  ) : (
+                                    <span className="text-[10px] font-black text-white/30 uppercase">{actualIndex + 1}</span>
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <p className={`text-xs font-black uppercase tracking-tight truncate ${isMine ? 'text-[#00FF85]' : 'text-white/90'}`}>
+                                      {entry.player?.name}
+                                    </p>
+                                    {isMine && (
+                                      <span className="text-[7px] font-black bg-[#00FF85] text-[#0A0A0A] px-1.5 py-0.5 rounded-full uppercase tracking-tighter">Tu Club</span>
+                                    )}
+                                  </div>
+                                  <p className="text-[9px] text-white/40 font-bold uppercase tracking-widest mt-1">
+                                    {entry.player?.position} · {entry.played} Partidos Jugados
+                                  </p>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <span className={`text-lg font-black italic tracking-tighter ${isMine ? 'text-[#00FF85]' : 'text-white'}`}>
+                                    {entry[valueKey]}
+                                  </span>
+                                  <p className="text-[7px] text-white/20 font-black uppercase tracking-widest leading-none mt-0.5">
+                                    {valueKey === 'goals' ? 'Goles' : valueKey === 'assists' ? 'Asist.' : 'MVPs'}
+                                  </p>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )
+                }
 
                 return (
                   <div className="space-y-4">
-                    {renderRanking('Goleadores', <Goal className="w-4 h-4 text-emerald-400" />, topScorers, 'goals', 'from-emerald-500/5 to-transparent')}
-                    {renderRanking('Asistencias', <HandHelping className="w-4 h-4 text-blue-400" />, topAssists, 'assists', 'from-blue-500/5 to-transparent')}
-                    {renderRanking('MVPs', <Award className="w-4 h-4 text-amber-400" />, topMvps, 'mvps', 'from-amber-500/5 to-transparent')}
+                    {renderRanking('Goleadores', <Goal className="w-4 h-4 text-[#00FF85]" />, topScorers, 'goals', 'from-[#00FF85]/10 to-transparent', scorersPage, setScorersPage)}
+                    {renderRanking('Asistencias', <HandHelping className="w-4 h-4 text-blue-400" />, topAssists, 'assists', 'from-blue-500/10 to-transparent', assistsPage, setAssistsPage)}
+                    {renderRanking('Líderes MVP', <Award className="w-4 h-4 text-amber-400" />, topMvps, 'mvps', 'from-amber-500/10 to-transparent', mvpsPage, setMvpsPage)}
                   </div>
                 )
               })()}

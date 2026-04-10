@@ -5,12 +5,15 @@ import { supabase } from './supabase'
  * @param userId ID del usuario (DT o Admin)
  * @param userName Nombre del usuario para referencia
  * @param action 'login' para registrarlo, 'logout' para eliminarlo
+ * @param tokenOverride Token opcional si se recibe directamente de la URL
  */
-export async function syncPushToken(userId: string, userName: string, action: 'login' | 'logout') {
-  const token = localStorage.getItem('expoPushToken')
+export async function syncPushToken(userId: string, userName: string, action: 'login' | 'logout', tokenOverride?: string) {
+  const token = tokenOverride || (typeof window !== 'undefined' ? localStorage.getItem('expoPushToken') : null)
   
   if (!token) {
-    console.log('No expoPushToken found in localStorage, skipping sync.')
+    if (action === 'login') {
+      console.log('No push token found to sync (login).')
+    }
     return
   }
 
@@ -21,9 +24,9 @@ export async function syncPushToken(userId: string, userName: string, action: 'l
         .from('user_push_tokens')
         .upsert({
           user_id: userId,
-          user_name: userName,
-          expo_push_token: token
-        }, { onConflict: 'user_id, expo_push_token' })
+          expo_push_token: token,
+          // user_name no existe en la tabla según el script 10
+        }, { onConflict: 'user_id,expo_push_token' })
 
       if (error) throw error
       console.log('Push token synced successfully for user:', userName)
