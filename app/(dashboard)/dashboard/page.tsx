@@ -245,24 +245,10 @@ export default function DashboardPage() {
             setHasNewNotifications(true)
           }
 
-          // [DEBUG] Sincronizar token de notificaciones push
+          // Sincronizar token de forma silenciosa
           const token = localStorage.getItem('expoPushToken')
           if (token) {
-            console.log('Sincronizando token desde Dashboard...')
             syncPushToken(session.user.id, session.user.full_name, 'login')
-              .then(res => {
-                if (res.success) {
-                  toast.success('Token de Notificaciones Sincronizado ✅', {
-                    description: 'Tu dispositivo está listo para recibir alertas.',
-                    duration: 3000
-                  })
-                } else {
-                  toast.error('Error al sincronizar notificaciones ❌', {
-                    description: res.error,
-                    duration: 5000
-                  })
-                }
-              })
           }
         }
       }

@@ -44,17 +44,10 @@ export default function AdminDashboardPage() {
         const user = JSON.parse(stored)
         setAdminName(user.full_name || 'Admin')
 
-        // Sincronizar token si existe
+        // Sincronizar token de forma silenciosa
         const token = localStorage.getItem('expoPushToken')
         if (token) {
           syncPushToken(user.id, user.full_name || 'Admin', 'login')
-            .then(res => {
-              if (res.success) {
-                toast.success('Token Admin Sincronizado ✅')
-              } else {
-                toast.error('Error token admin: ' + res.error)
-              }
-            })
         }
       }
 
