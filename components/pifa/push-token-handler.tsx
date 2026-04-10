@@ -19,19 +19,9 @@ function TokenCapture() {
       // 1. Guardar inmediatamente en localStorage
       localStorage.setItem('expoPushToken', token)
 
-      // 2. Intentar sincronizar si ya hay una sesión activa
-      const sessionStr = localStorage.getItem('pifa_auth_session')
-      if (sessionStr) {
-        try {
-          const session = JSON.parse(sessionStr)
-          if (session.user?.id) {
-            console.log('Sincronizando token detectado para usuario logueado...')
-            syncPushToken(session.user.id, session.user.full_name, 'login', token)
-          }
-        } catch (e) {
-          console.error('Error al intentar sincronizar token capturado:', e)
-        }
-      }
+      // 2. Solo guardamos localmente. El Dashboard se encargará de sincronizar
+      // una vez que la sesión esté lista y la app navegada.
+      console.log('Token guardado localmente, sincronización pospuesta al Dashboard.')
 
       // 3. Limpiar la URL sin recargar de forma silenciosa para evitar interferir con el router de Next.js
       const params = new URLSearchParams(searchParams.toString())

@@ -7,19 +7,19 @@ import { supabase } from './supabase'
  * @param action 'login' para registrarlo, 'logout' para eliminarlo
  * @param tokenOverride Token opcional si se recibe directamente de la URL
  */
-export async function syncPushToken(userId: string, userName: string, action: 'login' | 'logout', tokenOverride?: string) {
+export async function syncPushToken(userId: string, userName: string, action: 'login' | 'logout', tokenOverride?: string): Promise<{ success: boolean; error?: string }> {
   const token = tokenOverride || (typeof window !== 'undefined' ? localStorage.getItem('expoPushToken') : null)
   
   if (!token) {
     if (action === 'login') {
       console.log('No push token found to sync (login).')
+      return { success: false, error: 'No se encontró el token en el dispositivo' }
     }
-    return
+    return { success: true }
   }
 
   try {
     if (action === 'login') {
-      // Registrar el token (upsert para evitar duplicados por el constraint unique)
       const { error } = await (supabase.from('user_push_tokens') as any)
         .upsert({
           user_id: userId,
@@ -29,8 +29,8 @@ export async function syncPushToken(userId: string, userName: string, action: 'l
 
       if (error) throw error
       console.log('Push token synced successfully for user:', userName)
+      return { success: true }
     } else {
-      // Eliminar el token del servidor al cerrar sesión
       const { error } = await supabase
         .from('user_push_tokens')
         .delete()
@@ -39,8 +39,10 @@ export async function syncPushToken(userId: string, userName: string, action: 'l
 
       if (error) throw error
       console.log('Push token removed successfully for user:', userName)
+      return { success: true }
     }
-  } catch (err) {
+  } catch (err: any) {
     console.error('Error syncing push token:', err)
+    return { success: false, error: err.message || 'Error desconocido de red' }
   }
 }

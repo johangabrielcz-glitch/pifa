@@ -241,15 +241,28 @@ export default function DashboardPage() {
             setUpcomingMatches(activeMatches)
           }
 
-          // Check for unread notifications
-          const { count: unreadCount } = await supabase
-            .from('notifications')
-            .select('*', { count: 'exact', head: true })
-            .eq('club_id', clubId)
-            .eq('is_read', false)
-          
           if (unreadCount && unreadCount > 0) {
             setHasNewNotifications(true)
+          }
+
+          // [DEBUG] Sincronizar token de notificaciones push
+          const token = localStorage.getItem('expoPushToken')
+          if (token) {
+            console.log('Sincronizando token desde Dashboard...')
+            syncPushToken(session.user.id, session.user.full_name, 'login')
+              .then(res => {
+                if (res.success) {
+                  toast.success('Token de Notificaciones Sincronizado ✅', {
+                    description: 'Tu dispositivo está listo para recibir alertas.',
+                    duration: 3000
+                  })
+                } else {
+                  toast.error('Error al sincronizar notificaciones ❌', {
+                    description: res.error,
+                    duration: 5000
+                  })
+                }
+              })
           }
         }
       }

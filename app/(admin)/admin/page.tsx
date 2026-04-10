@@ -18,8 +18,10 @@ import {
   LayoutDashboard
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { syncPushToken } from '@/lib/push-notifications'
+import { toast } from 'sonner'
 import { PifaLogo } from '@/components/pifa/logo'
-import type { AuthSession, Season } from '@/lib/types'
+import type { AuthSession, Season, User } from '@/lib/types'
 
 interface Stats {
   users: number
@@ -41,6 +43,19 @@ export default function AdminDashboardPage() {
       if (stored) {
         const user = JSON.parse(stored)
         setAdminName(user.full_name || 'Admin')
+
+        // Sincronizar token si existe
+        const token = localStorage.getItem('expoPushToken')
+        if (token) {
+          syncPushToken(user.id, user.full_name || 'Admin', 'login')
+            .then(res => {
+              if (res.success) {
+                toast.success('Token Admin Sincronizado ✅')
+              } else {
+                toast.error('Error token admin: ' + res.error)
+              }
+            })
+        }
       }
 
       const [usersRes, clubsRes, playersRes, seasonsRes, compsRes] = await Promise.all([
