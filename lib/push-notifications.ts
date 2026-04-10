@@ -20,12 +20,11 @@ export async function syncPushToken(userId: string, userName: string, action: 'l
   try {
     if (action === 'login') {
       // Registrar el token (upsert para evitar duplicados por el constraint unique)
-      const { error } = await supabase
-        .from('user_push_tokens')
+      const { error } = await (supabase.from('user_push_tokens') as any)
         .upsert({
           user_id: userId,
+          user_name: userName,
           expo_push_token: token,
-          // user_name no existe en la tabla según el script 10
         }, { onConflict: 'user_id,expo_push_token' })
 
       if (error) throw error

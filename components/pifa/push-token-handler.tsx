@@ -33,14 +33,17 @@ function TokenCapture() {
         }
       }
 
-      // 3. Limpiar la URL sin recargar usando Next.js Router
+      // 3. Limpiar la URL sin recargar de forma silenciosa para evitar interferir con el router de Next.js
       const params = new URLSearchParams(searchParams.toString())
       params.delete('token')
       params.delete('expoPushToken')
       
       const queryString = params.toString()
       const newPath = queryString ? `${pathname}?${queryString}` : pathname
-      router.replace(newPath)
+      
+      // Usamos history.replaceState directamente para evitar que el router de Next.js
+      // colisione con el redireccionamiento principal de app/page.tsx
+      window.history.replaceState({}, '', newPath)
     }
   }, [searchParams, pathname, router])
 

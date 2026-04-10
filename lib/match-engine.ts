@@ -58,18 +58,26 @@ export async function calculateMatchDeadlines(seasonId: string): Promise<void> {
     }
   }
 
-  // Build deadline map: for each competition, each matchday gets an incremental 24h slot
+  // Build deadline map: for each competition, each matchday+leg gets an incremental 24h slot
   // We use the GLOBAL order across all competitions so they share the timeline
-  // Collect all (competition_id, matchday) pairs in the order of earliest match_order
-  const matchdaySlots: { compId: string; matchday: number; firstOrder: number }[] = []
+  const matchdaySlots: { compId: string; matchday: number; leg: number; firstOrder: number }[] = []
 
-  for (const [compId, matchdays] of compMatchdays) {
-    for (const md of matchdays) {
-      const firstMatch = (allMatches as any[]).find(m => m.competition_id === compId && (m.matchday ?? 1) === md)
+  // Collect all unique combinations of (competition_id, matchday, leg)
+  for (const match of (allMatches as any[])) {
+    const md = match.matchday ?? 1
+    const leg = match.leg ?? 1
+    const compId = match.competition_id
+
+    const exists = matchdaySlots.find(
+      s => s.compId === compId && s.matchday === md && s.leg === leg
+    )
+
+    if (!exists) {
       matchdaySlots.push({
         compId,
         matchday: md,
-        firstOrder: firstMatch?.match_order ?? 0,
+        leg,
+        firstOrder: match.match_order ?? 0,
       })
     }
   }
@@ -77,7 +85,7 @@ export async function calculateMatchDeadlines(seasonId: string): Promise<void> {
   // Sort by first match_order so the global calendar sequence is respected
   matchdaySlots.sort((a, b) => a.firstOrder - b.firstOrder)
 
-  // Assign deadlines: slot 0 → +24h, slot 1 → +48h, etc.
+  // Assign deadlines: each slot gets its own 24h window
   const updates: { id: string; deadline: string }[] = []
 
   for (let slotIndex = 0; slotIndex < matchdaySlots.length; slotIndex++) {
@@ -85,9 +93,11 @@ export async function calculateMatchDeadlines(seasonId: string): Promise<void> {
     const deadlineMs = activatedAt.getTime() + (slotIndex + 1) * 24 * 60 * 60 * 1000
     const deadline = new Date(deadlineMs).toISOString()
 
-    // Find all matches in this competition+matchday
+    // Find all matches in this specific slot (competition + matchday + leg)
     const matchesInSlot = (allMatches as any[]).filter(
-      m => m.competition_id === slot.compId && (m.matchday ?? 1) === slot.matchday
+      m => m.competition_id === slot.compId && 
+           (m.matchday ?? 1) === slot.matchday &&
+           (m.leg ?? 1) === slot.leg
     )
 
     for (const match of matchesInSlot) {
@@ -97,9 +107,8 @@ export async function calculateMatchDeadlines(seasonId: string): Promise<void> {
 
   // Batch update deadlines
   for (const update of updates) {
-    await supabase
-      .from('matches')
-      .update({ deadline: update.deadline } as any)
+    await (supabase.from('matches') as any)
+      .update({ deadline: update.deadline })
       .eq('id', update.id)
   }
 }
@@ -164,7 +173,7 @@ export async function submitAnnotation(
 
     if (isKnockout) {
       const myGoals = goals.reduce((sum: number, g: GoalEntry) => sum + g.count, 0)
-      const opponentGoals = (opponentAnnotation.goals as GoalEntry[]).reduce(
+      const opponentGoals = ((opponentAnnotation as any).goals as GoalEntry[]).reduce(
         (sum: number, g: GoalEntry) => sum + g.count, 0
       )
 
@@ -236,7 +245,7 @@ export async function deleteAnnotation(matchId: string, clubId: string): Promise
     .eq('id', matchId)
     .single()
 
-  if (match?.status === 'finished') {
+  if (!match || (match as any).status === 'finished') {
     return { success: false, error: 'El partido ya está finalizado' }
   }
 
@@ -342,15 +351,14 @@ async function finalizeMatch(matchId: string): Promise<void> {
   const homeScore = ((homeAnnotation as any).goals || [] as GoalEntry[]).reduce((sum: number, g: GoalEntry) => sum + g.count, 0)
   const awayScore = ((awayAnnotation as any).goals || [] as GoalEntry[]).reduce((sum: number, g: GoalEntry) => sum + g.count, 0)
 
-  await supabase
-    .from('matches')
+  await (supabase.from('matches') as any)
     .update({
       status: 'finished',
       home_score: homeScore,
       away_score: awayScore,
       played_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-    } as any)
+    })
     .eq('id', matchId)
 
   const competition = match.competition as Competition
@@ -418,7 +426,7 @@ async function updateStandings(
       points: hs.points + (homeWon ? pointsWin : draw ? pointsDraw : pointsLoss),
       updated_at: new Date().toISOString(),
     }
-    await supabase.from('standings').update(updates as any).eq('id', hs.id)
+    await (supabase.from('standings') as any).update(updates).eq('id', hs.id)
   }
 
   // Update AWAY club standing
@@ -444,7 +452,7 @@ async function updateStandings(
       points: as.points + (awayWon ? pointsWin : draw ? pointsDraw : pointsLoss),
       updated_at: new Date().toISOString(),
     }
-    await supabase.from('standings').update(updates as any).eq('id', as.id)
+    await (supabase.from('standings') as any).update(updates).eq('id', as.id)
   }
 }
 
@@ -520,8 +528,7 @@ async function updatePlayerStats(annotations: MatchAnnotation[], competitionId: 
     if (existing) {
       const ex = existing as any
       // Update
-      await supabase
-        .from('player_competition_stats')
+      await (supabase.from('player_competition_stats') as any)
         .update({
           goals: (ex.goals || 0) + stats.goals,
           assists: (ex.assists || 0) + stats.assists,
@@ -584,7 +591,7 @@ async function advanceWinner(
         `and(home_club_id.eq.${match.home_club_id},away_club_id.eq.${match.away_club_id})`
       )
 
-    const leg1 = leg1Matches?.find((m: Match) => m.leg === 1 && m.match_order < match.match_order)
+    const leg1 = (leg1Matches as any[] | null)?.find((m: any) => m.leg === 1 && m.match_order < match.match_order)
     if (!leg1 || leg1.home_score === null || leg1.away_score === null) return
 
     // Calculate aggregates for each team
@@ -596,13 +603,13 @@ async function advanceWinner(
       // Standard: leg1 home played away in leg2
       teamAId = leg1.home_club_id
       teamBId = leg1.away_club_id
-      teamATotal = leg1.home_score + awayScore   // TeamA: home in leg1 + away in leg2
-      teamBTotal = leg1.away_score + homeScore    // TeamB: away in leg1 + home in leg2
+      teamATotal = (leg1.home_score as number) + awayScore   // TeamA: home in leg1 + away in leg2
+      teamBTotal = (leg1.away_score as number) + homeScore    // TeamB: away in leg1 + home in leg2
     } else {
       teamAId = leg1.home_club_id
       teamBId = leg1.away_club_id
-      teamATotal = leg1.home_score + homeScore
-      teamBTotal = leg1.away_score + awayScore
+      teamATotal = (leg1.home_score as number) + homeScore
+      teamBTotal = (leg1.away_score as number) + awayScore
     }
 
     winnerId = teamATotal > teamBTotal ? teamAId : teamBId
@@ -642,9 +649,8 @@ async function advanceWinner(
     if (nextAwayNull && nextAwayNull.length > 0) {
       // Fill away slot in the first available match
       const target = nextAwayNull[0] as any
-      await supabase
-        .from('matches')
-        .update({ away_club_id: winnerId, updated_at: new Date().toISOString() } as any)
+      await (supabase.from('matches') as any)
+        .update({ away_club_id: winnerId, updated_at: new Date().toISOString() })
         .eq('id', target.id)
 
       // If this is leg 1 of a two-leg round, update leg 2 as well (reversed)
@@ -659,9 +665,8 @@ async function advanceWinner(
           .limit(1)
 
         if (leg2Matches && leg2Matches.length > 0) {
-          await supabase
-            .from('matches')
-            .update({ home_club_id: winnerId, updated_at: new Date().toISOString() } as any)
+          await (supabase.from('matches') as any)
+            .update({ home_club_id: winnerId, updated_at: new Date().toISOString() })
             .eq('id', (leg2Matches[0] as any).id)
         }
       }
@@ -671,9 +676,8 @@ async function advanceWinner(
 
   // Fill home slot
   const target = nextRoundMatches[0] as any
-  await supabase
-    .from('matches')
-    .update({ home_club_id: winnerId, updated_at: new Date().toISOString() } as any)
+  await (supabase.from('matches') as any)
+    .update({ home_club_id: winnerId, updated_at: new Date().toISOString() })
     .eq('id', target.id)
 
   // If two legs, also update leg 2 (winner plays away in leg 2)
@@ -688,9 +692,8 @@ async function advanceWinner(
       .limit(1)
 
     if (leg2 && leg2.length > 0) {
-      await supabase
-        .from('matches')
-        .update({ away_club_id: winnerId, updated_at: new Date().toISOString() } as any)
+      await (supabase.from('matches') as any)
+        .update({ away_club_id: winnerId, updated_at: new Date().toISOString() })
         .eq('id', (leg2[0] as any).id)
     }
   }
@@ -836,8 +839,7 @@ export async function checkAndAutoResolveExpired(): Promise<number> {
     }
 
     // Update match
-    await supabase
-      .from('matches')
+    await (supabase.from('matches') as any)
       .update({
         status: 'finished',
         home_score: homeScore,
@@ -845,7 +847,7 @@ export async function checkAndAutoResolveExpired(): Promise<number> {
         played_at: new Date().toISOString(),
         notes: 'Auto-resuelto por expiración de plazo',
         updated_at: new Date().toISOString(),
-      } as any)
+      })
       .eq('id', match.id)
 
     // Update standings
