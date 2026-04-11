@@ -29,6 +29,7 @@ import { Bell, LayoutGrid } from 'lucide-react'
 import { MatchDetailsDrawer } from '@/components/pifa/match-details-drawer'
 import { PlayerManagementDialog } from '@/components/pifa/player-management-dialog'
 import MarketPage from './market/page'
+import { NewsTab } from '@/components/pifa/news-tab'
 import type { User, Club, Player, AuthSession, Competition, Match, Standing, PlayerCompetitionStats, MatchAnnotation, Season, Notification } from '@/lib/types'
 
 const positionColors: Record<string, string> = {
@@ -146,6 +147,19 @@ export default function DashboardPage() {
 
       if (session.user.club_id) {
         const clubId = session.user.club_id
+
+        // Background: Trigger auto-news if last gen was > 12h ago
+        const lastNewsGen = localStorage.getItem(`last_news_gen_${clubId}`)
+        const now = new Date().getTime()
+        if (!lastNewsGen || (now - parseInt(lastNewsGen)) > 1000 * 60 * 60 * 12) {
+          fetch('/api/news/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ clubId, isManual: false })
+          }).then(() => {
+            localStorage.setItem(`last_news_gen_${clubId}`, now.toString())
+          }).catch(() => {})
+        }
 
         // OPTIMIZACIÓN: Lanzar todas las consultas base en paralelo
         const [clubRes, playersRes, enrolledRes, nextMatchRes, allMatchesRes, unreadRes] = await Promise.all([
@@ -1390,6 +1404,11 @@ export default function DashboardPage() {
           {/* ======== TAB: MARKET ======== */}
           {activeTab === 'market' && (
             <MarketPage />
+          )}
+
+          {/* ======== TAB: NEWS ======== */}
+          {activeTab === 'news' && club && (
+            <NewsTab club={club} />
           )}
         </div>
       </div>

@@ -370,6 +370,17 @@ async function finalizeMatch(matchId: string): Promise<void> {
   if (isKnockout) {
     await advanceWinner(match as any, homeScore, awayScore, competition as any)
   }
+
+  // Trigger news generation after match is finalized
+  try {
+    fetch('/api/news/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ matchId: matchId, isMatchTrigger: true })
+    })
+  } catch (e) {
+    console.warn('Silent fail: Auto news generation failed after match')
+  }
 }
 
 // =============================================
