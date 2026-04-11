@@ -30,6 +30,7 @@ import { MatchDetailsDrawer } from '@/components/pifa/match-details-drawer'
 import { PlayerManagementDialog } from '@/components/pifa/player-management-dialog'
 import MarketPage from './market/page'
 import { NewsTab } from '@/components/pifa/news-tab'
+import { GlobalChat } from '@/components/pifa/global-chat'
 import type { User, Club, Player, AuthSession, Competition, Match, Standing, PlayerCompetitionStats, MatchAnnotation, Season, Notification } from '@/lib/types'
 
 const positionColors: Record<string, string> = {
@@ -424,8 +425,8 @@ export default function DashboardPage() {
       </header>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-y-auto pb-32">
-        <div className="px-4 py-5 space-y-6">
+      <div className={`flex-1 ${activeTab === 'chat' ? 'overflow-hidden' : 'overflow-y-auto pb-32'}`}>
+        <div className={activeTab === 'chat' ? 'h-full flex flex-col' : 'px-4 py-5 space-y-6'}>
 
           {/* ======== TAB: HOME ======== */}
           {activeTab === 'home' && (
@@ -1406,9 +1407,13 @@ export default function DashboardPage() {
             <MarketPage />
           )}
 
-          {/* ======== TAB: NEWS ======== */}
           {activeTab === 'news' && club && (
             <NewsTab club={club} />
+          )}
+
+          {/* ======== TAB: CHAT ======== */}
+          {activeTab === 'chat' && user?.role === 'user' && (
+            <GlobalChat user={user} club={club} />
           )}
         </div>
       </div>
