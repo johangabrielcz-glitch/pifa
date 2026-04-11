@@ -92,17 +92,17 @@ export function DtNavigation({ activeTab, onTabChange, hasMatch }: DtNavigationP
   const isMoreActive = moreTabs.some(t => t.id === activeTab)
 
   return (
-    <div className="z-[100] bg-[#0A0A0A]/95 backdrop-blur-md safe-area-bottom border-t border-[#141414] shadow-[0_-10px_30px_rgba(0,0,0,0.5)] shrink-0">
+    <div className="relative z-[100] bg-[#0A0A0A]/95 backdrop-blur-md safe-area-bottom border-t border-[#141414] shadow-[0_-10px_30px_rgba(0,0,0,0.5)] shrink-0">
       
       {/* "Más" Menu (Fly-out) */}
       <AnimatePresence>
         {isMoreOpen && (
           <motion.div 
             ref={menuRef}
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            initial={{ opacity: 0, y: 10, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="absolute bottom-20 right-4 w-40 bg-[#141414]/90 backdrop-blur-xl border border-white/5 rounded-3xl p-2 shadow-2xl flex flex-col gap-1 overflow-hidden"
+            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+            className="absolute bottom-full right-4 mb-4 w-44 bg-[#141414]/98 backdrop-blur-2xl border border-white/5 rounded-[2rem] p-2 shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex flex-col gap-1 overflow-hidden"
           >
             <div className="px-3 py-2 border-b border-white/5 mb-1">
               <span className="text-[7px] font-black text-white/20 uppercase tracking-[0.3em]">Opciones</span>
