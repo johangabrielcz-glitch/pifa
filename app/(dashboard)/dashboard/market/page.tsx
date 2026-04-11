@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Player, Club, MarketOffer, MarketHistory } from '@/lib/types'
 import { ShoppingCart, History, Search, Filter, DollarSign, ArrowRight, User as UserIcon, Shield } from 'lucide-react'
@@ -24,7 +24,8 @@ export default function MarketPage() {
   const [activeTab, setActiveTab] = useState<'buy' | 'history' | 'my-offers' | 'clubs'>('buy')
   const [playersOnSale, setPlayersOnSale] = useState<Player[]>([])
   const [allClubs, setAllClubs] = useState<Club[]>([])
-  const [allPlayers, setAllPlayers] = useState<Player[]>([])
+  const [selectedClubPlayers, setSelectedClubPlayers] = useState<Player[]>([])
+  const [globalSearchResults, setGlobalSearchResults] = useState<Player[]>([])
   const [history, setHistory] = useState<MarketHistory[]>([])
   const [myOffers, setMyOffers] = useState<MarketOffer[]>([])
   const [loading, setLoading] = useState(true)
@@ -52,56 +53,70 @@ export default function MarketPage() {
   async function fetchInitialData() {
     setLoading(true)
     
-    // 1. Get current user's club - FIX KEY
-    const sessionStr = localStorage.getItem('pifa_auth_session')
-    if (sessionStr) {
-      const session = JSON.parse(sessionStr)
-      setCurrentUserClub(session.club)
+    try {
+      const sessionStr = localStorage.getItem('pifa_auth_session')
+      const authSession = JSON.parse(sessionStr || '{}')
+      if (authSession.club) setCurrentUserClub(authSession.club)
+
+      // Lanzar todas las consultas iniciales en paralelo
+      const [psRes, clbsRes, histRes, offersRes] = await Promise.all([
+        supabase.from('players').select('*, club:clubs(*)').eq('is_on_sale', true).order('sale_price', { ascending: true }),
+        supabase.from('clubs').select('*, users(full_name)').order('name', { ascending: true }),
+        supabase.from('market_history').select('*, player:players(*), from_club:clubs!from_club_fk(*), to_club:clubs!to_club_fk(*)').order('created_at', { ascending: false }).limit(20),
+        authSession.club ? supabase.from('market_offers').select('*, player:players(*), seller_club:clubs!seller_club_fk(*)').eq('buyer_club_id', authSession.club.id).order('created_at', { ascending: false }) : Promise.resolve({ data: [] })
+      ])
+
+      if (psRes.data) setPlayersOnSale(psRes.data)
+      if (clbsRes.data) setAllClubs(clbsRes.data)
+      if (histRes.data) setHistory(histRes.data)
+      if (offersRes.data) setMyOffers(offersRes.data)
+
+    } catch (err) {
+      console.error('Error fetching market data:', err)
+    } finally {
+      setLoading(false)
     }
-
-    // 2. Fetch players on sale
-    const { data: ps } = await supabase
-      .from('players')
-      .select('*, club:clubs(*)')
-      .eq('is_on_sale', true)
-      .order('sale_price', { ascending: true })
-    if (ps) setPlayersOnSale(ps)
-
-    // 3. Fetch all clubs (excluding mine)
-    const { data: clbs } = await supabase
-      .from('clubs')
-      .select('*, users(full_name)')
-      .order('name', { ascending: true })
-    if (clbs) setAllClubs(clbs)
-
-    // 4. Fetch all players (for global search and dossiers)
-    const { data: allP } = await supabase
-      .from('players')
-      .select('*, club:clubs(*)')
-      .order('name', { ascending: true })
-    if (allP) setAllPlayers(allP)
-
-    // 5. Fetch History
-    const { data: hist } = await supabase
-      .from('market_history')
-      .select('*, player:players(*), from_club:clubs!from_club_fk(*), to_club:clubs!to_club_fk(*)')
-      .order('created_at', { ascending: false })
-      .limit(20)
-    if (hist) setHistory(hist)
-
-    // 6. Fetch my offers
-    const authSession = JSON.parse(localStorage.getItem('pifa_auth_session') || '{}')
-    if (authSession.club) {
-      const { data: off } = await supabase
-        .from('market_offers')
-        .select('*, player:players(*), seller_club:clubs!seller_club_fk(*)')
-        .eq('buyer_club_id', authSession.club.id)
-        .order('created_at', { ascending: false })
-      if (off) setMyOffers(off)
-    }
-
-    setLoading(false)
   }
+
+  // Carga bajo demanda de la plantilla de un club seleccionado
+  useEffect(() => {
+    async function fetchClubRoster() {
+      if (!selectedClub) {
+        setSelectedClubPlayers([])
+        return
+      }
+      
+      const { data } = await supabase
+        .from('players')
+        .select('*, club:clubs(*)')
+        .eq('club_id', selectedClub.id)
+        .order('name', { ascending: true })
+      
+      if (data) setSelectedClubPlayers(data)
+    }
+    fetchClubRoster()
+  }, [selectedClub])
+
+  // Búsqueda Global: Carga desde DB con Debounce (Optimizado)
+  useEffect(() => {
+    if (globalSearch.length < 2) {
+      setGlobalSearchResults([])
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      const { data } = await supabase
+        .from('players')
+        .select('*, club:clubs(*)')
+        .ilike('name', `%${globalSearch}%`)
+        .neq('club_id', currentUserClub?.id)
+        .limit(10)
+      
+      if (data) setGlobalSearchResults(data)
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [globalSearch, currentUserClub])
 
   async function handleBuyDirectly() {
     if (!playerToBuy || !currentUserClub) return
@@ -152,10 +167,12 @@ export default function MarketPage() {
     }
   }
 
-  const filteredPlayers = playersOnSale.filter(p => 
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    p.position.toLowerCase().includes(search.toLowerCase())
-  )
+  const filteredPlayers = useMemo(() => {
+    return playersOnSale.filter(p => 
+      p.name.toLowerCase().includes(search.toLowerCase()) ||
+      p.position.toLowerCase().includes(search.toLowerCase())
+    )
+  }, [playersOnSale, search])
 
   return (
     <div className="min-h-screen pb-20 pt-4 animate-fade-in">
@@ -236,14 +253,12 @@ export default function MarketPage() {
                   />
                   {globalSearch.length > 1 && (
                     <div className="absolute top-14 left-0 right-0 z-50 bg-[#141414] border border-[#202020] rounded-2xl p-2 shadow-2xl max-h-60 overflow-y-auto">
-                      {allPlayers
-                        .filter(p => 
-                          (p.name.toLowerCase().includes(globalSearch.toLowerCase()) || 
-                          p.club?.name.toLowerCase().includes(globalSearch.toLowerCase())) &&
-                          p.club_id !== currentUserClub?.id
-                        )
-                        .slice(0, 5)
-                        .map(p => {
+                      {globalSearchResults.length === 0 ? (
+                        <div className="p-4 text-center text-[10px] text-[#6A6C6E] uppercase font-bold tracking-widest">
+                          Sin coincidencias
+                        </div>
+                      ) : (
+                        globalSearchResults.map(p => {
                           const myActiveOffer = myOffers.find(o => o.player_id === p.id && (o.status === 'pending' || o.status === 'countered'))
                           
                           return (
@@ -280,10 +295,7 @@ export default function MarketPage() {
                             </button>
                           )
                         })
-                      }
-                      {allPlayers.filter(p => p.name.toLowerCase().includes(globalSearch.toLowerCase())).length === 0 && (
-                        <p className="text-[10px] text-[#6A6C6E] p-4 text-center">No se encontraron jugadores</p>
-                      ) }
+                      )}
                     </div>
                   )}
                 </div>
@@ -481,10 +493,12 @@ export default function MarketPage() {
                     >
                       Volver a Clubes
                     </Button>
-                                    {/* Player Roster for Selected Club */}
+                  </div>
+
+                  {/* Player Roster for Selected Club */}
                   <div className="space-y-4">
                     {(() => {
-                      const filteredRoster = allPlayers.filter(p => p.club_id === selectedClub.id)
+                      const filteredRoster = selectedClubPlayers
                       const totalPages = Math.ceil(filteredRoster.length / itemsPerRosterPage)
                       const currentPage = Math.min(rosterPage, totalPages - 1)
                       const paginatedRoster = filteredRoster.slice(currentPage * itemsPerRosterPage, (currentPage + 1) * itemsPerRosterPage)
@@ -497,7 +511,7 @@ export default function MarketPage() {
                               
                               return (
                                 <div key={player.id} className="relative group p-1">
-                                  <UltimateCard player={player} showPrice={player.is_on_sale} />
+                                  <UltimateCard player={player} showPrice={player.is_on_sale} hideStats={true} />
                                   <div className="mt-3 px-1">
                                     {myActiveOffer ? (
                                       <Button 
@@ -549,7 +563,6 @@ export default function MarketPage() {
                       )
                     })()}
                   </div>
- </div>
                 </div>
               )}
             </div>

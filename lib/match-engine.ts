@@ -38,25 +38,11 @@ export async function calculateMatchDeadlines(seasonId: string): Promise<void> {
   // Get all matches for these competitions ordered by match_order
   const { data: allMatches, error: matchesError } = await supabase
     .from('matches')
-    .select('id, competition_id, matchday, match_order')
+    .select('id, competition_id, matchday, match_order, leg')
     .in('competition_id', (competitions as any[]).map(c => c.id))
     .order('match_order', { ascending: true })
 
   if (matchesError || !allMatches || allMatches.length === 0) return
-
-  // Group by competition, then extract unique matchdays in order
-  const compMatchdays = new Map<string, number[]>()
-
-  for (const match of (allMatches as any[])) {
-    const md = match.matchday ?? 1
-    if (!compMatchdays.has(match.competition_id)) {
-      compMatchdays.set(match.competition_id, [])
-    }
-    const list = compMatchdays.get(match.competition_id)!
-    if (!list.includes(md)) {
-      list.push(md)
-    }
-  }
 
   // Build deadline map: for each competition, each matchday+leg gets an incremental 24h slot
   // We use the GLOBAL order across all competitions so they share the timeline
@@ -367,6 +353,11 @@ async function finalizeMatch(matchId: string): Promise<void> {
   const isGroupStage = match.group_name !== null
   if (competition.type === 'league' || (competition.type === 'groups_knockout' && isGroupStage)) {
     await updateStandings(match, homeScore, awayScore, competition)
+    
+    // Auto-advance from Groups to K.O. if all group matches done
+    if (competition.type === 'groups_knockout' && isGroupStage) {
+      await checkAndAdvanceGroupsToKnockout(match.competition_id)
+    }
   }
 
   // Update player stats
@@ -698,6 +689,117 @@ async function advanceWinner(
     }
   }
 }
+// =============================================
+// GROUP TO K.O. ADVANCEMENT
+// =============================================
+
+/**
+ * Checks if all group matches are done and advances top teams to K.O.
+ */
+async function checkAndAdvanceGroupsToKnockout(competitionId: string): Promise<void> {
+  const { data: competition } = await supabase
+    .from('competitions')
+    .select('*')
+    .eq('id', competitionId)
+    .single() as any
+
+  if (!competition || competition.type !== 'groups_knockout') return
+
+  // 1. Check if any group matches are still pending
+  const { count: pendingCount } = await supabase
+    .from('matches')
+    .select('*', { count: 'exact', head: true })
+    .eq('competition_id', competitionId)
+    .not('group_name', 'is', null)
+    .neq('status', 'finished')
+
+  if (pendingCount && pendingCount > 0) return
+
+  // 2. All group matches finished. Get standings.
+  const { data: standings } = await supabase
+    .from('standings')
+    .select('*')
+    .eq('competition_id', competitionId)
+    .order('group_name', { ascending: true })
+    .order('points', { ascending: false })
+    .order('goal_difference', { ascending: false })
+    .order('goals_for', { ascending: false })
+
+  if (!standings || standings.length === 0) return
+
+  const config = competition.config as GroupsKnockoutConfig
+  const qPerGroup = config.qualify_per_group || 2
+
+  // Group teams by group_name
+  const groups: Record<string, string[]> = {}
+  standings.forEach((s: any) => {
+    const g = s.group_name || 'A'
+    if (!groups[g]) groups[g] = []
+    if (groups[g].length < qPerGroup) {
+      groups[g].push(s.club_id)
+    }
+  })
+
+  // 3. Get the first round of K.O. matches (empty ones)
+  const { data: koMatches } = await supabase
+    .from('matches')
+    .select('*')
+    .eq('competition_id', competitionId)
+    .is('group_name', null)
+    .is('home_club_id', null)
+    .order('matchday', { ascending: true })
+    .order('match_order', { ascending: true })
+
+  if (!koMatches || koMatches.length === 0) return
+
+  const groupNames = Object.keys(groups).sort()
+  const numGroups = groupNames.length
+
+  // Standard cross-matching logic (1A vs 2B, 1B vs 2A, etc.)
+  let matchIndex = 0
+  const totalLegs = config.knockout_legs || 1
+
+  for (let i = 0; i < numGroups; i++) {
+    const groupA = groupNames[i]
+    if (qPerGroup === 1) {
+      if (i % 2 === 0 && i + 1 < numGroups) {
+        const groupB = groupNames[i+1]
+        await fillKOMatch(koMatches, matchIndex, groups[groupA][0], groups[groupB][0], totalLegs)
+        matchIndex++
+      }
+    } else if (qPerGroup === 2) {
+      if (i % 2 === 0 && i + 1 < numGroups) {
+        const groupB = groupNames[i+1]
+        await fillKOMatch(koMatches, matchIndex, groups[groupA][0], groups[groupB][1], totalLegs)
+        matchIndex++
+        await fillKOMatch(koMatches, matchIndex, groups[groupB][0], groups[groupA][1], totalLegs)
+        matchIndex++
+      }
+    } else {
+      const allQualifiers = groupNames.flatMap(gn => groups[gn])
+      for (let j = 0; j < allQualifiers.length; j += 2) {
+        if (j + 1 < allQualifiers.length) {
+          await fillKOMatch(koMatches, matchIndex, allQualifiers[j], allQualifiers[j+1], totalLegs)
+          matchIndex++
+        }
+      }
+      break 
+    }
+  }
+}
+
+async function fillKOMatch(koMatches: any[], matchIdx: number, homeId: string, awayId: string, totalLegs: number) {
+  if (totalLegs === 1) {
+    const m = koMatches[matchIdx]
+    if (!m) return
+    await (supabase.from('matches') as any).update({ home_club_id: homeId, away_club_id: awayId, updated_at: new Date().toISOString() }).eq('id', m.id)
+  } else {
+    const ida = koMatches[matchIdx * 2]
+    const vuelta = koMatches[matchIdx * 2 + 1]
+    if (ida) await (supabase.from('matches') as any).update({ home_club_id: homeId, away_club_id: awayId, updated_at: new Date().toISOString() }).eq('id', ida.id)
+    if (vuelta) await (supabase.from('matches') as any).update({ home_club_id: awayId, away_club_id: homeId, updated_at: new Date().toISOString() }).eq('id', vuelta.id)
+  }
+}
 
 // =============================================
 // EXPIRED MATCH AUTO-RESOLUTION
@@ -854,6 +956,11 @@ export async function checkAndAutoResolveExpired(): Promise<number> {
     const isGroupStage = match.group_name !== null
     if (competition.type === 'league' || (competition.type === 'groups_knockout' && isGroupStage)) {
       await updateStandings(match, homeScore, awayScore, competition)
+      
+      // Auto-advance from Groups to K.O. if all group matches done
+      if (competition.type === 'groups_knockout' && isGroupStage) {
+        await checkAndAdvanceGroupsToKnockout(match.competition_id)
+      }
     }
 
     // Update player stats

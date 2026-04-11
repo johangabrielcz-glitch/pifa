@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -97,6 +97,36 @@ export default function DashboardPage() {
   const [assistsPage, setAssistsPage] = useState(0)
   const [mvpsPage, setMvpsPage] = useState(0)
 
+  // Optimización de Estadísticas: Memoizar el cálculo de rankings en el nivel superior (Rules of Hooks)
+  const statsComps = useMemo(() => 
+    statsFilter === 'all' ? allTimeComps : allTimeComps.filter(c => c.id === statsFilter),
+  [statsFilter, allTimeComps])
+
+  const rankings = useMemo(() => {
+    const allStats = statsComps.flatMap(c => c.playerStats)
+    if (allStats.length === 0) return { scorers: [], assists: [], mvps: [] }
+
+    const playerMap = new Map<string, { player: Player; goals: number; assists: number; mvps: number; played: number }>()
+    for (const stat of allStats) {
+      if (!stat.player) continue
+      const existing = playerMap.get(stat.player_id) || {
+        player: stat.player,
+        goals: 0, assists: 0, mvps: 0, played: 0
+      }
+      existing.goals += stat.goals
+      existing.assists += stat.assists
+      existing.mvps += stat.mvp_count
+      existing.played += stat.matches_played
+      playerMap.set(stat.player_id, existing)
+    }
+
+    return {
+      scorers: [...playerMap.values()].filter(p => p.goals > 0).sort((a, b) => b.goals - a.goals).slice(0, 50),
+      assists: [...playerMap.values()].filter(p => p.assists > 0).sort((a, b) => b.assists - a.assists).slice(0, 50),
+      mvps: [...playerMap.values()].filter(p => p.mvps > 0).sort((a, b) => b.mvps - a.mvps).slice(0, 50)
+    }
+  }, [statsComps])
+
   const refreshData = async () => {
     const stored = localStorage.getItem('pifa_auth_session')
     if (!stored) {
@@ -117,68 +147,49 @@ export default function DashboardPage() {
       if (session.user.club_id) {
         const clubId = session.user.club_id
 
-        // Load club
-        const { data: clubData } = await supabase
-          .from('clubs')
-          .select('*')
-          .eq('id', clubId)
-          .single()
+        // OPTIMIZACIÓN: Lanzar todas las consultas base en paralelo
+        const [clubRes, playersRes, enrolledRes, nextMatchRes, allMatchesRes, unreadRes] = await Promise.all([
+          supabase.from('clubs').select('*').eq('id', clubId).single(),
+          supabase.from('players').select('*').eq('club_id', clubId).order('position', { ascending: true }).order('number', { ascending: true }),
+          supabase.from('competition_clubs').select('competition:competitions!inner(*, season:seasons!inner(*))').eq('club_id', clubId),
+          getNextMatchForClub(clubId),
+          supabase.from('matches').select('*, home_club:clubs!matches_home_club_id_fkey(*), away_club:clubs!matches_away_club_id_fkey(*), competition:competitions!inner(*, season:seasons!inner(*))').or(`home_club_id.eq.${clubId},away_club_id.eq.${clubId}`).order('match_order', { ascending: true }),
+          supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('club_id', clubId).eq('is_read', false)
+        ])
 
-        if (clubData) {
-          setClub(clubData as Club)
-
-          // Load players
-          const { data: playersData } = await supabase
-            .from('players')
-            .select('*')
-            .eq('club_id', clubId)
-            .order('position', { ascending: true })
-            .order('number', { ascending: true })
-
-          if (playersData) {
-            setPlayers(playersData as Player[])
+        if (clubRes.data) {
+          setClub(clubRes.data as Club)
+          if (playersRes.data) setPlayers(playersRes.data as Player[])
+          setMatchResult(nextMatchRes)
+          if (unreadRes.count && unreadRes.count > 0) setHasNewNotifications(true)
+          
+          if (allMatchesRes.data) {
+            const allMatchData = allMatchesRes.data as MatchWithDetails[]
+            setAllTimeMatches(allMatchData)
+            setUpcomingMatches(allMatchData.filter(m => m.competition?.season?.status === 'active'))
           }
 
-          // Load competitions
-          const { data: enrolledComps } = await supabase
-            .from('competition_clubs')
-            .select(`
-              competition:competitions!inner(
-                *,
-                season:seasons!inner(*)
-              )
-            `)
-            .eq('club_id', clubId)
+          const enrolledCompsData = enrolledRes.data
+          if (enrolledCompsData && enrolledCompsData.length > 0) {
+            const compIds = enrolledCompsData.map((ec: any) => ec.competition.id)
 
-          if (enrolledComps) {
+            // OPTIMIZACIÓN: Cargar todo el sub-detalle de las competencias en 3 queries globales
+            const [standingsRes, statsRes, compMatchesRes] = await Promise.all([
+              supabase.from('standings').select('*, club:clubs(*)').in('competition_id', compIds).order('points', { ascending: false }),
+              supabase.from('player_competition_stats').select('*, player:players(*)').in('competition_id', compIds),
+              supabase.from('matches').select('*, home_club:clubs!matches_home_club_id_fkey(*), away_club:clubs!matches_away_club_id_fkey(*)').in('competition_id', compIds).order('match_order', { ascending: true })
+            ])
+
             const activeComps: CompetitionFull[] = []
             const allTimeComps: CompetitionFull[] = []
 
-            for (const ec of enrolledComps as any[]) {
+            for (const ec of enrolledCompsData as any[]) {
               const comp = ec.competition
-              
-              const { data: standingsData } = await supabase
-                .from('standings')
-                .select('*, club:clubs(*)')
-                .eq('competition_id', comp.id)
-                .order('points', { ascending: false })
+              const compStandings = (standingsRes.data || []).filter((s: any) => s.competition_id === comp.id)
+              const compStats = (statsRes.data || []).filter((s: any) => s.competition_id === comp.id)
+              const compMatches = (compMatchesRes.data || []).filter((m: any) => m.competition_id === comp.id)
 
-              const { data: statsData } = await supabase
-                .from('player_competition_stats')
-                .select('*, player:players(*)')
-                .eq('competition_id', comp.id)
-
-              const { data: matchesData } = await supabase
-                .from('matches')
-                .select(`
-                  *,
-                  home_club:clubs!matches_home_club_id_fkey(*),
-                  away_club:clubs!matches_away_club_id_fkey(*)
-                `)
-                .eq('competition_id', comp.id)
-                .order('match_order', { ascending: true })
-
-              const sortedStandings = [...(standingsData || [])].sort((a: any, b: any) => {
+              const sortedStandings = [...compStandings].sort((a: any, b: any) => {
                 if (b.points !== a.points) return b.points - a.points
                 if (b.goal_difference !== a.goal_difference) return b.goal_difference - a.goal_difference
                 return b.goals_for - a.goals_for
@@ -189,63 +200,28 @@ export default function DashboardPage() {
 
               const compFull: CompetitionFull = {
                 ...comp,
-                standings: standingsData || [],
-                playerStats: statsData || [],
-                matches: (matchesData as any) || [],
+                standings: compStandings,
+                playerStats: compStats,
+                matches: compMatches as any[],
                 myPosition: myStandingIndex >= 0 ? myStandingIndex + 1 : undefined,
                 myPoints: (myStanding as any)?.points,
               }
 
-              if (comp.season?.status === 'active') {
-                activeComps.push(compFull)
-              }
+              if (comp.season?.status === 'active') activeComps.push(compFull)
               allTimeComps.push(compFull)
             }
 
             setCompetitions(activeComps)
             setAllTimeComps(allTimeComps)
             
-            if (activeComps.length > 0) {
+            if (activeComps.length > 0 && expandedCompetitions.size === 0) {
               setExpandedCompetitions(new Set([activeComps[0].id]))
             }
           }
 
-          // Auto-resolve expired matches
-          await checkAndAutoResolveExpired()
+          // Ejecución no bloqueante
+          checkAndAutoResolveExpired()
 
-          // Load next playable match
-          const result = await getNextMatchForClub(clubId)
-          setMatchResult(result)
-
-          // Load all matches
-          const { data: matchesData } = await supabase
-            .from('matches')
-            .select(`
-              *,
-              home_club:clubs!matches_home_club_id_fkey(*),
-              away_club:clubs!matches_away_club_id_fkey(*),
-              competition:competitions!inner(
-                *,
-                season:seasons!inner(*)
-              )
-            `)
-            .or(`home_club_id.eq.${clubId},away_club_id.eq.${clubId}`)
-            .order('match_order', { ascending: true })
-
-          if (matchesData) {
-            const allMatches = matchesData as MatchWithDetails[]
-            setAllTimeMatches(allMatches)
-
-            const activeMatches = (matchesData as (MatchWithDetails & { competition: Competition & { season: { status: string } } })[])
-              .filter(m => m.competition?.season?.status === 'active')
-            setUpcomingMatches(activeMatches)
-          }
-
-          if (unreadCount && unreadCount > 0) {
-            setHasNewNotifications(true)
-          }
-
-          // Sincronizar token de forma silenciosa
           const token = localStorage.getItem('expoPushToken')
           if (token) {
             syncPushToken(session.user.id, session.user.full_name, 'login')
@@ -354,9 +330,6 @@ export default function DashboardPage() {
   const winRate = totalMatches > 0 ? Math.round((clubWins / totalMatches) * 100) : 0
 
   const recentResults = upcomingMatches.filter(m => m.status === 'finished').slice(-5).reverse()
-
-  // Stats filtering
-  const statsComps = statsFilter === 'all' ? competitions : competitions.filter(c => c.id === statsFilter)
 
   if (isLoading) {
     return (
@@ -1041,41 +1014,12 @@ export default function DashboardPage() {
 
               {/* Stats sections */}
               {(() => {
-                const allStats = statsComps.flatMap(c => c.playerStats)
-                if (allStats.length === 0) {
-                  return (
-                    <div className="rounded-xl border border-[#202020] bg-[#141414] p-8 text-center">
-                      <BarChart3 className="w-8 h-8 text-[#6A6C6E]/50 mx-auto mb-2" />
-                      <p className="text-[#6A6C6E] text-xs font-bold uppercase tracking-wider">Sin estadísticas aún</p>
-                    </div>
-                  )
-                }
-
-                // Aggregate stats by player
-                const playerMap = new Map<string, { player: Player; goals: number; assists: number; mvps: number; played: number }>()
-                for (const stat of allStats) {
-                  if (!stat.player) continue
-                  const existing = playerMap.get(stat.player_id) || {
-                    player: stat.player,
-                    goals: 0, assists: 0, mvps: 0, played: 0
-                  }
-                  existing.goals += stat.goals
-                  existing.assists += stat.assists
-                  existing.mvps += stat.mvp_count
-                  existing.played += stat.matches_played
-                  playerMap.set(stat.player_id, existing)
-                }
-
-                const topScorers = [...playerMap.values()].filter(p => p.goals > 0).sort((a, b) => b.goals - a.goals).slice(0, 10)
-                const topAssists = [...playerMap.values()].filter(p => p.assists > 0).sort((a, b) => b.assists - a.assists).slice(0, 10)
-                const topMvps = [...playerMap.values()].filter(p => p.mvps > 0).sort((a, b) => b.mvps - a.mvps).slice(0, 10)
-
                 const medals = ['🥇', '🥈', '🥉']
 
                 const renderRanking = (
                   title: string, 
                   icon: React.ReactNode, 
-                  list: typeof topScorers, 
+                  list: any[], 
                   valueKey: 'goals' | 'assists' | 'mvps', 
                   color: string, 
                   currentPage: number, 
@@ -1088,14 +1032,14 @@ export default function DashboardPage() {
 
                   return (
                     <div className="bg-[#141414] rounded-3xl border border-white/[0.05] overflow-hidden shadow-2xl animate-fade-in-up">
-                      <div className={`flex items-center justify-between p-5 border-b border-white/[0.05] bg-gradient-to-r ${color}`}>
+                      <div className={`flex items-center justify-between p-4 border-b border-white/[0.05] bg-gradient-to-r ${color}`}>
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-black/40 border border-white/10 flex items-center justify-center shadow-inner">
+                          <div className="w-9 h-9 rounded-xl bg-black/40 border border-white/10 flex items-center justify-center shadow-inner">
                             {icon}
                           </div>
                           <div>
-                            <h3 className="text-sm font-black text-white uppercase tracking-tight">{title}</h3>
-                            <p className="text-[9px] text-white/40 font-bold uppercase tracking-widest leading-none mt-1">Ranking Global</p>
+                            <h3 className="text-xs font-black text-white uppercase tracking-tight">{title}</h3>
+                            <p className="text-[8px] text-white/40 font-bold uppercase tracking-widest leading-none mt-1">Ranking Global</p>
                           </div>
                         </div>
                         
@@ -1132,35 +1076,35 @@ export default function DashboardPage() {
                             const actualIndex = safeCurrentPage * itemsPerPage + idx
                             const isMine = entry.player?.club_id === club?.id
                             return (
-                              <div key={entry.player?.id} className={`flex items-center gap-4 px-5 py-4 transition-colors hover:bg-white/[0.02] ${isMine ? 'bg-[#00FF85]/5' : ''}`}>
-                                <div className="w-8 h-8 rounded-lg bg-black/40 border border-white/5 flex items-center justify-center shrink-0">
-                                  {actualIndex < 3 ? (
-                                    <span className="text-base">{medals[actualIndex]}</span>
-                                  ) : (
-                                    <span className="text-[10px] font-black text-white/30 uppercase">{actualIndex + 1}</span>
-                                  )}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <p className={`text-xs font-black uppercase tracking-tight truncate ${isMine ? 'text-[#00FF85]' : 'text-white/90'}`}>
-                                      {entry.player?.name}
-                                    </p>
-                                    {isMine && (
-                                      <span className="text-[7px] font-black bg-[#00FF85] text-[#0A0A0A] px-1.5 py-0.5 rounded-full uppercase tracking-tighter">Tu Club</span>
+                                <div key={entry.player?.id} className={`flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-white/[0.02] ${isMine ? 'bg-[#00FF85]/5' : ''}`}>
+                                  <div className="w-7 h-7 rounded-lg bg-black/40 border border-white/5 flex items-center justify-center shrink-0">
+                                    {actualIndex < 3 ? (
+                                      <span className="text-sm">{medals[actualIndex]}</span>
+                                    ) : (
+                                      <span className="text-[9px] font-black text-white/30 uppercase">{actualIndex + 1}</span>
                                     )}
                                   </div>
-                                  <p className="text-[9px] text-white/40 font-bold uppercase tracking-widest mt-1">
-                                    {entry.player?.position} · {entry.played} Partidos Jugados
-                                  </p>
-                                </div>
-                                <div className="text-right shrink-0">
-                                  <span className={`text-lg font-black italic tracking-tighter ${isMine ? 'text-[#00FF85]' : 'text-white'}`}>
-                                    {entry[valueKey]}
-                                  </span>
-                                  <p className="text-[7px] text-white/20 font-black uppercase tracking-widest leading-none mt-0.5">
-                                    {valueKey === 'goals' ? 'Goles' : valueKey === 'assists' ? 'Asist.' : 'MVPs'}
-                                  </p>
-                                </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <p className={`text-[11px] font-black uppercase tracking-tight truncate ${isMine ? 'text-[#00FF85]' : 'text-white/90'}`}>
+                                        {entry.player?.name}
+                                      </p>
+                                      {isMine && (
+                                        <span className="text-[6px] font-black bg-[#00FF85] text-[#0A0A0A] px-1 py-0.5 rounded-full uppercase tracking-tighter">Tu</span>
+                                      )}
+                                    </div>
+                                    <p className="text-[8px] text-white/30 font-bold uppercase tracking-widest mt-0.5">
+                                      {entry.player?.position} · {entry.played} PJ
+                                    </p>
+                                  </div>
+                                  <div className="text-right shrink-0">
+                                    <span className={`text-base font-black italic tracking-tighter ${isMine ? 'text-[#00FF85]' : 'text-white'}`}>
+                                      {entry[valueKey]}
+                                    </span>
+                                    <p className="text-[6px] text-white/20 font-black uppercase tracking-widest leading-none mt-0.5">
+                                      {valueKey === 'goals' ? 'Goles' : valueKey === 'assists' ? 'Asist.' : 'MVPs'}
+                                    </p>
+                                  </div>
                               </div>
                             )
                           })}
@@ -1170,11 +1114,20 @@ export default function DashboardPage() {
                   )
                 }
 
+                if (rankings.scorers.length === 0 && rankings.assists.length === 0 && rankings.mvps.length === 0) {
+                  return (
+                    <div className="rounded-xl border border-[#202020] bg-[#141414] p-8 text-center">
+                      <BarChart3 className="w-8 h-8 text-[#6A6C6E]/50 mx-auto mb-2" />
+                      <p className="text-[#6A6C6E] text-xs font-bold uppercase tracking-wider">Sin estadísticas aún</p>
+                    </div>
+                  )
+                }
+
                 return (
                   <div className="space-y-4">
-                    {renderRanking('Goleadores', <Goal className="w-4 h-4 text-[#00FF85]" />, topScorers, 'goals', 'from-[#00FF85]/10 to-transparent', scorersPage, setScorersPage)}
-                    {renderRanking('Asistencias', <HandHelping className="w-4 h-4 text-blue-400" />, topAssists, 'assists', 'from-blue-500/10 to-transparent', assistsPage, setAssistsPage)}
-                    {renderRanking('Líderes MVP', <Award className="w-4 h-4 text-amber-400" />, topMvps, 'mvps', 'from-amber-500/10 to-transparent', mvpsPage, setMvpsPage)}
+                    {renderRanking('Goleadores', <Goal className="w-4 h-4 text-[#00FF85]" />, rankings.scorers, 'goals', 'from-[#00FF85]/10 to-transparent', scorersPage, setScorersPage)}
+                    {renderRanking('Asistencias', <HandHelping className="w-4 h-4 text-blue-400" />, rankings.assists, 'assists', 'from-blue-500/10 to-transparent', assistsPage, setAssistsPage)}
+                    {renderRanking('Líderes MVP', <Award className="w-4 h-4 text-amber-400" />, rankings.mvps, 'mvps', 'from-amber-500/10 to-transparent', mvpsPage, setMvpsPage)}
                   </div>
                 )
               })()}

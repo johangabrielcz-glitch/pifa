@@ -23,9 +23,10 @@ interface UltimateCardProps {
   showPrice?: boolean
   onClick?: () => void
   color?: string
+  hideStats?: boolean
 }
 
-export function UltimateCard({ player, stats, showPrice = false, onClick, color = '#00FF85' }: UltimateCardProps) {
+export function UltimateCard({ player, stats, showPrice = false, onClick, color = '#00FF85', hideStats = false }: UltimateCardProps) {
   return (
     <div 
       className={`group relative w-full aspect-[2/3] max-w-[220px] mx-auto animate-fade-in-up ${onClick ? 'cursor-pointer' : ''}`}
@@ -91,22 +92,24 @@ export function UltimateCard({ player, stats, showPrice = false, onClick, color 
         </div>
 
         {/* Stats Grid - New Section */}
-        <div className="absolute bottom-8 left-0 right-0 px-4 z-20">
-          <div className="grid grid-cols-3 gap-1 bg-black/20 backdrop-blur-sm rounded-lg border border-white/5 p-1.5 transition-all group-hover:border-[#00FF85]/20">
-            <div className="flex flex-col items-center">
-              <span className="text-[7px] text-[#6A6C6E] font-black uppercase tracking-tighter">PJ</span>
-              <span className="text-[11px] text-white font-black leading-none">{stats?.matches || 0}</span>
-            </div>
-            <div className="flex flex-col items-center border-x border-white/5">
-              <span className="text-[7px] text-[#00FF85] font-black uppercase tracking-tighter">G</span>
-              <span className="text-[11px] text-white font-black leading-none">{stats?.goals || 0}</span>
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="text-[7px] text-blue-400 font-black uppercase tracking-tighter">A</span>
-              <span className="text-[11px] text-white font-black leading-none">{stats?.assists || 0}</span>
+        {!hideStats && (
+          <div className="absolute bottom-8 left-0 right-0 px-4 z-20">
+            <div className="grid grid-cols-3 gap-1 bg-black/20 backdrop-blur-sm rounded-lg border border-white/5 p-1.5 transition-all group-hover:border-[#00FF85]/20">
+              <div className="flex flex-col items-center">
+                <span className="text-[7px] text-[#6A6C6E] font-black uppercase tracking-tighter">PJ</span>
+                <span className="text-[11px] text-white font-black leading-none">{stats?.matches || 0}</span>
+              </div>
+              <div className="flex flex-col items-center border-x border-white/5">
+                <span className="text-[7px] text-[#00FF85] font-black uppercase tracking-tighter">G</span>
+                <span className="text-[11px] text-white font-black leading-none">{stats?.goals || 0}</span>
+              </div>
+              <div className="flex flex-col items-center">
+                <span className="text-[7px] text-blue-400 font-black uppercase tracking-tighter">A</span>
+                <span className="text-[11px] text-white font-black leading-none">{stats?.assists || 0}</span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Decorative corner accent */}
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-8 h-1 bg-[#00FF85]/20 rounded-full blur-sm" />
