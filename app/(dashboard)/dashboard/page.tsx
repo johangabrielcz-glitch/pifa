@@ -389,7 +389,7 @@ export default function DashboardPage() {
   const nextPlayableMatch = matchResult.match
 
   return (
-    <div className="min-h-dvh flex flex-col bg-[#0A0A0A] safe-area-top font-sans">
+    <div className="h-dvh flex flex-col bg-[#0A0A0A] safe-area-top font-sans overflow-hidden">
       {/* Header */}
       <header className="flex items-center justify-between px-5 py-4 shrink-0 bg-[#0A0A0A] border-b border-[#141414]">
         <div className="flex items-center gap-3">
@@ -425,12 +425,12 @@ export default function DashboardPage() {
       </header>
 
       {/* Main Content */}
-      <div className={`flex-1 ${activeTab === 'chat' ? 'overflow-hidden pb-16' : 'overflow-y-auto pb-32'}`}>
-        <div className={activeTab === 'chat' ? 'h-full flex flex-col' : 'px-4 py-5 space-y-6'}>
+      <div className="flex-1 overflow-hidden relative">
+        <div className="h-full w-full flex flex-col">
 
           {/* ======== TAB: HOME ======== */}
           {activeTab === 'home' && (
-            <div className="space-y-4" key="tab-home">
+            <div className="flex-1 overflow-y-auto px-4 py-5 space-y-6" key="tab-home">
 
               {/* Bento Grid: Club Profile */}
               <div className="rounded-2xl bg-[#141414] border border-[#202020] p-4 flex flex-col justify-center items-center gap-3 text-center shadow-2xl relative overflow-hidden group">
@@ -725,7 +725,7 @@ export default function DashboardPage() {
 
           {/* ======== TAB: COMPETITIONS ======== */}
           {activeTab === 'competitions' && (
-            <div className="space-y-4 animate-slide-in" key="tab-comp">
+            <div className="flex-1 overflow-y-auto px-4 py-5 space-y-6" key="tab-competitions">
               <h2 className="text-xs font-bold text-[#6A6C6E] uppercase tracking-widest flex items-center gap-2 mb-2">
                 <Trophy className="w-4 h-4 text-[#00FF85]" />
                 Competencias Activas
@@ -993,7 +993,7 @@ export default function DashboardPage() {
 
           {/* ======== TAB: STATS ======== */}
           {activeTab === 'stats' && (
-            <div className="space-y-4" key="tab-stats">
+            <div className="flex-1 overflow-y-auto px-4 py-5 space-y-6" key="tab-stats">
               <h2 className="text-[10px] font-bold text-[#6A6C6E] uppercase tracking-widest flex items-center gap-2">
                 Estadísticas de Jugadores
               </h2>
@@ -1151,8 +1151,7 @@ export default function DashboardPage() {
 
           {/* ======== TAB: CALENDAR ======== */}
           {activeTab === 'calendar' && (
-            <div className="space-y-4 animate-slide-in" key="tab-cal">
-
+            <div className="flex-1 overflow-y-auto px-4 py-5 space-y-6" key="tab-calendar">
               <div className="flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-[#00FF85]" />
                 <h2 className="text-xs font-bold text-[#6A6C6E] uppercase tracking-widest">Calendario</h2>
@@ -1303,7 +1302,7 @@ export default function DashboardPage() {
 
           {/* ======== TAB: SQUAD ======== */}
           {activeTab === 'squad' && (
-            <div className="space-y-5 animate-slide-in" key="tab-squad">
+            <div className="flex-1 overflow-y-auto px-4 py-5 space-y-6" key="tab-squad">
               <div className="flex items-center justify-between">
                 <h2 className="text-xs font-bold text-[#6A6C6E] uppercase tracking-widest flex items-center gap-2">
                   <Users className="w-4 h-4 text-[#00FF85]" />
@@ -1404,16 +1403,21 @@ export default function DashboardPage() {
 
           {/* ======== TAB: MARKET ======== */}
           {activeTab === 'market' && (
-            <MarketPage />
+            <div className="flex-1 overflow-y-auto" key="tab-market">
+              <MarketPage />
+            </div>
           )}
 
+          {/* ======== TAB: NEWS ======== */}
           {activeTab === 'news' && club && (
-            <NewsTab club={club} />
+            <div className="flex-1 overflow-y-auto px-4 py-5" key="tab-news">
+              <NewsTab club={club} />
+            </div>
           )}
 
           {/* ======== TAB: CHAT ======== */}
-          {activeTab === 'chat' && user?.role === 'user' && (
-            <GlobalChat user={user} club={club} />
+          {activeTab === 'chat' && (
+            <GlobalChat club={club} user={user} />
           )}
         </div>
       </div>

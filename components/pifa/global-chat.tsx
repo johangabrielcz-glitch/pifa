@@ -46,6 +46,7 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
   const [isAtBottom, setIsAtBottom] = useState(true)
 
   const scrollRef = useRef<HTMLDivElement>(null)
+  const isAtBottomRef = useRef(true)
 
   // -- LOGICA DE LECTURA (READ RECEIPTS) --
   
@@ -91,8 +92,10 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
   }, [])
 
   useEffect(() => {
+    let isMounted = true
     const init = async () => {
       const initial = await fetchMessagesPaginated()
+      if (!isMounted) return
       setMessages(initial)
       await fetchReadStatuses()
       setLoading(false)
@@ -106,8 +109,11 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
     }
 
     init()
+    return () => { isMounted = false }
+  }, [fetchMessagesPaginated, fetchReadStatuses, updateMyReadStatus])
 
-    // Suscripciones Realtime
+  // Suscripciones Realtime
+  useEffect(() => {
     const chatChannel = supabase
       .channel('chat-main')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'global_chat_messages' }, async (payload) => {
@@ -119,7 +125,7 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
 
         if (newMsg) {
           setMessages(prev => [...prev, newMsg])
-          if (!isAtBottom) {
+          if (!isAtBottomRef.current) {
             setNewMessagesCount(prev => prev + 1)
           } else {
             updateMyReadStatus(newMsg.id)
@@ -140,7 +146,7 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
       supabase.removeChannel(chatChannel)
       supabase.removeChannel(readChannel)
     }
-  }, [fetchMessagesPaginated, isAtBottom, fetchReadStatuses, updateMyReadStatus])
+  }, [fetchReadStatuses, updateMyReadStatus])
 
   // -- HANDLERS --
 
@@ -149,6 +155,7 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
     const { scrollTop, scrollHeight, clientHeight } = scrollRef.current
     const atBottom = scrollHeight - scrollTop - clientHeight < 100
     setIsAtBottom(atBottom)
+    isAtBottomRef.current = atBottom
     
     if (atBottom && newMessagesCount > 0) {
       setNewMessagesCount(0)

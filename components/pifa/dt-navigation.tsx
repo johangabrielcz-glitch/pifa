@@ -92,7 +92,7 @@ export function DtNavigation({ activeTab, onTabChange, hasMatch }: DtNavigationP
   const isMoreActive = moreTabs.some(t => t.id === activeTab)
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-[100] bg-[#0A0A0A]/95 backdrop-blur-md safe-area-bottom border-t border-[#141414] shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
+    <div className="z-[100] bg-[#0A0A0A]/95 backdrop-blur-md safe-area-bottom border-t border-[#141414] shadow-[0_-10px_30px_rgba(0,0,0,0.5)] shrink-0">
       
       {/* "Más" Menu (Fly-out) */}
       <AnimatePresence>
