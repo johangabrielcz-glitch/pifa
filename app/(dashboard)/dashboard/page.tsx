@@ -425,7 +425,7 @@ export default function DashboardPage() {
       </header>
 
       {/* Main Content */}
-      <div className={`flex-1 ${activeTab === 'chat' ? 'overflow-hidden' : 'overflow-y-auto pb-32'}`}>
+      <div className={`flex-1 ${activeTab === 'chat' ? 'overflow-hidden pb-16' : 'overflow-y-auto pb-32'}`}>
         <div className={activeTab === 'chat' ? 'h-full flex flex-col' : 'px-4 py-5 space-y-6'}>
 
           {/* ======== TAB: HOME ======== */}

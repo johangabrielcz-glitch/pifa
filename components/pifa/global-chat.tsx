@@ -364,8 +364,8 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
         )}
       </AnimatePresence>
 
-      {/* Input de Mensaje - Estilo Flotante con espacio para Navbar */}
-      <div className="px-6 pt-4 pb-[85px] z-30 bg-gradient-to-t from-[#0A0A0A] to-transparent">
+      {/* Input de Mensaje - Estilo Flotante */}
+      <div className="px-6 py-4 z-30 bg-[#0A0A0A] border-t border-white/5">
         <form onSubmit={sendMessage} className="relative flex items-center gap-3">
           <div className="flex-1 relative group">
             <div className="absolute -inset-1 bg-gradient-to-r from-[#00FF85]/0 via-[#00FF85]/20 to-[#00FF85]/0 rounded-2xl opacity-0 group-focus-within:opacity-100 transition-opacity blur-md" />
