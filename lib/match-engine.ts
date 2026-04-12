@@ -482,12 +482,7 @@ async function updateStandings(
 // =============================================
 
 async function updatePlayerStats(annotations: MatchAnnotation[], competitionId: string): Promise<void> {
-  console.log(`[updatePlayerStats] Processing ${annotations.length} annotations for competition ${competitionId}`)
-  
-  if (!annotations || annotations.length === 0) {
-    console.log(`[updatePlayerStats] No annotations to process`)
-    return
-  }
+  if (!annotations || annotations.length === 0) return
 
   // Aggregate all stats update for each player
   const playerStatsMap = new Map<string, {
@@ -540,8 +535,6 @@ async function updatePlayerStats(annotations: MatchAnnotation[], competitionId: 
     }
   }
 
-  console.log(`[updatePlayerStats] Collected stats for ${playerStatsMap.size} players`)
-
   // Apply updates to database
   for (const [playerId, stats] of playerStatsMap.entries()) {
     try {
@@ -552,10 +545,7 @@ async function updatePlayerStats(annotations: MatchAnnotation[], competitionId: 
         .eq('player_id', playerId)
         .maybeSingle();
 
-      if (fetchError) {
-        console.error(`[updatePlayerStats] Error fetching stats for player ${playerId}:`, fetchError)
-        continue;
-      }
+      if (fetchError) continue;
 
       const matchesInc = stats.played ? 1 : 0;
 
@@ -570,10 +560,6 @@ async function updatePlayerStats(annotations: MatchAnnotation[], competitionId: 
             updated_at: new Date().toISOString(),
           } as any)
           .eq('id', ex.id);
-        
-        if (updateError) {
-          console.error(`[updatePlayerStats] Error updating player ${playerId}:`, updateError)
-        }
       } else {
         const { error: insertError } = await supabase
           .from('player_competition_stats')
@@ -590,17 +576,11 @@ async function updatePlayerStats(annotations: MatchAnnotation[], competitionId: 
             minutes_played: 0,
             updated_at: new Date().toISOString(),
           } as any);
-        
-        if (insertError) {
-          console.error(`[updatePlayerStats] Error inserting player ${playerId}:`, insertError)
-        }
       }
-    } catch (err) {
-      console.error(`[updatePlayerStats] Exception for player ${playerId}:`, err)
+    } catch {
+      // Silently continue on errors
     }
   }
-  
-  console.log(`[updatePlayerStats] Completed`)
 }
 
 
@@ -619,12 +599,9 @@ async function advanceWinner(
 
   let winnerId: string | null = null
 
-  console.log(`[advanceWinner] Processing match ${match.id}, leg=${match.leg}, totalLegs=${totalLegs}, score=${homeScore}-${awayScore}`)
-
   if (totalLegs === 1) {
     // Single leg: higher score wins
     winnerId = homeScore > awayScore ? match.home_club_id : match.away_club_id
-    console.log(`[advanceWinner] Single leg - winner: ${winnerId}`)
   } else if (totalLegs === 2 && match.leg === 2) {
     // Two legs, this is leg 2: check aggregate
     // Find leg 1
@@ -640,10 +617,7 @@ async function advanceWinner(
       )
 
     const leg1 = (leg1Matches as any[] | null)?.find((m: any) => m.leg === 1 && m.match_order < match.match_order)
-    if (!leg1 || leg1.home_score === null || leg1.away_score === null) {
-      console.log(`[advanceWinner] Leg 1 not found or incomplete for match ${match.id}`)
-      return
-    }
+    if (!leg1 || leg1.home_score === null || leg1.away_score === null) return
 
     // Calculate aggregates for each team
     let teamATotal: number, teamBTotal: number
@@ -662,83 +636,101 @@ async function advanceWinner(
     }
 
     winnerId = teamATotal > teamBTotal ? teamAId : teamBId
-    console.log(`[advanceWinner] Two legs aggregate - TeamA(${teamAId}): ${teamATotal}, TeamB(${teamBId}): ${teamBTotal}, winner: ${winnerId}`)
   } else {
     // Two legs but this is leg 1: don't advance yet
-    console.log(`[advanceWinner] Leg 1 of 2 - not advancing yet`)
     return
   }
 
   if (!winnerId) {
-    console.log(`[advanceWinner] No winner determined`)
     return
   }
 
   // Find next round TBD match to assign the winner
+  // K.O. bracket logic: winner of match N in round R goes to match floor(N/2) in round R+1
   const currentMatchday = match.matchday ?? 1
-  console.log(`[advanceWinner] Looking for next round matches after matchday ${currentMatchday}`)
 
-  // Get ALL next round matches to find available slots
-  const { data: allNextRoundMatches } = await supabase
+  // Get all matches in current round (same matchday, leg 1 only for counting)
+  const { data: currentRoundMatches } = await supabase
     .from('matches')
     .select('*')
     .eq('competition_id', match.competition_id)
-    .gt('matchday', currentMatchday)
-    .order('matchday', { ascending: true })
+    .eq('matchday', currentMatchday)
+    .eq('leg', 1)
     .order('match_order', { ascending: true })
 
-  if (!allNextRoundMatches || allNextRoundMatches.length === 0) {
-    console.log(`[advanceWinner] No next round matches found - this was the final`)
+  if (!currentRoundMatches) return
+
+  // Find the index of our match in the current round
+  const matchIndex = (currentRoundMatches as any[]).findIndex(m => m.id === match.id)
+  if (matchIndex === -1) return
+
+  // Calculate target match index in next round: floor(matchIndex / 2)
+  const nextMatchIndex = Math.floor(matchIndex / 2)
+  // Determine if this winner goes to home (even index) or away (odd index) slot
+  const goesToHome = matchIndex % 2 === 0
+
+  // Get next round matches (leg 1 only to identify the match)
+  const { data: nextRoundLeg1 } = await supabase
+    .from('matches')
+    .select('*')
+    .eq('competition_id', match.competition_id)
+    .eq('matchday', currentMatchday + 1)
+    .eq('leg', 1)
+    .order('match_order', { ascending: true })
+
+  if (!nextRoundLeg1 || nextRoundLeg1.length === 0) {
+    // This was the final - no next round
     return
   }
 
-  console.log(`[advanceWinner] Found ${allNextRoundMatches.length} potential next round matches`)
+  const targetMatch = (nextRoundLeg1 as any[])[nextMatchIndex]
+  if (!targetMatch) return
 
-  // Find first match with an empty home slot
-  let targetMatch = (allNextRoundMatches as any[]).find(m => m.home_club_id === null)
-  
-  if (targetMatch) {
-    console.log(`[advanceWinner] Filling home slot in match ${targetMatch.id}`)
+  if (goesToHome) {
+    // Update home slot in leg 1
     await (supabase.from('matches') as any)
       .update({ home_club_id: winnerId, updated_at: new Date().toISOString() })
       .eq('id', targetMatch.id)
 
-    // If two legs, also update leg 2 (winner plays away in leg 2)
+    // If two legs, also update away slot in leg 2 (reversed home/away)
     if (totalLegs === 2) {
-      const leg2Match = (allNextRoundMatches as any[]).find(
-        m => m.matchday === targetMatch.matchday && m.leg === 2 && m.away_club_id === null
-      )
-      if (leg2Match) {
-        console.log(`[advanceWinner] Also filling away slot in leg 2 match ${leg2Match.id}`)
+      const { data: leg2Matches } = await supabase
+        .from('matches')
+        .select('*')
+        .eq('competition_id', match.competition_id)
+        .eq('matchday', currentMatchday + 1)
+        .eq('leg', 2)
+        .order('match_order', { ascending: true })
+      
+      const leg2Target = (leg2Matches as any[] | null)?.[nextMatchIndex]
+      if (leg2Target) {
         await (supabase.from('matches') as any)
           .update({ away_club_id: winnerId, updated_at: new Date().toISOString() })
-          .eq('id', leg2Match.id)
+          .eq('id', leg2Target.id)
       }
     }
   } else {
-    // No empty home slots, check for empty away slots
-    targetMatch = (allNextRoundMatches as any[]).find(m => m.away_club_id === null)
-    
-    if (targetMatch) {
-      console.log(`[advanceWinner] Filling away slot in match ${targetMatch.id}`)
-      await (supabase.from('matches') as any)
-        .update({ away_club_id: winnerId, updated_at: new Date().toISOString() })
-        .eq('id', targetMatch.id)
+    // Update away slot in leg 1
+    await (supabase.from('matches') as any)
+      .update({ away_club_id: winnerId, updated_at: new Date().toISOString() })
+      .eq('id', targetMatch.id)
 
-      // If two legs, also update leg 2 (winner plays home in leg 2)
-      if (totalLegs === 2) {
-        const leg2Match = (allNextRoundMatches as any[]).find(
-          m => m.matchday === targetMatch.matchday && m.leg === 2 && m.home_club_id === null
-        )
-        if (leg2Match) {
-          console.log(`[advanceWinner] Also filling home slot in leg 2 match ${leg2Match.id}`)
-          await (supabase.from('matches') as any)
-            .update({ home_club_id: winnerId, updated_at: new Date().toISOString() })
-            .eq('id', leg2Match.id)
-        }
+    // If two legs, also update home slot in leg 2 (reversed home/away)
+    if (totalLegs === 2) {
+      const { data: leg2Matches } = await supabase
+        .from('matches')
+        .select('*')
+        .eq('competition_id', match.competition_id)
+        .eq('matchday', currentMatchday + 1)
+        .eq('leg', 2)
+        .order('match_order', { ascending: true })
+      
+      const leg2Target = (leg2Matches as any[] | null)?.[nextMatchIndex]
+      if (leg2Target) {
+        await (supabase.from('matches') as any)
+          .update({ home_club_id: winnerId, updated_at: new Date().toISOString() })
+          .eq('id', leg2Target.id)
       }
-    } else {
-      console.log(`[advanceWinner] No empty slots found in next round matches`)
     }
   }
 }
@@ -889,8 +881,6 @@ export async function checkAndAutoResolveExpired(): Promise<number> {
 
   if (!expiredMatches || expiredMatches.length === 0) return 0
 
-  console.log(`[checkAndAutoResolveExpired] Found ${expiredMatches.length} expired matches to process`)
-
   // 2. Pre-fetch all annotations for these matches in one query
   const matchIds = expiredMatches.map(m => m.id)
   const { data: allAnnotations } = await supabase
@@ -1021,19 +1011,17 @@ export async function checkAndAutoResolveExpired(): Promise<number> {
         }
       }
 
-      // Update match status
+      // Update match status - use notes field to track processing state
       await (supabase.from('matches') as any)
         .update({
           status: 'finished',
           home_score: homeScore,
           away_score: awayScore,
           played_at: new Date().toISOString(),
-          notes: 'Auto-resuelto por expiración de plazo',
+          notes: '[AUTO-RESOLVED][STATS-PENDING]',
           updated_at: new Date().toISOString(),
         })
         .eq('id', match.id)
-
-      console.log(`[checkAndAutoResolveExpired] Match ${match.id} resolved: ${homeScore}-${awayScore}`)
 
       // Update standings
       const isGroupStage = match.group_name !== null
@@ -1054,10 +1042,14 @@ export async function checkAndAutoResolveExpired(): Promise<number> {
       if (finalAnnotations && finalAnnotations.length > 0) {
         await updatePlayerStats(finalAnnotations as MatchAnnotation[], match.competition_id)
       }
+      
+      // Mark stats as processed
+      await (supabase.from('matches') as any)
+        .update({ notes: '[AUTO-RESOLVED][STATS-DONE]' })
+        .eq('id', match.id)
 
       // K.O. advancement
       if (isKnockout) {
-        console.log(`[checkAndAutoResolveExpired] Advancing winner for K.O. match ${match.id}`)
         await advanceWinner(match, homeScore, awayScore, competition)
       }
 
@@ -1068,7 +1060,6 @@ export async function checkAndAutoResolveExpired(): Promise<number> {
     }
   }
 
-  console.log(`[checkAndAutoResolveExpired] Resolved ${resolved} matches`)
   return resolved
 }
 
