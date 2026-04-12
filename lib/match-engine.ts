@@ -372,7 +372,7 @@ async function finalizeMatch(matchId: string): Promise<void> {
   }
 
   // Update player stats
-  await updatePlayerStats(annotations as MatchAnnotation[], (match as any).competition_id)
+  await updatePlayerStats(annotations as MatchAnnotation[], (match as any).competition_id, (match as any).id)
 
   // For K.O. matches: advance winner to next round
   const isKnockout = competition.type === 'cup' ||
@@ -481,8 +481,22 @@ async function updateStandings(
 // PLAYER STATS UPDATE
 // =============================================
 
-async function updatePlayerStats(annotations: MatchAnnotation[], competitionId: string): Promise<void> {
+async function updatePlayerStats(annotations: MatchAnnotation[], competitionId: string, matchId?: string): Promise<void> {
   if (!annotations || annotations.length === 0) return
+
+  // Check if stats for this match were already processed (idempotency check)
+  if (matchId) {
+    const { data: matchData } = await supabase
+      .from('matches')
+      .select('notes')
+      .eq('id', matchId)
+      .single()
+    
+    // If already marked as STATS-DONE, skip
+    if (matchData?.notes?.includes('[STATS-DONE]')) {
+      return
+    }
+  }
 
   // Aggregate all stats update for each player
   const playerStatsMap = new Map<string, {
@@ -649,31 +663,32 @@ async function advanceWinner(
   // K.O. bracket logic: winner of match N in round R goes to match floor(N/2) in round R+1
   const currentMatchday = match.matchday ?? 1
 
-  // Get all matches in current round (same matchday)
-  // For single leg: use leg=1 or no leg filter
-  // For two legs: use leg=1 for counting purposes
-  const legFilter = totalLegs === 1 ? match.leg : 1
-  
-  const { data: currentRoundMatches } = await supabase
+  // Get all leg 1 matches in current round to determine bracket position
+  // We always use leg 1 for indexing, even when processing leg 2
+  const { data: currentRoundLeg1Matches } = await supabase
     .from('matches')
     .select('*')
     .eq('competition_id', match.competition_id)
     .eq('matchday', currentMatchday)
-    .eq('leg', legFilter)
+    .eq('leg', 1)
     .order('match_order', { ascending: true })
 
-  if (!currentRoundMatches || currentRoundMatches.length === 0) {
-    console.log(`[v0] advanceWinner: No matches found for matchday ${currentMatchday}, leg ${legFilter}`)
-    return
-  }
+  if (!currentRoundLeg1Matches || currentRoundLeg1Matches.length === 0) return
 
-  // Find the index of our match in the current round
-  const matchIndex = (currentRoundMatches as any[]).findIndex(m => m.id === match.id)
-  if (matchIndex === -1) {
-    console.log(`[v0] advanceWinner: Match ${match.id} not found in currentRoundMatches. Matches found:`, 
-      (currentRoundMatches as any[]).map(m => ({ id: m.id, leg: m.leg, match_order: m.match_order })))
-    return
+  // Find the index based on the same teams (works for both leg 1 and leg 2)
+  // For leg 2, find the leg 1 match with the same teams
+  let matchIndex = -1
+  if (totalLegs === 1) {
+    matchIndex = (currentRoundLeg1Matches as any[]).findIndex(m => m.id === match.id)
+  } else {
+    // For two-leg ties, find the leg 1 match with same teams
+    matchIndex = (currentRoundLeg1Matches as any[]).findIndex(m => 
+      (m.home_club_id === match.home_club_id && m.away_club_id === match.away_club_id) ||
+      (m.home_club_id === match.away_club_id && m.away_club_id === match.home_club_id)
+    )
   }
+  
+  if (matchIndex === -1) return
 
   // Calculate target match index in next round: floor(matchIndex / 2)
   const nextMatchIndex = Math.floor(matchIndex / 2)
@@ -691,30 +706,16 @@ async function advanceWinner(
     .eq('leg', totalLegs === 1 ? match.leg : 1)
     .order('match_order', { ascending: true })
 
-  if (!nextRoundMatches || nextRoundMatches.length === 0) {
-    console.log(`[v0] advanceWinner: No next round matches found for matchday ${currentMatchday + 1}`)
-    return
-  }
-
-  console.log(`[v0] advanceWinner: Found ${nextRoundMatches.length} next round matches. Winner ${winnerId} (index ${matchIndex}) goes to slot ${nextMatchIndex}, home: ${goesToHome}`)
+  if (!nextRoundMatches || nextRoundMatches.length === 0) return
 
   const targetMatch = (nextRoundMatches as any[])[nextMatchIndex]
-  if (!targetMatch) {
-    console.log(`[v0] advanceWinner: Target match at index ${nextMatchIndex} not found`)
-    return
-  }
+  if (!targetMatch) return
 
   if (goesToHome) {
     // Update home slot in leg 1
-    const { error: updateError } = await (supabase.from('matches') as any)
+    await (supabase.from('matches') as any)
       .update({ home_club_id: winnerId, updated_at: new Date().toISOString() })
       .eq('id', targetMatch.id)
-    
-    if (updateError) {
-      console.log(`[v0] advanceWinner: Error updating home slot:`, updateError)
-    } else {
-      console.log(`[v0] advanceWinner: Updated home_club_id to ${winnerId} in match ${targetMatch.id}`)
-    }
 
     // If two legs, also update away slot in leg 2 (reversed home/away)
     if (totalLegs === 2) {
@@ -735,15 +736,9 @@ async function advanceWinner(
     }
   } else {
     // Update away slot in leg 1
-    const { error: updateError } = await (supabase.from('matches') as any)
+    await (supabase.from('matches') as any)
       .update({ away_club_id: winnerId, updated_at: new Date().toISOString() })
       .eq('id', targetMatch.id)
-    
-    if (updateError) {
-      console.log(`[v0] advanceWinner: Error updating away slot:`, updateError)
-    } else {
-      console.log(`[v0] advanceWinner: Updated away_club_id to ${winnerId} in match ${targetMatch.id}`)
-    }
 
     // If two legs, also update home slot in leg 2 (reversed home/away)
     if (totalLegs === 2) {
@@ -1111,13 +1106,13 @@ export async function checkAndAutoResolveExpired(): Promise<number> {
         .eq('match_id', match.id)
 
       if (finalAnnotations && finalAnnotations.length > 0) {
-        await updatePlayerStats(finalAnnotations as MatchAnnotation[], match.competition_id)
+        await updatePlayerStats(finalAnnotations as MatchAnnotation[], match.competition_id, match.id)
+        
+        // Mark stats as processed
+        await (supabase.from('matches') as any)
+          .update({ notes: '[AUTO-RESOLVED][STATS-DONE]' })
+          .eq('id', match.id)
       }
-      
-      // Mark stats as processed
-      await (supabase.from('matches') as any)
-        .update({ notes: '[AUTO-RESOLVED][STATS-DONE]' })
-        .eq('id', match.id)
 
       // K.O. advancement
       if (isKnockout) {
