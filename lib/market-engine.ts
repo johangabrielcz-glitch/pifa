@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import { MarketOffer, Notification, Player, Club } from './types'
+import { sendPushToClub } from './push-notifications'
 
 export async function createOffer(
   player: Player,
@@ -55,6 +56,14 @@ export async function createOffer(
 
   if (notifError) console.error('Notification error:', notifError)
 
+  // -- PUSH NOTIFICATION --
+  sendPushToClub(
+    player.club_id, 
+    '⚽ Nueva Oferta Recibida', 
+    `${buyerName.toUpperCase()} ha ofrecido $${amount.toLocaleString()} por ${player.name}.`,
+    { type: 'offer_received', offer_id: offer.id }
+  )
+
   return offer
 }
 
@@ -91,6 +100,14 @@ export async function handleOfferResponse(
         seller_name: offer.seller_club?.name
       }
     })
+
+    // -- PUSH NOTIFICATION --
+    sendPushToClub(
+      offer.buyer_club_id,
+      '❌ Oferta Rechazada',
+      `${offer.seller_club?.name.toUpperCase()} ha rechazado tu oferta por ${offer.player.name}.`,
+      { type: 'offer_rejected', player_id: offer.player_id }
+    )
   }
 
   if (response === 'counter' && counterAmount) {
@@ -110,6 +127,14 @@ export async function handleOfferResponse(
         seller_name: offer.seller_club?.name
       }
     })
+
+    // -- PUSH NOTIFICATION --
+    sendPushToClub(
+      offer.buyer_club_id,
+      '💰 Contraoferta Recibida',
+      `${offer.seller_club?.name.toUpperCase()} pide $${counterAmount.toLocaleString()} por ${offer.player.name}.`,
+      { type: 'offer_countered', offer_id: offerId }
+    )
   }
 
   if (response === 'cancel') {
@@ -188,6 +213,20 @@ export async function buyPlayerDirectly(player: Player, buyerClubId: string) {
     }
   ])
 
+  // -- PUSH NOTIFICATIONS --
+  sendPushToClub(
+    buyerClubId,
+    '✅ Compra Directa Completada',
+    `¡Has fichado a ${player.name} por $${amount.toLocaleString()}!`,
+    { type: 'transfer_complete', player_id: player.id }
+  )
+  sendPushToClub(
+    player.club_id,
+    '🚨 ¡Clausulazo!',
+    `${latestBuyer.name.toUpperCase()} ha pagado la cláusula de $${amount.toLocaleString()} por ${player.name}.`,
+    { type: 'transfer_complete', player_id: player.id }
+  )
+
   return true
 }
 
@@ -253,6 +292,20 @@ async function executeTransfer(offer: any) {
       data: { player_id: offer.player_id, player_name: player.name, buyer_name: offer.buyer_club?.name }
     }
   ])
+
+  // -- PUSH NOTIFICATIONS --
+  sendPushToClub(
+    offer.buyer_club_id,
+    '✅ Fichaje Completado',
+    `¡Has fichado a ${player.name} de ${offer.seller_club?.name} por $${amount.toLocaleString()}!`,
+    { type: 'transfer_complete', player_id: offer.player_id }
+  )
+  sendPushToClub(
+    offer.seller_club_id,
+    '🤝 Traspaso Cerrado',
+    `Has vendido a ${player.name} al ${offer.buyer_club?.name} por $${amount.toLocaleString()}.`,
+    { type: 'transfer_complete', player_id: offer.player_id }
+  )
 
   return true
 }

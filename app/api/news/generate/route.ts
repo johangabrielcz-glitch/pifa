@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { sendPushToClub } from '@/lib/push-notifications'
 
 export async function POST(req: Request) {
   try {
@@ -158,6 +159,25 @@ export async function POST(req: Request) {
     }
 
     const { data: inserted } = await supabase.from('news').insert(toInsert).select()
+
+    // -- PUSH NOTIFICATIONS (News) --
+    if (toInsert.length > 0) {
+      // Usamos un Set para no repetir notificaciones al mismo club si hay varias noticias
+      const notifiedClubs = new Set<string>()
+      
+      toInsert.forEach((item: any) => {
+        if (item.club_id && !notifiedClubs.has(item.club_id)) {
+          sendPushToClub(
+            item.club_id, 
+            `${item.emoji || '🗞️'} PIFA Daily: ${item.title}`, 
+            `Nueva noticia publicada sobre tu club.`,
+            { type: 'news_alert' }
+          )
+          notifiedClubs.add(item.club_id)
+        }
+      })
+    }
+
     return NextResponse.json(inserted || toInsert)
 
   } catch (error: any) {

@@ -9,6 +9,7 @@ import type {
   CupConfig,
   GroupsKnockoutConfig,
 } from './types'
+import { sendPushToClub } from './push-notifications'
 
 // =============================================
 // DEADLINE CALCULATION
@@ -218,6 +219,15 @@ export async function submitAnnotation(
     return { success: true, matchFinalized: true }
   }
 
+  // -- PUSH NOTIFICATION (Aviso al rival) --
+  const myClubName = m.home_club_id === clubId ? (m.home_club?.name || 'El rival') : (m.away_club?.name || 'El rival')
+  sendPushToClub(
+    opponentClubId,
+    '⚽ ¡Rival Listo!',
+    `${myClubName.toUpperCase()} ya ha anotado su resultado. ¡Te toca a ti!`,
+    { type: 'rival_ready', match_id: matchId }
+  )
+
   return { success: true, matchFinalized: false }
 }
 
@@ -381,6 +391,14 @@ async function finalizeMatch(matchId: string): Promise<void> {
   } catch (e) {
     console.warn('Silent fail: Auto news generation failed after match')
   }
+
+  // -- PUSH NOTIFICATION (Resultado Final) --
+  const homeName = match.home_club?.name || 'Local'
+  const awayName = match.away_club?.name || 'Visitante'
+  const resultMessage = `Resultado Final: ${homeName} ${homeScore} - ${awayScore} ${awayName}`
+  
+  sendPushToClub(match.home_club_id, '🏁 Partido Finalizado', resultMessage, { type: 'match_finished', match_id: matchId })
+  sendPushToClub(match.away_club_id, '🏁 Partido Finalizado', resultMessage, { type: 'match_finished', match_id: matchId })
 }
 
 // =============================================
