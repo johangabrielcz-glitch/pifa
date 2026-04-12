@@ -135,9 +135,17 @@ export async function sendPushToAll(title: string, body: string, data?: any, exc
 export async function syncPushToken(userId: string, userName: string, action: 'login' | 'logout', tokenOverride?: string): Promise<{ success: boolean; error?: string }> {
   const token = tokenOverride || (typeof window !== 'undefined' ? localStorage.getItem('expoPushToken') : null)
   
+  console.log('🔗 [PUSH DEBUG] Intentando sincronizar:', { 
+    userId, 
+    userName, 
+    action, 
+    tokenFound: !!token,
+    tokenPreview: token ? `${token.substring(0, 20)}...` : 'N/A'
+  })
+
   if (!token) {
     if (action === 'login') {
-      console.log('No push token found to sync (login).')
+      console.warn('⚠️ [PUSH DEBUG] Cancelado: No se encontró ningún expoPushToken en LocalStorage.')
       return { success: false, error: 'No se encontró el token en el dispositivo' }
     }
     return { success: true }
@@ -153,8 +161,12 @@ export async function syncPushToken(userId: string, userName: string, action: 'l
           updated_at: new Date().toISOString()
         }, { onConflict: 'user_id,expo_push_token' })
 
-      if (error) throw error
-      console.log('Push token synced successfully for user:', userName)
+      if (error) {
+        console.error('❌ [PUSH DEBUG] Error de Supabase al guardar:', error.message, error.details)
+        throw error
+      }
+      
+      console.log('✅ [PUSH DEBUG] Token sincronizado con éxito en DB.')
       return { success: true }
     } else {
       // Eliminar solo el token de este dispositivo al cerrar sesión, no todos

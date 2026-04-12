@@ -506,7 +506,8 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
     sendPushToAll(
       `🖼️ ${club?.name || user.full_name}`,
       type === 'sticker' ? 'Envió un sticker' : `Envió una ${type === 'image' ? 'imagen' : 'video'}`,
-      { type: 'chat_media' }
+      { type: 'chat_media' },
+      user.id
     )
   }
 
