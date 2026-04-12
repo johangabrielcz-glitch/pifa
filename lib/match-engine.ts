@@ -649,48 +649,72 @@ async function advanceWinner(
   // K.O. bracket logic: winner of match N in round R goes to match floor(N/2) in round R+1
   const currentMatchday = match.matchday ?? 1
 
-  // Get all matches in current round (same matchday, leg 1 only for counting)
+  // Get all matches in current round (same matchday)
+  // For single leg: use leg=1 or no leg filter
+  // For two legs: use leg=1 for counting purposes
+  const legFilter = totalLegs === 1 ? match.leg : 1
+  
   const { data: currentRoundMatches } = await supabase
     .from('matches')
     .select('*')
     .eq('competition_id', match.competition_id)
     .eq('matchday', currentMatchday)
-    .eq('leg', 1)
+    .eq('leg', legFilter)
     .order('match_order', { ascending: true })
 
-  if (!currentRoundMatches) return
+  if (!currentRoundMatches || currentRoundMatches.length === 0) {
+    console.log(`[v0] advanceWinner: No matches found for matchday ${currentMatchday}, leg ${legFilter}`)
+    return
+  }
 
   // Find the index of our match in the current round
   const matchIndex = (currentRoundMatches as any[]).findIndex(m => m.id === match.id)
-  if (matchIndex === -1) return
+  if (matchIndex === -1) {
+    console.log(`[v0] advanceWinner: Match ${match.id} not found in currentRoundMatches. Matches found:`, 
+      (currentRoundMatches as any[]).map(m => ({ id: m.id, leg: m.leg, match_order: m.match_order })))
+    return
+  }
 
   // Calculate target match index in next round: floor(matchIndex / 2)
   const nextMatchIndex = Math.floor(matchIndex / 2)
   // Determine if this winner goes to home (even index) or away (odd index) slot
   const goesToHome = matchIndex % 2 === 0
 
-  // Get next round matches (leg 1 only to identify the match)
-  const { data: nextRoundLeg1 } = await supabase
+  // Get next round matches
+  // For single leg: get all matches in next matchday
+  // For two legs: get leg 1 matches only for slot calculation
+  const { data: nextRoundMatches } = await supabase
     .from('matches')
     .select('*')
     .eq('competition_id', match.competition_id)
     .eq('matchday', currentMatchday + 1)
-    .eq('leg', 1)
+    .eq('leg', totalLegs === 1 ? match.leg : 1)
     .order('match_order', { ascending: true })
 
-  if (!nextRoundLeg1 || nextRoundLeg1.length === 0) {
-    // This was the final - no next round
+  if (!nextRoundMatches || nextRoundMatches.length === 0) {
+    console.log(`[v0] advanceWinner: No next round matches found for matchday ${currentMatchday + 1}`)
     return
   }
 
-  const targetMatch = (nextRoundLeg1 as any[])[nextMatchIndex]
-  if (!targetMatch) return
+  console.log(`[v0] advanceWinner: Found ${nextRoundMatches.length} next round matches. Winner ${winnerId} (index ${matchIndex}) goes to slot ${nextMatchIndex}, home: ${goesToHome}`)
+
+  const targetMatch = (nextRoundMatches as any[])[nextMatchIndex]
+  if (!targetMatch) {
+    console.log(`[v0] advanceWinner: Target match at index ${nextMatchIndex} not found`)
+    return
+  }
 
   if (goesToHome) {
     // Update home slot in leg 1
-    await (supabase.from('matches') as any)
+    const { error: updateError } = await (supabase.from('matches') as any)
       .update({ home_club_id: winnerId, updated_at: new Date().toISOString() })
       .eq('id', targetMatch.id)
+    
+    if (updateError) {
+      console.log(`[v0] advanceWinner: Error updating home slot:`, updateError)
+    } else {
+      console.log(`[v0] advanceWinner: Updated home_club_id to ${winnerId} in match ${targetMatch.id}`)
+    }
 
     // If two legs, also update away slot in leg 2 (reversed home/away)
     if (totalLegs === 2) {
@@ -711,9 +735,15 @@ async function advanceWinner(
     }
   } else {
     // Update away slot in leg 1
-    await (supabase.from('matches') as any)
+    const { error: updateError } = await (supabase.from('matches') as any)
       .update({ away_club_id: winnerId, updated_at: new Date().toISOString() })
       .eq('id', targetMatch.id)
+    
+    if (updateError) {
+      console.log(`[v0] advanceWinner: Error updating away slot:`, updateError)
+    } else {
+      console.log(`[v0] advanceWinner: Updated away_club_id to ${winnerId} in match ${targetMatch.id}`)
+    }
 
     // If two legs, also update home slot in leg 2 (reversed home/away)
     if (totalLegs === 2) {
@@ -995,18 +1025,59 @@ export async function checkAndAutoResolveExpired(): Promise<number> {
         await supabase.from('match_annotations').upsert(annotationsToUpsert as any, { onConflict: 'match_id,club_id' })
       }
 
-      // For K.O. matches: if auto-resolved result is a tie, give win to the team that annotated
+      // For K.O. matches: if auto-resolved result is a tie, determine winner
       const competition = match.competition as Competition
       const isKnockout = competition?.type === 'cup' ||
         (competition?.type === 'groups_knockout' && !match.group_name)
+      
+      const config = competition?.config as CupConfig | GroupsKnockoutConfig | undefined
+      const totalLegs = config ? ('legs' in config ? config.legs : ('knockout_legs' in config ? config.knockout_legs : 1)) : 1
 
       if (isKnockout && homeScore === awayScore) {
         if (homeAnnotation && !awayAnnotation) {
+          // Home annotated, away didn't - home wins
           homeScore = Math.max(homeScore, 1)
         } else if (!homeAnnotation && awayAnnotation) {
+          // Away annotated, home didn't - away wins
           awayScore = Math.max(awayScore, 1)
+        } else if (totalLegs === 2 && match.leg === 2) {
+          // Both empty in leg 2 of a two-leg tie: check who won leg 1
+          const { data: leg1Data } = await supabase
+            .from('matches')
+            .select('home_score, away_score, home_club_id, away_club_id')
+            .eq('competition_id', match.competition_id)
+            .eq('matchday', match.matchday)
+            .eq('leg', 1)
+            .or(`and(home_club_id.eq.${match.away_club_id},away_club_id.eq.${match.home_club_id}),and(home_club_id.eq.${match.home_club_id},away_club_id.eq.${match.away_club_id})`)
+            .single()
+          
+          if (leg1Data && leg1Data.home_score !== null && leg1Data.away_score !== null) {
+            // Determine who won leg 1
+            if (leg1Data.home_score > leg1Data.away_score) {
+              // Leg 1 home team won - they should win leg 2 too
+              // In leg 2, leg1's home team is usually away
+              if (leg1Data.home_club_id === match.away_club_id) {
+                awayScore = 1 // Leg 1 winner (now away) wins
+              } else {
+                homeScore = 1 // Leg 1 winner (still home) wins
+              }
+            } else if (leg1Data.away_score > leg1Data.home_score) {
+              // Leg 1 away team won
+              if (leg1Data.away_club_id === match.home_club_id) {
+                homeScore = 1 // Leg 1 winner (now home) wins
+              } else {
+                awayScore = 1 // Leg 1 winner (still away) wins
+              }
+            } else {
+              // Leg 1 was also a tie - home advantage in leg 2
+              homeScore = 1
+            }
+          } else {
+            // Can't find leg 1, default to home advantage
+            homeScore = 1
+          }
         } else {
-          // Both empty or both annotated with same score: home advantage
+          // Single leg or leg 1 of two-leg: home advantage
           homeScore = homeScore + 1
         }
       }

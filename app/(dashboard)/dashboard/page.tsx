@@ -252,7 +252,6 @@ export default function DashboardPage() {
       console.error('Error refreshing data:', e)
     } finally {
       setIsLoading(false)
-      console.log('Dashboard data loaded / loading state cleared.')
     }
   }
   useEffect(() => {
