@@ -619,8 +619,15 @@ async function advanceWinner(
   let winnerId: string | null = null
 
   if (totalLegs === 1) {
-    // Single leg: higher score wins
-    winnerId = homeScore > awayScore ? match.home_club_id : match.away_club_id
+    // Single leg: higher score wins, tie goes to home (no extra time/penalties in this system)
+    if (homeScore > awayScore) {
+      winnerId = match.home_club_id
+    } else if (awayScore > homeScore) {
+      winnerId = match.away_club_id
+    } else {
+      // Tie: home advantage (could implement away goals or random in future)
+      winnerId = match.home_club_id
+    }
   } else if (totalLegs === 2 && match.leg === 2) {
     // Two legs, this is leg 2: check aggregate
     // Find leg 1
@@ -654,7 +661,37 @@ async function advanceWinner(
       teamBTotal = (leg1.away_score as number) + awayScore
     }
 
-    winnerId = teamATotal > teamBTotal ? teamAId : teamBId
+    if (teamATotal > teamBTotal) {
+      winnerId = teamAId
+    } else if (teamBTotal > teamATotal) {
+      winnerId = teamBId
+    } else {
+      // Aggregate tie: check away goals
+      // TeamA's away goals = goals scored in leg where they were away
+      // TeamB's away goals = goals scored in leg where they were away
+      let teamAAwayGoals = 0, teamBAwayGoals = 0
+      
+      if (leg1.home_club_id === match.away_club_id) {
+        // leg1: TeamA was home, TeamB was away -> TeamB away goals = leg1.away_score
+        // leg2: TeamA is away, TeamB is home -> TeamA away goals = awayScore
+        teamAAwayGoals = awayScore
+        teamBAwayGoals = leg1.away_score as number
+      } else {
+        // leg1: TeamA was home, TeamB was away -> TeamB away goals = leg1.away_score  
+        // leg2: TeamB is away, TeamA is home -> TeamB away goals += awayScore
+        teamAAwayGoals = leg1.away_score as number
+        teamBAwayGoals = awayScore
+      }
+      
+      if (teamAAwayGoals > teamBAwayGoals) {
+        winnerId = teamAId
+      } else if (teamBAwayGoals > teamAAwayGoals) {
+        winnerId = teamBId
+      } else {
+        // Still tied: home team in leg 2 wins (arbitrary tiebreaker)
+        winnerId = match.home_club_id
+      }
+    }
   } else {
     // Two legs but this is leg 1: don't advance yet
     return
