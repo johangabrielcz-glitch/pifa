@@ -55,7 +55,9 @@ const MessageItem = React.memo(({
   readers,
   onReply,
   onImageClick,
-  onStickerClick
+  onStickerClick,
+  isHighlighted,
+  onScrollToReply
 }: { 
   msg: ChatMessage; 
   user: User; 
@@ -67,6 +69,8 @@ const MessageItem = React.memo(({
   onReply: (msg: ChatMessage) => void;
   onImageClick: (url: string) => void;
   onStickerClick: (url: string) => void;
+  isHighlighted: boolean;
+  onScrollToReply: (id: string) => void;
 }) => {
   return (
     <div className={`flex flex-col ${isFirstInGroup ? 'mt-6' : 'mt-1'}`}>
@@ -87,6 +91,14 @@ const MessageItem = React.memo(({
         onDragEnd={(e, info) => {
           if (info.offset.x > 50) onReply(msg)
         }}
+        animate={isHighlighted ? { 
+          scale: 1.02,
+          filter: 'drop-shadow(0 0 15px rgba(0, 255, 133, 0.4))'
+        } : { 
+          scale: 1,
+          filter: 'drop-shadow(0 0 0px rgba(0, 255, 133, 0))'
+        }}
+        transition={{ duration: 0.4 }}
       >
         <div className="absolute left-[-40px] top-1/2 -translate-y-1/2 opacity-0 group-active/msg:opacity-100 transition-opacity">
           <Reply className="w-5 h-5 text-[#00FF85]" />
@@ -130,8 +142,7 @@ const MessageItem = React.memo(({
               <div 
                 className="mb-2 p-2 rounded-lg bg-black/30 border-l-2 border-[#00FF85] cursor-pointer hover:bg-black/40 transition-colors"
                 onClick={() => {
-                  const original = document.getElementById(`msg-${msg.reply_to_id}`)
-                  if (original) original.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                  if (msg.reply_to_id) onScrollToReply(msg.reply_to_id)
                 }}
               >
                 <p className="text-[8px] font-black text-[#00FF85] uppercase tracking-widest mb-0.5">
@@ -222,7 +233,8 @@ const MessageItem = React.memo(({
   return prev.msg.id === next.msg.id && 
          prev.readers.length === next.readers.length &&
          prev.isFirstInGroup === next.isFirstInGroup &&
-         prev.showFullDate === next.showFullDate
+         prev.showFullDate === next.showFullDate &&
+         prev.isHighlighted === next.isHighlighted
 })
 
 const ChatInputArea = React.memo(({ 
@@ -237,7 +249,8 @@ const ChatInputArea = React.memo(({
   setReplyingTo,
   pendingMedia,
   setPendingMedia,
-  onSendMediaMessage
+  onSendMediaMessage,
+  onTyping
 }: any) => {
   const [inputText, setInputText] = useState('')
   const [mediaPickerType, setMediaPickerType] = useState<'attachments' | 'stickers' | null>(null)
@@ -380,6 +393,16 @@ const ChatInputArea = React.memo(({
             const val = e.target.value; setInputText(val);
             const words = val.split(' '); const lastWord = words[words.length - 1];
             if (lastWord.startsWith('@')) { setShowMentionMenu(true); setMentionFilter(lastWord.slice(1)); } else { setShowMentionMenu(false); }
+            
+            // Typing logic
+            if (val.trim()) {
+              onTyping(true)
+              const timeoutId = (window as any).typingTimeout
+              if (timeoutId) clearTimeout(timeoutId)
+              ;(window as any).typingTimeout = setTimeout(() => onTyping(false), 2000)
+            } else {
+              onTyping(false)
+            }
           }} placeholder="Envía un comunicado al vestuario..." className="w-full bg-[#141414]/90 backdrop-blur-xl border border-white/10 px-5 py-4 rounded-2xl text-[11px] font-bold text-white focus:outline-none focus:border-[#00FF85]/40 transition-all shadow-2xl" />
         </div>
         <button type="submit" disabled={!inputText.trim() || sending} className={`p-3.5 rounded-2xl transition-all active:scale-90 ${inputText.trim() && !sending ? 'bg-[#00FF85] text-[#0A0A0A] shadow-lg' : 'bg-white/5 text-white/10'}`}>
@@ -419,6 +442,9 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
   const [allDTs, setAllDTs] = useState<User[]>([])
   const scrollRef = useRef<HTMLDivElement>(null)
   const isAtBottomRef = useRef(true)
+  const [onlineUsers, setOnlineUsers] = useState<any[]>([])
+  const [typingUsers, setTypingUsers] = useState<Record<string, { name: string, expiresAt: number }>>({})
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null)
 
 
   // -- LOGICA DE LECTURA (READ RECEIPTS) --
@@ -611,6 +637,30 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
   useEffect(() => {
     const chatChannel = supabase
       .channel('chat-main')
+      .on('presence', { event: 'sync' }, () => {
+        const state = chatChannel.presenceState()
+        const presences = Object.values(state).flat() as any[]
+        
+        // Dedupilar por user_id
+        const uniqueUsers: any[] = []
+        const seenIds = new Set()
+        
+        presences.forEach(p => {
+          if (!seenIds.has(p.user_id)) {
+            seenIds.add(p.user_id)
+            uniqueUsers.push(p)
+          }
+        })
+        
+        setOnlineUsers(uniqueUsers)
+      })
+      .on('broadcast', { event: 'typing' }, ({ payload }) => {
+        if (payload.userId === user.id) return
+        setTypingUsers(prev => ({
+          ...prev,
+          [payload.userId]: { name: payload.name, expiresAt: Date.now() + 3000 }
+        }))
+      })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'global_chat_messages' }, async (payload) => {
         const { data: newMsg, error: newMsgError } = await supabase
           .from('global_chat_messages')
@@ -633,10 +683,18 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
             }
             return [...prev, newMsg]
           })
-
         }
       })
-      .subscribe()
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await chatChannel.track({
+            user_id: user.id,
+            full_name: user.full_name || user.username || 'DT',
+            shield_url: club?.shield_url || null,
+            online_at: new Date().toISOString()
+          })
+        }
+      })
 
     const readChannel = supabase
       .channel('chat-reads')
@@ -678,6 +736,34 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
       setNewMessagesCount(0)
       if (messages.length > 0) updateMyReadStatus(messages[messages.length - 1].id)
     }
+  }
+
+  // Limpiar usuarios escribiendo que han expirado
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now()
+      setTypingUsers(prev => {
+        const next = { ...prev }
+        let changed = false
+        Object.entries(next).forEach(([id, data]) => {
+          if (data.expiresAt < now) {
+            delete next[id]
+            changed = true
+          }
+        })
+        return changed ? next : prev
+      })
+    }, 2000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const handleTyping = (isTyping: boolean) => {
+    const channel = supabase.channel('chat-main')
+    channel.send({
+      type: 'broadcast',
+      event: 'typing',
+      payload: { userId: user.id, name: user.full_name || user.username || 'DT', isTyping }
+    })
   }
 
   const handleLoadMore = async () => {
@@ -767,7 +853,7 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
       `🖼️ ${club?.name || user.full_name}`,
       type === 'sticker' ? 'Envió un sticker' : `Envió una ${type === 'image' ? 'imagen' : 'video'}`,
       { type: 'chat_media' },
-      user.id
+      [user.id, ...onlineUsers.map(u => u.user_id)]
     )
   }
 
@@ -816,6 +902,15 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
     }
   }
 
+  const scrollToMessage = useCallback((id: string) => {
+    const el = document.getElementById(`msg-${id}`)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      setHighlightedMessageId(id)
+      setTimeout(() => setHighlightedMessageId(null), 5000)
+    }
+  }, [])
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh]">
@@ -837,9 +932,35 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
           </div>
           <div>
             <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-white">Vestuario Global</h2>
-            <div className="flex items-center gap-1.5">
-              <div className="w-1.5 h-1.5 rounded-full bg-[#00FF85] animate-pulse" />
-              <span className="text-[7px] font-bold text-[#6A6C6E] uppercase tracking-widest">DTs Conectados</span>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
+                <div className="w-1.5 h-1.5 rounded-full bg-[#00FF85] animate-pulse" />
+                <span className="text-[7.5px] font-black text-[#00FF85] uppercase tracking-widest">{onlineUsers.length} DTs</span>
+              </div>
+              {onlineUsers.length > 0 && (
+                <div className="flex -space-x-1.5 items-center">
+                  {onlineUsers.slice(0, 4).map((u, i) => (
+                    <motion.div 
+                      initial={{ scale: 0, x: -10 }}
+                      animate={{ scale: 1, x: 0 }}
+                      key={u.user_id}
+                      className="w-4 h-4 rounded-full bg-[#0A0A0A] border border-white/10 p-0.5 shadow-lg overflow-hidden group/online"
+                      title={u.full_name}
+                    >
+                      {u.shield_url ? (
+                        <img src={u.shield_url} className="w-full h-full object-contain" />
+                      ) : (
+                        <div className="w-full h-full bg-[#00FF85]/20 flex items-center justify-center text-[5px] text-[#00FF85] font-black">{u.full_name?.[0]}</div>
+                      )}
+                    </motion.div>
+                  ))}
+                  {onlineUsers.length > 4 && (
+                    <div className="w-4 h-4 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
+                      <span className="text-[5px] font-black text-white/40">+{onlineUsers.length - 4}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -896,6 +1017,8 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
               onReply={setReplyingTo}
               onImageClick={setActiveMediaUrl}
               onStickerClick={setStickerToConfirm}
+              isHighlighted={highlightedMessageId === msg.id}
+              onScrollToReply={scrollToMessage}
             />
           )
         })}
@@ -917,6 +1040,32 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
           </motion.button>
         )}
       </AnimatePresence>
+      
+      {/* Typing Indicator */}
+      <div className="h-6 px-6 overflow-hidden">
+        <AnimatePresence>
+          {Object.values(typingUsers).length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              className="flex items-center gap-2"
+            >
+              <div className="flex gap-1">
+                <span className="w-1 h-1 bg-[#00FF85] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-1 h-1 bg-[#00FF85] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-1 h-1 bg-[#00FF85] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+              <span className="text-[8px] font-black text-[#00FF85] uppercase tracking-[0.2em] italic">
+                {Object.values(typingUsers).length === 1 
+                  ? `${Object.values(typingUsers)[0].name} está escribiendo...` 
+                  : `${Object.values(typingUsers).length} DTs están escribiendo...`
+                }
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       <ChatInputArea
         onSendMessage={async (text: string) => {
@@ -942,31 +1091,33 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
           const hasEveryone = text.trim().toLowerCase().includes('@todos')
           const mentionedClubs = allDTs.filter(dt => dt.club?.name && text.trim().toLowerCase().includes(`@${dt.club.name.toLowerCase()}`))
 
-          if (hasEveryone) {
-            sendPushToAll(`📢 @TODOS: Mensaje de ${club?.name || user.full_name}`, pushBody, { type: 'chat_mention_all' }, user.id)
-          } else if (mentionedClubs.length > 0) {
-            mentionedClubs.forEach(dt => {
-              if (dt.club_id && dt.club_id !== club?.id) {
-                sendPushToClub(dt.club_id, `🔔 ¡Has sido etiquetado!`, `${club?.name || user.full_name}: ${pushBody}`, { type: 'chat_mention_direct' })
-              }
-            })
-            sendPushToAll(pushTitle, pushBody, { type: 'chat_message' }, user.id)
-          } else {
-            sendPushToAll(pushTitle, pushBody, { type: 'chat_message' }, user.id)
-          }
-        }}
-        onUploadMedia={handleFileUpload}
-        user={user}
-        club={club}
-        allDTs={allDTs}
-        myStickers={myStickers}
-        officialStickers={officialStickers}
-        replyingTo={replyingTo}
-        setReplyingTo={setReplyingTo}
-        pendingMedia={pendingMedia}
-        setPendingMedia={setPendingMedia}
-        onSendMediaMessage={sendMediaMessage}
-      />
+            if (hasEveryone) {
+              sendPushToAll(`📢 @TODOS: Mensaje de ${club?.name || user.full_name}`, pushBody, { type: 'chat_mention_all' }, [user.id, ...onlineUsers.map(u => u.user_id)])
+            } else if (mentionedClubs.length > 0) {
+              const onlineIds = onlineUsers.map(u => u.user_id)
+              mentionedClubs.forEach(dt => {
+                if (dt.club_id && dt.club_id !== club?.id && !onlineIds.includes(dt.id)) {
+                  sendPushToClub(dt.club_id, `🔔 ¡Has sido etiquetado!`, `${club?.name || user.full_name}: ${pushBody}`, { type: 'chat_mention_direct' })
+                }
+              })
+              sendPushToAll(pushTitle, pushBody, { type: 'chat_message' }, [user.id, ...onlineIds])
+            } else {
+              sendPushToAll(pushTitle, pushBody, { type: 'chat_message' }, [user.id, ...onlineUsers.map(u => u.user_id)])
+            }
+          }}
+          onUploadMedia={handleFileUpload}
+          user={user}
+          club={club}
+          allDTs={allDTs}
+          myStickers={myStickers}
+          officialStickers={officialStickers}
+          replyingTo={replyingTo}
+          setReplyingTo={setReplyingTo}
+          pendingMedia={pendingMedia}
+          setPendingMedia={setPendingMedia}
+          onSendMediaMessage={sendMediaMessage}
+          onTyping={handleTyping}
+        />
 
       {/* MODAL DE CONFIRMACIÓN DE STICKER */}
       <AnimatePresence>

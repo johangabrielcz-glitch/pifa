@@ -103,14 +103,21 @@ export async function sendPushToUser(userId: string, title: string, body: string
 /**
  * Envía una notificación a TODOS los usuarios registrados.
  */
-export async function sendPushToAll(title: string, body: string, data?: any, excludeUserId?: string) {
+export async function sendPushToAll(title: string, body: string, data?: any, excludeUserIds?: string | string[]) {
   try {
     let query = supabase
       .from('user_push_tokens')
       .select('expo_push_token')
 
-    if (excludeUserId) {
-      query = query.neq('user_id', excludeUserId)
+    if (excludeUserIds) {
+      if (Array.isArray(excludeUserIds)) {
+        if (excludeUserIds.length > 0) {
+          // Filtrar múltiples usuarios (ej: los que están online)
+          query = query.not('user_id', 'in', `(${excludeUserIds.join(",")})`)
+        }
+      } else {
+        query = query.neq('user_id', excludeUserIds)
+      }
     }
 
     const { data: tokenData, error } = await query
