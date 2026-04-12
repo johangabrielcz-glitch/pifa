@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/resolve-expired",
-      "schedule": "*/5 * * * *"
+      "schedule": "* * * * *"
     },
     {
       "path": "/api/cron/reminders",

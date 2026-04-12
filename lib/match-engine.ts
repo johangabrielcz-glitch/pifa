@@ -77,7 +77,8 @@ export async function calculateMatchDeadlines(seasonId: string): Promise<void> {
 
   for (let slotIndex = 0; slotIndex < matchdaySlots.length; slotIndex++) {
     const slot = matchdaySlots[slotIndex]
-    const deadlineMs = activatedAt.getTime() + (slotIndex + 1) * 24 * 60 * 60 * 1000
+    // TODO: Cambiar a 24 * 60 * 60 * 1000 para produccion (24 horas)
+    const deadlineMs = activatedAt.getTime() + (slotIndex + 1) * 2 * 60 * 1000 // 2 minutos para pruebas
     const deadline = new Date(deadlineMs).toISOString()
 
     // Find all matches in this specific slot (competition + matchday + leg)
