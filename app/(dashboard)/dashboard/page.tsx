@@ -234,8 +234,13 @@ export default function DashboardPage() {
             }
           }
 
-          // Ejecución no bloqueante via API (throttled)
-          fetch('/api/cron/resolve-expired').catch(() => {})
+          // Ejecución no bloqueante via API (throttled - max once per 30s)
+          const lastResolveCall = sessionStorage.getItem('lastResolveCall')
+          const now = Date.now()
+          if (!lastResolveCall || now - parseInt(lastResolveCall) > 30000) {
+            sessionStorage.setItem('lastResolveCall', now.toString())
+            fetch('/api/cron/resolve-expired').catch(() => {})
+          }
 
           const token = localStorage.getItem('expoPushToken')
           if (token) {

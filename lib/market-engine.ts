@@ -1,4 +1,4 @@
-import { supabase } from './supabase'
+import { supabaseAdmin as supabase } from './supabase'
 import { MarketOffer, Notification, Player, Club } from './types'
 import { sendPushToClub } from './push-notifications'
 
