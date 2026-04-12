@@ -7,12 +7,16 @@ import {
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
+import { useUnreadChat } from '@/lib/use-unread-chat'
+
 export type DtTab = 'home' | 'competitions' | 'stats' | 'calendar' | 'squad' | 'market' | 'news' | 'chat'
 
 interface DtNavigationProps {
   activeTab: DtTab
   onTabChange: (tab: DtTab) => void
   hasMatch?: boolean
+  userId?: string
+  clubId?: string
 }
 
 // Los 5 principales
@@ -37,6 +41,7 @@ const TabButton = ({
   isActive, 
   onClick, 
   hasMatch,
+  badgeCount = 0,
   isSmall = false
 }: { 
   label: string; 
@@ -44,6 +49,7 @@ const TabButton = ({
   isActive: boolean; 
   onClick: () => void;
   hasMatch?: boolean;
+  badgeCount?: number;
   isSmall?: boolean;
 }) => (
   <button
@@ -62,6 +68,12 @@ const TabButton = ({
       {label === 'Inicio' && hasMatch && !isActive && (
         <div className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-[#0A0A0A] bg-[#00FF85] animate-pulse" />
       )}
+
+      {label === 'Chat' && badgeCount > 0 && !isActive && (
+        <div className="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-1 rounded-full bg-red-500 border border-[#0A0A0A] flex items-center justify-center shadow-[0_0_10px_rgba(239,68,68,0.5)] animate-bounce">
+          <span className="text-[7px] font-black text-white">{badgeCount > 9 ? '+9' : badgeCount}</span>
+        </div>
+      )}
     </div>
 
     <span className={`${isSmall ? 'text-[8px]' : 'text-[9px]'} uppercase tracking-[0.1em] ${
@@ -72,7 +84,7 @@ const TabButton = ({
   </button>
 )
 
-export function DtNavigation({ activeTab, onTabChange, hasMatch }: DtNavigationProps) {
+export function DtNavigation({ activeTab, onTabChange, hasMatch, userId, clubId }: DtNavigationProps) {
   const [isMoreOpen, setIsMoreOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -90,6 +102,17 @@ export function DtNavigation({ activeTab, onTabChange, hasMatch }: DtNavigationP
   }, [isMoreOpen])
 
   const isMoreActive = moreTabs.some(t => t.id === activeTab)
+  const unreadCountFromHook = useUnreadChat(userId, clubId)
+  const [localUnreadCount, setLocalUnreadCount] = useState(0)
+
+  // Sincronizar el conteo del hook con el estado local, pero forzar 0 si estamos en el chat
+  useEffect(() => {
+    if (activeTab === 'chat') {
+      setLocalUnreadCount(0)
+    } else {
+      setLocalUnreadCount(unreadCountFromHook)
+    }
+  }, [activeTab, unreadCountFromHook])
 
   return (
     <div className="relative z-[100] bg-[#0A0A0A]/95 backdrop-blur-md safe-area-bottom border-t border-[#141414] shadow-[0_-10px_30px_rgba(0,0,0,0.5)] shrink-0">
@@ -142,6 +165,7 @@ export function DtNavigation({ activeTab, onTabChange, hasMatch }: DtNavigationP
               setIsMoreOpen(false)
             }}
             hasMatch={hasMatch}
+            badgeCount={tab.id === 'chat' ? localUnreadCount : 0}
           />
         ))}
 

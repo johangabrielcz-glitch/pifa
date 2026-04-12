@@ -1454,6 +1454,8 @@ export default function DashboardPage() {
           activeTab={activeTab}
           onTabChange={setActiveTab}
           hasMatch={!!nextPlayableMatch || matchResult.waiting}
+          userId={user?.id}
+          clubId={club?.id}
         />
       )}
     </div>

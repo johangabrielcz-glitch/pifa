@@ -82,17 +82,42 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
 
   // -- LOGICA DE LECTURA (READ RECEIPTS) --
   
-  const updateMyReadStatus = useCallback(async (msgId: string) => {
-    if (!club?.id) return
+  const updateMyReadStatus = useCallback(async (msgId?: string) => {
+    if (!club?.id || !user?.id) return
+    
+    let targetId = msgId
+    
+    // Si no se proporciona un ID, buscamos el mensaje más nuevo de TODA la base de datos
+    if (!targetId) {
+      const { data: latest } = await supabase
+        .from('global_chat_messages')
+        .select('id')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+      
+      if (latest) targetId = latest.id
+    }
+
+    if (!targetId) return
+
+    // Guardar marca de tiempo local inmediatamente para el badge
+    const now = new Date().toISOString()
+    localStorage.setItem(`pifa_chat_read_at_${user.id}`, now)
+    localStorage.setItem(`pifa_chat_last_id_${user.id}`, targetId)
     
     await supabase
       .from('global_chat_read_status')
       .upsert({
+        user_id: user.id,
         club_id: club.id,
-        last_read_message_id: msgId,
-        updated_at: new Date().toISOString()
-      })
-  }, [club?.id])
+        last_read_message_id: targetId,
+        updated_at: now
+      }, { onConflict: 'user_id,club_id' })
+    
+    // Notificar localmente para limpiar el badge al instante
+    window.dispatchEvent(new CustomEvent('pifa_chat_read'))
+  }, [club?.id, user?.id])
 
   const fetchReadStatuses = useCallback(async () => {
     const { data } = await supabase
@@ -128,35 +153,33 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
   useEffect(() => {
     let isMounted = true
     const init = async () => {
-      const initial = await fetchMessagesPaginated()
-      if (!isMounted) return
-      setMessages(initial)
-      await fetchReadStatuses()
-      
-      // Cargar todos los DTs para menciones
-      const { data: usersData } = await supabase
-        .from('users')
-        .select('*, club:clubs(name)')
-        .not('club_id', 'is', null) // Solo DTs con club
-      
-      if (usersData) setAllDTs(usersData as User[])
+      // Cargamos todo en paralelo para reducir el tiempo de espera inicial
+      try {
+        const [initialMessages, { data: usersData }, { data: stickersData }] = await Promise.all([
+          fetchMessagesPaginated(),
+          supabase.from('users').select('*, club:clubs(name)').not('club_id', 'is', null),
+          supabase.from('user_stickers').select('*').eq('user_id', user.id)
+        ])
 
-      // Cargar stickers personales
-      const { data: stickersData } = await supabase
-        .from('user_stickers')
-        .select('*')
-        .eq('user_id', user.id)
-      
-      if (stickersData) setMyStickers(stickersData)
+        if (!isMounted) return
+        setMessages(initialMessages)
+        if (usersData) setAllDTs(usersData as User[])
+        if (stickersData) setMyStickers(stickersData)
+        
+        await fetchReadStatuses()
+        setLoading(false)
 
-      setLoading(false)
-      if (initial.length < PAGE_SIZE) setHasMore(false)
-      
-      if (initial.length > 0) {
-        updateMyReadStatus(initial[initial.length - 1].id)
+        if (initialMessages.length < PAGE_SIZE) setHasMore(false)
+        if (initialMessages.length > 0) {
+          const lastMsgId = initialMessages[initialMessages.length - 1].id
+          await updateMyReadStatus(lastMsgId)
+        }
+        
+        setTimeout(() => scrollToBottom('auto'), 100)
+      } catch (err) {
+        console.error('Error in init:', err)
+        setLoading(false)
       }
-      
-      setTimeout(() => scrollToBottom('auto'), 100)
     }
 
     init()
@@ -195,9 +218,26 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
       })
       .subscribe()
 
+    const stickersChannel = supabase
+      .channel('user-stickers')
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'user_stickers',
+        filter: `user_id=eq.${user.id}`
+      }, (payload) => {
+        setMyStickers(prev => {
+          // Evitar duplicados si ya se añadió optimísticamente
+          if (prev.find(s => s.id === payload.new.id)) return prev
+          return [...prev, payload.new as any]
+        })
+      })
+      .subscribe()
+
     return () => {
       supabase.removeChannel(chatChannel)
       supabase.removeChannel(readChannel)
+      supabase.removeChannel(stickersChannel)
     }
   }, [fetchReadStatuses, updateMyReadStatus])
 
@@ -572,11 +612,15 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
                     {msg.media_url && (
                       <div className="mb-2 overflow-hidden rounded-xl">
                         {msg.media_type === 'image' && (
-                          <img 
-                            src={msg.media_url} 
-                            className="w-full max-h-64 object-cover" 
-                            onClick={() => setActiveMediaUrl(msg.media_url!)}
-                          />
+                          <div className="relative bg-white/5 rounded-xl overflow-hidden min-h-[150px] flex items-center justify-center">
+                            <img 
+                              src={msg.media_url} 
+                              loading="lazy"
+                              className="w-full max-h-64 object-cover z-10" 
+                              onClick={() => setActiveMediaUrl(msg.media_url!)}
+                            />
+                            <div className="absolute inset-0 animate-pulse bg-white/5" />
+                          </div>
                         )}
                         {msg.media_type === 'video' && (
                           <video 
@@ -605,8 +649,13 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
 
                     {msg.media_type === 'sticker' && (
                       <div className="relative group/sticker cursor-pointer" onClick={() => setStickerToConfirm(msg.media_url!)}>
-                        <img src={msg.media_url!} className="w-24 h-24 object-contain" />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center rounded-xl transition-opacity">
+                        <div className="w-24 h-24 bg-white/5 rounded-xl absolute inset-0 animate-pulse -z-10" />
+                        <img 
+                          src={msg.media_url!} 
+                          loading="lazy"
+                          className="w-24 h-24 object-contain relative z-10" 
+                        />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center rounded-xl transition-opacity z-20">
                           <Star className="w-5 h-5 text-yellow-400 fill-current" />
                         </div>
                       </div>
@@ -831,9 +880,14 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
                           key={st.id} 
                           type="button"
                           onClick={() => sendMediaMessage(st.url, 'sticker')}
-                          className="aspect-square hover:scale-110 transition-transform"
+                          className="aspect-square hover:scale-110 transition-transform relative"
                         >
-                          <img src={st.url} className="w-full h-full object-contain" />
+                          <div className="absolute inset-0 bg-white/5 rounded-xl animate-pulse" />
+                          <img 
+                            src={st.url} 
+                            loading="lazy"
+                            className="w-full h-full object-contain relative z-10" 
+                          />
                         </button>
                       ))
                     ) : (
@@ -844,8 +898,13 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
                           onClick={() => sendMediaMessage(st.url, 'sticker')}
                           className="aspect-square hover:scale-110 transition-transform relative group/personal"
                         >
-                          <img src={st.url} className="w-full h-full object-contain" />
-                          <Star className="absolute -top-1 -right-1 w-3 h-3 text-yellow-400 fill-current" />
+                          <div className="absolute inset-0 bg-white/5 rounded-xl animate-pulse" />
+                          <img 
+                            src={st.url} 
+                            loading="lazy"
+                            className="w-full h-full object-contain relative z-10" 
+                          />
+                          <Star className="absolute -top-1 -right-1 w-3 h-3 text-yellow-400 fill-current z-20" />
                         </button>
                       ))
                     )}
