@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Club, User } from '@/lib/types'
-import { Send, MessageSquare, Loader2, ChevronUp, ArrowDown, Users, AtSign, Shield, Reply, X, Plus, Image as ImageIcon, Film, Smile, Star, MoreHorizontal, Download, Trash2 } from 'lucide-react'
+import { Send, MessageSquare, Loader2, ChevronUp, ArrowDown, Users, AtSign, Shield, Reply, X, Plus, Image as ImageIcon, Film, Smile, Star, MoreHorizontal, Download, Trash2, Mic, Play, Pause } from 'lucide-react'
 import { sendPushToClub, sendPushToAll } from '@/lib/push-notifications'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -59,6 +59,127 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
   const [myStickers, setMyStickers] = useState<{id: string, url: string}[]>([])
   const [uploadingMedia, setUploadingMedia] = useState(false)
   const [stickerTab, setStickerTab] = useState<'global' | 'personal'>('global')
+  
+  // -- ESTADOS DE AUDIO --
+  const [isRecording, setIsRecording] = useState(false)
+  const [isCancelling, setIsCancelling] = useState(false)
+  const [recordingTime, setRecordingTime] = useState(0)
+  const recorderRef = useRef<MediaRecorder | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const timerRef = useRef<NodeJS.Timeout | null>(null)
+  const startXRef = useRef<number>(0)
+  const [audioPlaybackUrl, setAudioPlaybackUrl] = useState<string | null>(null)
+  const [playbackSpeed, setPlaybackSpeed] = useState(1)
+  const [isZoomed, setIsZoomed] = useState(false)
+
+  // -- LOGICA DE GRABACIÓN --
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      streamRef.current = stream
+      const recorder = new MediaRecorder(stream)
+      recorderRef.current = recorder
+      
+      const chunks: Blob[] = []
+      recorder.ondataavailable = (e) => chunks.push(e.data)
+      recorder.onstop = async () => {
+        const blob = new Blob(chunks, { type: 'audio/webm' })
+        if (!isCancelling && recordingTime > 1) {
+          await sendAudioMessage(blob)
+        }
+        // Cleanup
+        stream.getTracks().forEach(t => t.stop())
+        setIsRecording(false)
+        setRecordingTime(0)
+        setIsCancelling(false)
+      }
+
+      recorder.start()
+      setIsRecording(true)
+      setRecordingTime(0)
+      timerRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1)
+      }, 1000)
+    } catch (err) {
+      console.error('Error al acceder al micrófono:', err)
+      toast.error('No se pudo acceder al micrófono')
+    }
+  }
+
+  const stopRecording = (cancel = false) => {
+    if (timerRef.current) clearInterval(timerRef.current)
+    if (recorderRef.current && recorderRef.current.state === 'recording') {
+      setIsCancelling(cancel)
+      recorderRef.current.stop()
+    }
+  }
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (inputText.trim()) return // Si hay texto, el botón es de enviar
+    startXRef.current = e.clientX
+    startRecording()
+    // Capturar el puntero para seguir el movimiento fuera del botón
+    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+  }
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isRecording) return
+    const diffX = startXRef.current - e.clientX
+    if (diffX > 100) {
+      setIsCancelling(true)
+    } else {
+      setIsCancelling(false)
+    }
+  }
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (!isRecording) return
+    stopRecording(isCancelling)
+    ;(e.target as HTMLElement).releasePointerCapture(e.pointerId)
+  }
+
+  const sendAudioMessage = async (blob: Blob) => {
+    setSending(true)
+    const tid = toast.loading('Enviando audio...')
+    try {
+      const fileName = `voice-${Date.now()}.webm`
+      const filePath = `chat-media/audio/${user.id}/${fileName}`
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('pifa-assets')
+        .upload(filePath, blob, { contentType: 'audio/webm' })
+
+      if (uploadError) throw uploadError
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('pifa-assets')
+        .getPublicUrl(filePath)
+
+      await supabase.from('global_chat_messages').insert({
+        user_id: user.id,
+        club_id: club?.id || null,
+        content: `🎙️ Audio (${formatTime(recordingTime)})`,
+        media_url: publicUrl,
+        media_type: 'audio'
+      })
+
+      // Notificación Push
+      sendPushToAll(`🎙️ Audio de ${club?.name || user.full_name}`, `Duración: ${formatTime(recordingTime)}`, { type: 'chat_audio' }, user.id)
+      toast.success('Audio enviado', { id: tid })
+    } catch (err) {
+      console.error('Error enviando audio:', err)
+      toast.error('Error al enviar audio', { id: tid })
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
   const [pendingMedia, setPendingMedia] = useState<{url: string, type: 'image' | 'video'} | null>(null)
   const [activeMediaUrl, setActiveMediaUrl] = useState<string | null>(null)
   const [stickerToConfirm, setStickerToConfirm] = useState<string | null>(null)
@@ -527,7 +648,8 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
     }
   }
 
-  const downloadFile = async (url: string) => {
+   const downloadFile = async (url: string) => {
+    const tid = toast.loading('Preparando descarga...')
     try {
       const response = await fetch(url)
       const blob = await response.blob()
@@ -539,10 +661,11 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
       link.click()
       document.body.removeChild(link)
       window.URL.revokeObjectURL(blobUrl)
+      toast.success('Archivo descargado correctamente', { id: tid })
     } catch (err) {
       console.error('Download error:', err)
-      // Si falla fetch (CORS), intentamos abrir en pestaña como último recurso
       window.open(url, '_blank')
+      toast.success('Abriendo en nueva pestaña para descargar', { id: tid })
     }
   }
 
@@ -708,7 +831,90 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
                       </div>
                     )}
 
-                    {/* CONTENIDO MULTIMEDIA */}
+                    {/* CONTENIDO MULTIMEDIA (AUDIO) */}
+                    {msg.media_type === 'audio' && (
+                      <div className="mb-2 bg-white/5 rounded-2xl p-4 flex items-center gap-4 border border-white/5 group/audio min-w-[200px] sm:min-w-[250px]">
+                        <button 
+                          onClick={() => {
+                            const audio = document.getElementById(`audio-${msg.id}`) as HTMLAudioElement
+                            if (audio.paused) {
+                              // Detener otros audios que estén sonando
+                              document.querySelectorAll('audio').forEach(a => {
+                                if (a.id !== `audio-${msg.id}`) {
+                                  a.pause()
+                                  a.currentTime = 0
+                                }
+                              })
+                              audio.play()
+                            } else {
+                              audio.pause()
+                            }
+                          }}
+                          className="w-10 h-10 rounded-full bg-[#00FF85] flex items-center justify-center text-[#0A0A0A] shadow-[0_0_15px_rgba(0,255,133,0.3)] hover:scale-110 active:scale-90 transition-all shrink-0"
+                        >
+                          <Play className="w-4 h-4 fill-current ml-0.5" id={`play-icon-${msg.id}`} />
+                        </button>
+                        
+                        <div className="flex-1 space-y-2">
+                          <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden relative">
+                            <div 
+                              className="absolute inset-y-0 left-0 bg-[#00FF85] transition-all duration-100" 
+                              id={`progress-${msg.id}`}
+                              style={{ width: '0%' }}
+                            />
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-[8px] font-bold text-white/40 font-mono" id={`timer-${msg.id}`}>0:00</span>
+                            <button 
+                              onClick={() => {
+                                const audio = document.getElementById(`audio-${msg.id}`) as HTMLAudioElement
+                                const speeds = [1, 1.5, 2]
+                                const currentIdx = speeds.indexOf(audio.playbackRate)
+                                const nextIdx = (currentIdx + 1) % speeds.length
+                                audio.playbackRate = speeds[nextIdx];
+                                (document.getElementById(`speed-btn-${msg.id}`) as HTMLElement).innerText = `${speeds[nextIdx]}x`
+                              }}
+                              id={`speed-btn-${msg.id}`}
+                              className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-[8px] font-black text-[#00FF85] uppercase"
+                            >
+                              1x
+                            </button>
+                          </div>
+                        </div>
+                        
+                        <audio 
+                          id={`audio-${msg.id}`}
+                          src={msg.media_url}
+                          onTimeUpdate={(e) => {
+                            const audio = e.currentTarget
+                            const progress = (audio.currentTime / audio.duration) * 100
+                            const bar = document.getElementById(`progress-${msg.id}`)
+                            const timer = document.getElementById(`timer-${msg.id}`)
+                            const icon = document.getElementById(`play-icon-${msg.id}`)
+                            
+                            if (bar) bar.style.width = `${progress}%`
+                            if (timer) {
+                              const mins = Math.floor(audio.currentTime / 60)
+                              const secs = Math.floor(audio.currentTime % 60)
+                              timer.innerText = `${mins}:${secs.toString().padStart(2, '0')}`
+                            }
+                            if (icon) {
+                              // No podemos cambiar el icono fácilmente aquí sin estado React per-mensaje,
+                              // usaremos un truco visual o dejaremos el icono de play.
+                            }
+                          }}
+                          onEnded={(e) => {
+                            const bar = document.getElementById(`progress-${msg.id}`)
+                            if (bar) bar.style.width = '0%'
+                            const timer = document.getElementById(`timer-${msg.id}`)
+                            if (timer) timer.innerText = '0:00'
+                          }}
+                          className="hidden"
+                        />
+                      </div>
+                    )}
+
+                    {/* CONTENIDO MULTIMEDIA (IMG/VIDEO) */}
                     {msg.media_url && (
                       <div className="mb-2 overflow-hidden rounded-xl">
                         {msg.media_type === 'image' && (
@@ -736,7 +942,7 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
                       </div>
                     )}
 
-                    {msg.media_type !== 'sticker' && (
+                    {msg.media_type !== 'sticker' && msg.media_type !== 'audio' && (
                       <p className="text-[11.5px] sm:text-xs text-white/95 leading-relaxed font-medium" id={`msg-${msg.id}`}>
                         {msg.content.split(' ').map((word, i) => {
                           if (word.startsWith('@')) {
@@ -802,7 +1008,6 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
           >
             <span className="text-[10px] font-black uppercase tracking-[0.2em]">{newMessagesCount} nuevos mensajes</span>
             <div className="p-1 bg-black/10 rounded-full group-hover:animate-bounce">
-              <ArrowDown className="w-3.5 h-3.5" />
             </div>
           </motion.button>
         )}
@@ -810,6 +1015,89 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
 
       {/* Input de Mensaje - Estilo Flotante */}
       <div className="px-6 py-4 z-30 bg-[#0A0A0A] border-t border-white/5">
+        {/* PANEL DE STICKERS (FLOTANTE) */}
+        <AnimatePresence>
+          {mediaPickerType === 'stickers' && (
+            <motion.div 
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.95 }}
+              className="absolute bottom-full left-6 right-6 mb-4 bg-[#111111] border border-white/10 rounded-2xl overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.8)] z-50 flex flex-col h-80"
+            >
+              <div className="px-4 py-3 bg-white/5 border-b border-white/5 flex items-center justify-between">
+                <div className="flex gap-4">
+                  <button 
+                    type="button" 
+                    onClick={() => setStickerTab('global')}
+                    className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-2 pb-1 transition-all ${
+                      stickerTab === 'global' ? 'text-[#00FF85] border-b-2 border-[#00FF85]' : 'text-white/40'
+                    }`}
+                  >
+                    Mundial
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => setStickerTab('personal')} 
+                    className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-2 pb-1 transition-all ${
+                      stickerTab === 'personal' ? 'text-[#00FF85] border-b-2 border-[#00FF85]' : 'text-white/40'
+                    }`}
+                  >
+                    Favoritos
+                  </button>
+                </div>
+                <button onClick={() => setMediaPickerType(null)}><X className="w-4 h-4 text-white/20" /></button>
+              </div>
+              
+              <div className="flex-1 p-4 overflow-y-auto grid grid-cols-4 gap-4 custom-scrollbar">
+                <button 
+                  type="button"
+                  onClick={() => {
+                    const input = document.createElement('input')
+                    input.type = 'file'
+                    input.accept = 'image/*'
+                    input.onchange = (ev: any) => {
+                      const f = ev.target.files[0]
+                      if (f) {
+                        const event = { target: { files: [f] }, type: 'custom' }
+                        handleFileUpload(event, 'sticker')
+                      }
+                    }
+                    input.click()
+                  }}
+                  className="aspect-square rounded-xl border-2 border-dashed border-white/5 flex items-center justify-center hover:border-[#00FF85]/40 transition-all text-white/20 hover:text-[#00FF85]"
+                >
+                  <Plus className="w-6 h-6" />
+                </button>
+
+                {stickerTab === 'global' ? (
+                  officialStickers.map(st => (
+                    <button 
+                      key={st.id} 
+                      type="button"
+                      onClick={() => sendMediaMessage(st.url, 'sticker')}
+                      className="aspect-square hover:scale-110 transition-transform relative"
+                    >
+                      <img src={st.url} loading="lazy" className="w-full h-full object-contain relative z-10" />
+                    </button>
+                  ))
+                ) : (
+                  myStickers.map(st => (
+                    <button 
+                      key={st.id} 
+                      type="button"
+                      onClick={() => sendMediaMessage(st.url, 'sticker')}
+                      className="aspect-square hover:scale-110 transition-transform relative group/personal"
+                    >
+                      <img src={st.url} loading="lazy" className="w-full h-full object-contain relative z-10" />
+                      <Star className="absolute -top-1 -right-1 w-3 h-3 text-yellow-400 fill-current z-20" />
+                    </button>
+                  ))
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* PREVIEW DE MULTIMEDIA PENDIENTE */}
         <AnimatePresence>
           {pendingMedia && (
@@ -830,10 +1118,7 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
                 <p className="text-[9px] font-black text-[#00FF85] uppercase tracking-widest mb-1">Adjunto listo para enviar</p>
                 <p className="text-[8px] text-white/40 uppercase tracking-tighter italic">Puedes añadir un mensaje antes de enviar</p>
               </div>
-              <button 
-                onClick={() => setPendingMedia(null)}
-                className="p-2 hover:bg-white/5 rounded-full transition-colors"
-              >
+              <button onClick={() => setPendingMedia(null)} className="p-2 hover:bg-white/5 rounded-full transition-colors">
                 <X className="w-4 h-4 text-white/40" />
               </button>
             </motion.div>
@@ -854,10 +1139,7 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
                   <Reply className="w-3 h-3 text-[#00FF85]" />
                   <span className="text-[9px] font-black text-[#00FF85] uppercase tracking-widest">Respondiendo a {replyingTo.user?.full_name}</span>
                 </div>
-                <button 
-                  onClick={() => setReplyingTo(null)}
-                  className="p-1 hover:bg-white/5 rounded-full transition-colors"
-                >
+                <button onClick={() => setReplyingTo(null)} className="p-1 hover:bg-white/5 rounded-full transition-colors">
                   <X className="w-3 h-3 text-white/40" />
                 </button>
               </div>
@@ -881,240 +1163,157 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
             }}
           />
 
-          <div className="relative flex items-center">
-            <button
-              type="button"
-              onClick={() => {
-                setMediaPickerType(mediaPickerType === 'attachments' ? null : 'attachments')
-                setShowMentionMenu(false)
-              }}
-              className="p-3.5 rounded-2xl bg-white/5 text-white/40 hover:text-[#00FF85] border border-white/5 transition-all active:scale-90"
-            >
-              <Plus className={`w-5 h-5 transition-transform ${mediaPickerType === 'attachments' ? 'rotate-45' : ''}`} />
-            </button>
-
-            <AnimatePresence>
-              {mediaPickerType === 'attachments' && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9, y: 10 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.9, y: 10 }}
-                  className="absolute bottom-full left-0 mb-3 bg-[#111111] border border-white/10 rounded-2xl p-2 shadow-2xl z-50 flex flex-col gap-2 min-w-[150px]"
-                >
-                  <button type="button" onClick={() => fileInputRef.current?.click()} className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 rounded-xl transition-colors text-left group">
-                    <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400 group-hover:scale-110 transition-transform">
-                      <ImageIcon className="w-4 h-4" />
-                    </div>
-                    <span className="text-[10px] font-black text-white/80 uppercase">Galería</span>
-                  </button>
-                  <button type="button" onClick={() => setMediaPickerType('stickers')} className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 rounded-xl transition-colors text-left group">
-                    <div className="p-2 bg-[#00FF85]/20 rounded-lg text-[#00FF85] group-hover:scale-110 transition-transform">
-                      <Smile className="w-4 h-4" />
-                    </div>
-                    <span className="text-[10px] font-black text-white/80 uppercase">Stickers</span>
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          <div className="flex-1 relative group">
-            {/* PANEL DE STICKERS */}
-            <AnimatePresence>
-              {mediaPickerType === 'stickers' && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 20, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 20, scale: 0.95 }}
-                  className="absolute bottom-full left-0 w-full mb-4 bg-[#111111] border border-white/10 rounded-2xl overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.8)] z-50 flex flex-col h-80"
-                >
-                  <div className="px-4 py-3 bg-white/5 border-b border-white/5 flex items-center justify-between">
-                    <div className="flex gap-4">
-                      <button 
-                        type="button" 
-                        onClick={() => setStickerTab('global')}
-                        className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-2 pb-1 transition-all ${
-                          stickerTab === 'global' ? 'text-[#00FF85] border-b-2 border-[#00FF85]' : 'text-white/40'
-                        }`}
-                      >
-                        Mundial
-                      </button>
-                      <button 
-                        type="button" 
-                        onClick={() => setStickerTab('personal')} 
-                        className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-2 pb-1 transition-all ${
-                          stickerTab === 'personal' ? 'text-[#00FF85] border-b-2 border-[#00FF85]' : 'text-white/40'
-                        }`}
-                      >
-                        Favoritos
-                      </button>
-                    </div>
-                    <button onClick={() => setMediaPickerType(null)}><X className="w-4 h-4 text-white/20" /></button>
-                  </div>
-                  
-                  <div className="flex-1 p-4 overflow-y-auto grid grid-cols-4 gap-4 custom-scrollbar">
-                    {/* Boton subir sticker */}
-                    <button 
-                      type="button"
-                      onClick={() => {
-                        const input = document.createElement('input')
-                        input.type = 'file'
-                        input.accept = 'image/*'
-                        input.onchange = (ev: any) => {
-                          const f = ev.target.files[0]
-                          if (f) {
-                            const event = { target: { files: [f] }, type: 'custom' }
-                            handleFileUpload(event, 'sticker')
-                          }
-                        }
-                        input.click()
-                      }}
-                      className="aspect-square rounded-xl border-2 border-dashed border-white/5 flex items-center justify-center hover:border-[#00FF85]/40 transition-all text-white/20 hover:text-[#00FF85]"
-                    >
-                      <Plus className="w-6 h-6" />
+          {!isRecording && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setMediaPickerType(mediaPickerType === 'attachments' ? null : 'attachments')}
+                className="p-3.5 rounded-2xl bg-white/5 text-white/40 hover:text-[#00FF85] border border-white/5 transition-all"
+              >
+                <Plus className={`w-5 h-5 transition-transform ${mediaPickerType === 'attachments' ? 'rotate-45' : ''}`} />
+              </button>
+              
+              <AnimatePresence>
+                {mediaPickerType === 'attachments' && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.9, y: 10 }}
+                    className="absolute bottom-full left-0 mb-3 bg-[#111111] border border-white/10 rounded-2xl p-2 shadow-2xl z-50 flex flex-col gap-2 min-w-[150px]"
+                  >
+                    <button type="button" onClick={() => fileInputRef.current?.click()} className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 rounded-xl transition-colors text-left group">
+                      <ImageIcon className="w-4 h-4 text-blue-400" />
+                      <span className="text-[10px] font-black text-white/80 uppercase">Galería</span>
                     </button>
+                    <button type="button" onClick={() => setMediaPickerType('stickers')} className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 rounded-xl transition-colors text-left group">
+                      <Smile className="w-4 h-4 text-[#00FF85]" />
+                      <span className="text-[10px] font-black text-white/80 uppercase">Stickers</span>
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
 
-                    {stickerTab === 'global' ? (
-                      officialStickers.map(st => (
-                        <button 
-                          key={st.id} 
-                          type="button"
-                          onClick={() => sendMediaMessage(st.url, 'sticker')}
-                          className="aspect-square hover:scale-110 transition-transform relative"
-                        >
-                          <div className="absolute inset-0 bg-white/5 rounded-xl animate-pulse" />
-                          <img 
-                            src={st.url} 
-                            loading="lazy"
-                            className="w-full h-full object-contain relative z-10" 
-                          />
-                        </button>
-                      ))
-                    ) : (
-                      myStickers.map(st => (
-                        <button 
-                          key={st.id} 
-                          type="button"
-                          onClick={() => sendMediaMessage(st.url, 'sticker')}
-                          className="aspect-square hover:scale-110 transition-transform relative group/personal"
-                        >
-                          <div className="absolute inset-0 bg-white/5 rounded-xl animate-pulse" />
-                          <img 
-                            src={st.url} 
-                            loading="lazy"
-                            className="w-full h-full object-contain relative z-10" 
-                          />
-                          <Star className="absolute -top-1 -right-1 w-3 h-3 text-yellow-400 fill-current z-20" />
-                        </button>
-                      ))
-                    )}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-            {/* MENÚ DE MENCIONES */}
-            <AnimatePresence>
-              {showMentionMenu && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  className="absolute bottom-full left-0 w-full mb-3 bg-[#111111] border border-white/10 rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-50"
-                >
-                  <div className="px-4 py-2 bg-white/5 border-b border-white/5 flex items-center justify-between">
-                    <span className="text-[8px] font-black uppercase tracking-widest text-white/40">Mencionar DT</span>
-                    <AtSign className="w-3 h-3 text-[#00FF85]" />
-                  </div>
-                  <div className="max-h-48 overflow-y-auto custom-scrollbar">
-                    {/* Opción @todos */}
-                    {('@todos'.includes(mentionFilter.toLowerCase()) || mentionFilter === '') && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const words = inputText.split(' ')
-                          words[words.length - 1] = '@todos '
-                          setInputText(words.join(' '))
-                          setShowMentionMenu(false)
-                        }}
-                        className="w-full px-4 py-3 flex items-center gap-3 hover:bg-[#00FF85]/10 transition-colors border-b border-white/5 group"
-                      >
-                        <div className="w-8 h-8 rounded-lg bg-[#00FF85]/20 flex items-center justify-center border border-[#00FF85]/20">
-                          <Users className="w-4 h-4 text-[#00FF85]" />
-                        </div>
-                        <div className="text-left">
-                          <p className="text-[10px] font-black text-white group-hover:text-[#00FF85]">@todos</p>
-                          <p className="text-[7px] font-bold text-white/40 uppercase tracking-widest">Notificar a todo el vestuario</p>
-                        </div>
-                      </button>
-                    )}
-
-                    {allDTs
-                      .filter(dt => dt.club?.name?.toLowerCase().includes(mentionFilter.toLowerCase()))
-                      .map((dt, idx) => (
+          <div className="flex-1 relative">
+            {isRecording ? (
+              <motion.div 
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="flex items-center justify-between w-full bg-[#1A1A1A] border border-[#00FF85]/30 px-5 py-4 rounded-2xl"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                  <span className="text-[11px] font-black text-white font-mono">{formatTime(recordingTime)}</span>
+                </div>
+                <div className="flex-1 text-center">
+                  <p className={`text-[9px] font-black uppercase tracking-[0.2em] transition-colors ${isCancelling ? 'text-red-500 animate-bounce' : 'text-white/40'}`}>
+                    {isCancelling ? 'SUELTA PARA CANCELAR' : '← DESLIZA PARA CANCELAR'}
+                  </p>
+                </div>
+              </motion.div>
+            ) : (
+              <>
+                <AnimatePresence>
+                  {showMentionMenu && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 10 }}
+                      className="absolute bottom-full left-0 w-full mb-3 bg-[#111111] border border-white/10 rounded-2xl overflow-hidden shadow-2xl z-50"
+                    >
+                      <div className="px-4 py-2 bg-white/5 border-b border-white/5 flex items-center justify-between">
+                        <span className="text-[8px] font-black uppercase tracking-widest text-white/40">Mencionar DT</span>
+                        <AtSign className="w-3 h-3 text-[#00FF85]" />
+                      </div>
+                      <div className="max-h-48 overflow-y-auto custom-scrollbar">
                         <button
-                          key={dt.id}
                           type="button"
                           onClick={() => {
                             const words = inputText.split(' ')
-                            words[words.length - 1] = `@${dt.club?.name} `
+                            words[words.length - 1] = '@todos '
                             setInputText(words.join(' '))
                             setShowMentionMenu(false)
                           }}
-                          className="w-full px-4 py-3 flex items-center gap-3 hover:bg-[#00FF85]/10 transition-colors border-b border-white/5 last:border-0 group"
+                          className="w-full px-4 py-3 flex items-center gap-3 hover:bg-[#00FF85]/10 border-b border-white/5"
                         >
-                          <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center border border-white/10 p-1">
-                            {dt.club?.shield_url ? (
-                              <img src={dt.club.shield_url} className="w-full h-full object-contain" />
-                            ) : (
-                              <Shield className="w-4 h-4 text-white/20" />
-                            )}
-                          </div>
-                          <div className="text-left">
-                            <p className="text-[10px] font-black text-white group-hover:text-[#00FF85]">@{dt.club?.name}</p>
-                            <p className="text-[7px] font-bold text-white/40 uppercase tracking-widest">{dt.full_name}</p>
-                          </div>
+                          <Users className="w-3 h-3 text-[#00FF85]" />
+                          <span className="text-[10px] font-black text-white">@todos</span>
                         </button>
-                      ))}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <div className="absolute -inset-1 bg-gradient-to-r from-[#00FF85]/0 via-[#00FF85]/20 to-[#00FF85]/0 rounded-2xl opacity-0 group-focus-within:opacity-100 transition-opacity blur-md" />
-            <input 
-              type="text"
-              value={inputText}
-              onChange={(e) => {
-                const val = e.target.value
-                setInputText(val)
-                
-                // Detectar si el último caracter o palabra empieza con @
-                const words = val.split(' ')
-                const lastWord = words[words.length - 1]
-                if (lastWord.startsWith('@')) {
-                  setShowMentionMenu(true)
-                  setMentionFilter(lastWord.slice(1))
-                } else {
-                  setShowMentionMenu(false)
-                }
-              }}
-              placeholder="Envía un comunicado al vestuario..."
-              className="w-full bg-[#141414]/90 backdrop-blur-xl border border-white/10 px-5 py-4 rounded-2xl text-[11px] font-bold text-white placeholder:text-white/20 focus:outline-none focus:border-[#00FF85]/40 transition-all shadow-2xl"
-            />
+                        {allDTs
+                          .filter(dt => dt.club?.name?.toLowerCase().includes(mentionFilter.toLowerCase()))
+                          .map((dt) => (
+                          <button
+                            key={dt.id}
+                            type="button"
+                            onClick={() => {
+                              const words = inputText.split(' ')
+                              words[words.length - 1] = `@${dt.club?.name} `
+                              setInputText(words.join(' '))
+                              setShowMentionMenu(false)
+                            }}
+                            className="w-full px-4 py-3 flex items-center gap-3 hover:bg-[#00FF85]/10 border-b border-white/5"
+                          >
+                            <span className="text-[10px] font-black text-white">@{dt.club?.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                <input 
+                  type="text"
+                  value={inputText}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    setInputText(val)
+                    const words = val.split(' ')
+                    const lastWord = words[words.length - 1]
+                    if (lastWord.startsWith('@')) {
+                      setShowMentionMenu(true)
+                      setMentionFilter(lastWord.slice(1))
+                    } else {
+                      setShowMentionMenu(false)
+                    }
+                  }}
+                  placeholder="Envía un comunicado al vestuario..."
+                  className="w-full bg-[#141414]/90 border border-white/10 px-5 py-4 rounded-2xl text-[11px] font-bold text-white focus:outline-none focus:border-[#00FF85]/40 transition-all"
+                />
+              </>
+            )}
           </div>
-          <button 
-            type="submit"
-            disabled={!inputText.trim() || sending}
-            className={`p-3.5 rounded-2xl transition-all active:scale-90 shadow-2xl ${
-              inputText.trim() && !sending 
-                ? 'bg-[#00FF85] text-[#0A0A0A] shadow-[0_5px_20px_rgba(0,255,133,0.3)] hover:scale-105' 
-                : 'bg-white/5 text-white/10'
-            }`}
-          >
-            {sending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5 fill-current" />}
-          </button>
+
+          <div className="flex items-center gap-2">
+            {!inputText.trim() && !pendingMedia && !replyingTo && (
+              <button 
+                type="button"
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                className={`p-3.5 rounded-2xl transition-all shadow-2xl relative ${
+                  isRecording 
+                    ? 'bg-red-500 text-white scale-125 shadow-[0_0_30px_rgba(239,68,68,0.4)]' 
+                    : 'bg-white/5 text-white/40 hover:text-[#00FF85]'
+                }`}
+              >
+                <Mic className="w-5 h-5 relative z-10" />
+              </button>
+            )}
+            
+            <button 
+              type="submit"
+              disabled={(!inputText.trim() && !pendingMedia && !replyingTo) || sending}
+              className={`p-3.5 rounded-2xl transition-all shadow-2xl ${
+                (inputText.trim() || pendingMedia || replyingTo) && !sending
+                  ? 'bg-[#00FF85] text-[#0A0A0A] shadow-[0_5px_15px_rgba(0,255,133,0.3)]' 
+                  : 'bg-white/5 text-white/10'
+              }`}
+            >
+              {sending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5 fill-current" />}
+            </button>
+          </div>
         </form>
-    </div>
+      </div>
 
     {/* MODAL DE CONFIRMACIÓN DE STICKER */}
     <AnimatePresence>
@@ -1153,52 +1352,74 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
       )}
     </AnimatePresence>
 
-    {/* LIGHTBOX (VISUALIZADOR A PANTALLA COMPLETA) */}
+    {/* LIGHTBOX (VISUALIZADOR COMPACTO) */}
     <AnimatePresence>
       {activeMediaUrl && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-xl group">
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center p-4 bg-black/90 backdrop-blur-md">
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="relative w-full h-full flex items-center justify-center p-4"
-            onClick={() => setActiveMediaUrl(null)}
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="relative w-full max-w-sm bg-[#0A0A0A] border border-white/10 rounded-[32px] overflow-hidden shadow-2xl flex flex-col"
+            onClick={(e) => e.stopPropagation()}
           >
-            {activeMediaUrl.includes('.mp4') || activeMediaUrl.includes('video') ? (
-              <video 
-                src={activeMediaUrl} 
-                controls 
-                autoPlay 
-                className="max-w-full max-h-full rounded-2xl" 
-                onClick={(e) => e.stopPropagation()}
-              />
-            ) : (
-              <img 
-                src={activeMediaUrl} 
-                className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl" 
-                onClick={(e) => e.stopPropagation()}
-              />
-            )}
-
-            {/* BOTONES DE ACCIÓN */}
-            <div className="absolute top-6 right-6 flex gap-4">
+            {/* Header del Lightbox */}
+            <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between bg-white/5">
+              <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.3em]">Vista Previa</span>
               <button 
-                onClick={(e) => {
-                  e.stopPropagation()
-                  downloadFile(activeMediaUrl!)
+                onClick={() => {
+                  setActiveMediaUrl(null)
+                  setIsZoomed(false)
                 }}
-                className="p-4 bg-white/5 hover:bg-[#00FF85] text-white hover:text-black rounded-full backdrop-blur-md transition-all border border-white/10 group/btn"
+                className="p-2 hover:bg-white/10 rounded-full transition-all text-white/40 hover:text-white"
               >
-                <Download className="w-6 h-6 group-hover/btn:scale-110 transition-transform" />
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Contenido Media */}
+            <div className="flex-1 flex items-center justify-center p-2 bg-black/40 min-h-[200px] max-h-[60vh] overflow-hidden cursor-crosshair">
+              {activeMediaUrl.includes('.mp4') || activeMediaUrl.includes('video') ? (
+                <video src={activeMediaUrl} controls autoPlay className="max-w-full max-h-full rounded-xl" />
+              ) : (
+                <motion.div
+                  drag={isZoomed}
+                  dragConstraints={{ left: -200, right: 200, top: -200, bottom: 200 }}
+                  dragElastic={0.1}
+                  animate={{ scale: isZoomed ? 2.5 : 1 }}
+                  onClick={() => setIsZoomed(!isZoomed)}
+                  className={`w-full h-full flex items-center justify-center transition-all ${isZoomed ? 'cursor-zoom-out' : 'cursor-zoom-in'}`}
+                >
+                  <img src={activeMediaUrl} className="max-w-full max-h-full object-contain rounded-xl" />
+                </motion.div>
+              )}
+            </div>
+
+            {/* Footer con Acciones */}
+            <div className="p-6 flex gap-4 bg-white/5">
+              <button 
+                onClick={() => downloadFile(activeMediaUrl!)}
+                className="flex-1 py-4 rounded-2xl bg-[#00FF85] text-[#0A0A0A] text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:shadow-[0_0_20px_rgba(0,255,133,0.3)] transition-all"
+              >
+                <Download className="w-4 h-4" />
+                Descargar
               </button>
               <button 
-                onClick={() => setActiveMediaUrl(null)}
-                className="p-4 bg-white/5 hover:bg-red-500 text-white rounded-full backdrop-blur-md transition-all border border-white/10"
+                onClick={() => {
+                  setActiveMediaUrl(null)
+                  setIsZoomed(false)
+                }}
+                className="flex-1 py-4 rounded-2xl bg-white/5 text-white/40 text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all border border-white/5"
               >
-                <X className="w-6 h-6" />
+                Cerrar
               </button>
             </div>
           </motion.div>
+          {/* Fondo para cerrar al clickear fuera de la tarjeta */}
+          <div className="absolute inset-0 -z-10" onClick={() => {
+            setActiveMediaUrl(null)
+            setIsZoomed(false)
+          }} />
         </div>
       )}
     </AnimatePresence>
