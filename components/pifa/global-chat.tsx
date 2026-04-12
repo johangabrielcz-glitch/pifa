@@ -41,6 +41,86 @@ interface ReadStatus {
 
 const PAGE_SIZE = 15
 
+// -- COMPONENTE DE AUDIO COMPACTO --
+const AudioPlayer = ({ url, msgId }: { url: string, msgId: string }) => {
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
+  const [speed, setSpeed] = useState(1)
+  const audioRef = useRef<HTMLAudioElement>(null)
+
+  const togglePlay = () => {
+    if (!audioRef.current) return
+    if (isPlaying) {
+      audioRef.current.pause()
+    } else {
+      // Pausar otros audios del DOM
+      document.querySelectorAll('audio').forEach(a => {
+        if (a !== audioRef.current) a.pause()
+      })
+      audioRef.current.play()
+    }
+  }
+
+  const toggleSpeed = () => {
+    if (!audioRef.current) return
+    const rates = [1, 1.5, 2]
+    const nextRate = rates[(rates.indexOf(speed) + 1) % rates.length]
+    setSpeed(nextRate)
+    audioRef.current.playbackRate = nextRate
+  }
+
+  const formatTime = (time: number) => {
+    const mins = Math.floor(time / 60)
+    const secs = Math.floor(time % 60)
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
+  return (
+    <div className="bg-white/5 rounded-2xl p-3 flex items-center gap-3 border border-white/5 min-w-[170px] max-w-[220px] group/audio transition-all hover:bg-white/10">
+      <button 
+        onClick={togglePlay}
+        className="w-8 h-8 rounded-full bg-[#00FF85] flex items-center justify-center text-[#0A0A0A] shadow-[0_0_10px_rgba(0,255,133,0.3)] hover:scale-110 active:scale-95 transition-all shrink-0"
+      >
+        {isPlaying ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current ml-0.5" />}
+      </button>
+      
+      <div className="flex-1 min-w-0 space-y-1.5">
+        <div className="h-1 w-full bg-white/10 rounded-full overflow-hidden relative">
+          <motion.div 
+            initial={{ width: 0 }}
+            animate={{ width: `${(currentTime / (duration || 1)) * 100}%` }}
+            className="absolute inset-y-0 left-0 bg-[#00FF85]"
+          />
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="text-[7px] font-bold text-white/40 font-mono">{formatTime(currentTime)}</span>
+          <button 
+            onClick={toggleSpeed}
+            className="px-1.5 py-0.5 rounded-md bg-white/5 border border-white/10 text-[7px] font-black text-[#00FF85] uppercase hover:bg-[#00FF85]/10 transition-colors"
+          >
+            {speed}x
+          </button>
+        </div>
+      </div>
+      
+      <audio 
+        ref={audioRef}
+        src={url}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onEnded={() => {
+          setIsPlaying(false)
+          setCurrentTime(0)
+        }}
+        onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+        onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+        className="hidden"
+      />
+    </div>
+  )
+}
+
 export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [readStatuses, setReadStatuses] = useState<ReadStatus[]>([])
@@ -71,11 +151,29 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
   const [audioPlaybackUrl, setAudioPlaybackUrl] = useState<string | null>(null)
   const [playbackSpeed, setPlaybackSpeed] = useState(1)
   const [isZoomed, setIsZoomed] = useState(false)
+  const [micPermissionStatus, setMicPermissionStatus] = useState<'granted' | 'denied' | 'prompt' | 'unknown'>('unknown')
+
+   const checkMicPermission = async () => {
+    if (!navigator.permissions || !navigator.permissions.query) return
+    try {
+      const result = await navigator.permissions.query({ name: 'microphone' as PermissionName })
+      setMicPermissionStatus(result.state as any)
+      result.onchange = () => setMicPermissionStatus(result.state as any)
+    } catch (e) {
+      console.warn('Permissions API not supported for microphone')
+    }
+  }
 
   // -- LOGICA DE GRABACIÓN --
   const startRecording = async () => {
+    if (!window.isSecureContext) {
+      toast.error('El micrófono requiere una conexión segura (HTTPS)')
+      return
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      setMicPermissionStatus('granted')
       streamRef.current = stream
       const recorder = new MediaRecorder(stream)
       recorderRef.current = recorder
@@ -100,9 +198,14 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
       timerRef.current = setInterval(() => {
         setRecordingTime(prev => prev + 1)
       }, 1000)
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error al acceder al micrófono:', err)
-      toast.error('No se pudo acceder al micrófono')
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setMicPermissionStatus('denied')
+        toast.error('Permiso denegado. Habilita el micrófono en los ajustes del sitio.')
+      } else {
+        toast.error('No se pudo acceder al micrófono')
+      }
     }
   }
 
@@ -351,6 +454,7 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
   useEffect(() => {
     let isMounted = true
     const init = async () => {
+      checkMicPermission()
       console.log('🔍 DEBUG CHAT - Iniciando con:', { userId: user?.id, clubId: club?.id })
       try {
         const [initialMessages, { data: usersData }, { data: stickersData }] = await Promise.all([
@@ -833,84 +937,8 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
 
                     {/* CONTENIDO MULTIMEDIA (AUDIO) */}
                     {msg.media_type === 'audio' && (
-                      <div className="mb-2 bg-white/5 rounded-2xl p-4 flex items-center gap-4 border border-white/5 group/audio min-w-[200px] sm:min-w-[250px]">
-                        <button 
-                          onClick={() => {
-                            const audio = document.getElementById(`audio-${msg.id}`) as HTMLAudioElement
-                            if (audio.paused) {
-                              // Detener otros audios que estén sonando
-                              document.querySelectorAll('audio').forEach(a => {
-                                if (a.id !== `audio-${msg.id}`) {
-                                  a.pause()
-                                  a.currentTime = 0
-                                }
-                              })
-                              audio.play()
-                            } else {
-                              audio.pause()
-                            }
-                          }}
-                          className="w-10 h-10 rounded-full bg-[#00FF85] flex items-center justify-center text-[#0A0A0A] shadow-[0_0_15px_rgba(0,255,133,0.3)] hover:scale-110 active:scale-90 transition-all shrink-0"
-                        >
-                          <Play className="w-4 h-4 fill-current ml-0.5" id={`play-icon-${msg.id}`} />
-                        </button>
-                        
-                        <div className="flex-1 space-y-2">
-                          <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden relative">
-                            <div 
-                              className="absolute inset-y-0 left-0 bg-[#00FF85] transition-all duration-100" 
-                              id={`progress-${msg.id}`}
-                              style={{ width: '0%' }}
-                            />
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-[8px] font-bold text-white/40 font-mono" id={`timer-${msg.id}`}>0:00</span>
-                            <button 
-                              onClick={() => {
-                                const audio = document.getElementById(`audio-${msg.id}`) as HTMLAudioElement
-                                const speeds = [1, 1.5, 2]
-                                const currentIdx = speeds.indexOf(audio.playbackRate)
-                                const nextIdx = (currentIdx + 1) % speeds.length
-                                audio.playbackRate = speeds[nextIdx];
-                                (document.getElementById(`speed-btn-${msg.id}`) as HTMLElement).innerText = `${speeds[nextIdx]}x`
-                              }}
-                              id={`speed-btn-${msg.id}`}
-                              className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-[8px] font-black text-[#00FF85] uppercase"
-                            >
-                              1x
-                            </button>
-                          </div>
-                        </div>
-                        
-                        <audio 
-                          id={`audio-${msg.id}`}
-                          src={msg.media_url}
-                          onTimeUpdate={(e) => {
-                            const audio = e.currentTarget
-                            const progress = (audio.currentTime / audio.duration) * 100
-                            const bar = document.getElementById(`progress-${msg.id}`)
-                            const timer = document.getElementById(`timer-${msg.id}`)
-                            const icon = document.getElementById(`play-icon-${msg.id}`)
-                            
-                            if (bar) bar.style.width = `${progress}%`
-                            if (timer) {
-                              const mins = Math.floor(audio.currentTime / 60)
-                              const secs = Math.floor(audio.currentTime % 60)
-                              timer.innerText = `${mins}:${secs.toString().padStart(2, '0')}`
-                            }
-                            if (icon) {
-                              // No podemos cambiar el icono fácilmente aquí sin estado React per-mensaje,
-                              // usaremos un truco visual o dejaremos el icono de play.
-                            }
-                          }}
-                          onEnded={(e) => {
-                            const bar = document.getElementById(`progress-${msg.id}`)
-                            if (bar) bar.style.width = '0%'
-                            const timer = document.getElementById(`timer-${msg.id}`)
-                            if (timer) timer.innerText = '0:00'
-                          }}
-                          className="hidden"
-                        />
+                      <div className="mb-2">
+                        <AudioPlayer url={msg.media_url!} msgId={msg.id} />
                       </div>
                     )}
 
