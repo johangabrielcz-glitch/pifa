@@ -122,10 +122,31 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
   const fetchReadStatuses = useCallback(async () => {
     const { data } = await supabase
       .from('global_chat_read_status')
-      .select('*, club:clubs(shield_url)')
+      .select('*, club:clubs(shield_url), last_read_msg:global_chat_messages!last_read_message_id(created_at)')
     
     if (data) setReadStatuses(data)
   }, [])
+
+  // -- PROCESAMIENTO DE ESTADOS DE LECTURA (Optimización para Receipts) --
+  const clubReadStats = useMemo(() => {
+    const stats: Record<string, { lastMsgAt: number, shield_url: string | null }> = {}
+    
+    readStatuses.forEach(rs => {
+      // Usamos el timestamp del mensaje referenciado en el estado de lectura
+      const readAt = rs.last_read_msg?.created_at ? new Date(rs.last_read_msg.created_at).getTime() : 0
+      if (readAt === 0) return
+
+      // Si el club no existe o este usuario ha leído mensajes más recientes
+      if (!stats[rs.club_id] || readAt > stats[rs.club_id].lastMsgAt) {
+        stats[rs.club_id] = {
+          lastMsgAt: readAt,
+          shield_url: rs.club?.shield_url || null
+        }
+      }
+    })
+    
+    return stats
+  }, [readStatuses])
 
   // -- EFECTOS --
 
@@ -150,10 +171,51 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
     return (data || []).reverse()
   }, [])
 
+  const handleCatchUp = useCallback(async () => {
+    // Si no hay mensajes, no hay nada que "atrapar"
+    if (messages.length === 0) return
+
+    const lastMsg = messages[messages.length - 1]
+    const { data: missedMsgs, error } = await supabase
+      .from('global_chat_messages')
+      .select(`
+        *,
+        user:users(full_name, username),
+        club:clubs(name, shield_url),
+        reply_to:reply_to_id(content, user:users(full_name))
+      `)
+      .gt('created_at', lastMsg.created_at)
+      .order('created_at', { ascending: true })
+
+    if (error) {
+      console.error('Error al recuperar mensajes perdidos:', error)
+      return
+    }
+
+    if (missedMsgs && missedMsgs.length > 0) {
+      setMessages(prev => {
+        const newUniqueMsgs = missedMsgs.filter(mm => !prev.find(m => m.id === mm.id))
+        
+        if (newUniqueMsgs.length > 0) {
+          if (isAtBottomRef.current) {
+            setTimeout(() => scrollToBottom('smooth'), 100)
+            updateMyReadStatus(newUniqueMsgs[newUniqueMsgs.length - 1].id)
+          } else {
+            setNewMessagesCount(c => c + newUniqueMsgs.length)
+          }
+          return [...prev, ...newUniqueMsgs]
+        }
+        return prev
+      })
+    }
+
+    // Aprovechar para refrescar estados de lectura
+    fetchReadStatuses()
+  }, [messages, fetchReadStatuses, updateMyReadStatus])
+
   useEffect(() => {
     let isMounted = true
     const init = async () => {
-      // Cargamos todo en paralelo para reducir el tiempo de espera inicial
       try {
         const [initialMessages, { data: usersData }, { data: stickersData }] = await Promise.all([
           fetchMessagesPaginated(),
@@ -175,6 +237,7 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
           await updateMyReadStatus(lastMsgId)
         }
         
+        // El autoscroll solo debe ocurrir una vez al inicio
         setTimeout(() => scrollToBottom('auto'), 100)
       } catch (err) {
         console.error('Error in init:', err)
@@ -184,7 +247,18 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
 
     init()
     return () => { isMounted = false }
-  }, [fetchMessagesPaginated, fetchReadStatuses, updateMyReadStatus])
+  }, []) // Solo al montar
+
+  // Sincronización al volver del segundo plano (Efecto separado)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        handleCatchUp()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [handleCatchUp])
 
   // Suscripciones Realtime
   useEffect(() => {
@@ -200,13 +274,18 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
         if (newMsgError) console.error('Error fetching new real-time message:', newMsgError)
 
         if (newMsg) {
-          setMessages(prev => [...prev, newMsg])
-          if (!isAtBottomRef.current) {
-            setNewMessagesCount(prev => prev + 1)
-          } else {
-            updateMyReadStatus(newMsg.id)
-            setTimeout(() => scrollToBottom('smooth'), 50)
-          }
+          setMessages(prev => {
+            const exists = prev.find(m => m.id === newMsg.id)
+            if (exists) return prev
+            
+            if (!isAtBottomRef.current) {
+              setNewMessagesCount(c => c + 1)
+            } else {
+              updateMyReadStatus(newMsg.id)
+              setTimeout(() => scrollToBottom('smooth'), 50)
+            }
+            return [...prev, newMsg]
+          })
         }
       })
       .subscribe()
@@ -519,13 +598,18 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
           const showFullDate = !prevMsg || 
             format(new Date(msg.created_at), 'yyyy-MM-dd') !== format(new Date(prevMsg.created_at), 'yyyy-MM-dd')
 
-          // Quiénes han leído este mensaje (excluyendo al autor y a mí mismo si soy el autor)
-          const readers = readStatuses.filter(rs => 
-            rs.club_id !== club?.id && // No mostrar mi propio club en mis mensajes
-            rs.club_id !== msg.club_id && // No mostrar al autor en sus propios mensajes
-            (rs.last_read_message_id === msg.id || 
-            (messages.findIndex(m => m.id === rs.last_read_message_id) > idx))
-          )
+          // Quiénes han leído este mensaje (basado en el tiempo de creación)
+          const msgTime = new Date(msg.created_at).getTime()
+          const readers = Object.entries(clubReadStats)
+            .filter(([idClub, stat]) => 
+              idClub !== club?.id && // No mi propio club
+              idClub !== msg.club_id && // No el club autor
+              stat.lastMsgAt >= msgTime
+            )
+            .map(([idClub, stat]) => ({
+              club_id: idClub,
+              shield_url: stat.shield_url
+            }))
 
           return (
             <div key={msg.id} className={`flex flex-col ${isFirstInGroup ? 'mt-6' : 'mt-1'}`}>
@@ -602,8 +686,8 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
                         <p className="text-[8px] font-black text-[#00FF85] uppercase tracking-widest mb-0.5">
                           {msg.reply_to.user?.full_name || 'DT'}
                         </p>
-                        <p className="text-[10px] text-white/50 truncate italic">
-                          {msg.reply_to.content}
+                        <p className="text-[10px] text-white/50 line-clamp-2 break-words italic leading-relaxed">
+                          "{msg.reply_to.content}"
                         </p>
                       </div>
                     )}
