@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
-import { getNextMatchForClub, checkAndAutoResolveExpired } from '@/lib/match-engine'
+import { getNextMatchForClub } from '@/lib/match-engine'
 import { handleOfferResponse } from '@/lib/market-engine'
 import { syncPushToken } from '@/lib/push-notifications'
 import type { NextMatchResult } from '@/lib/match-engine'
@@ -234,8 +234,8 @@ export default function DashboardPage() {
             }
           }
 
-          // Ejecución no bloqueante
-          checkAndAutoResolveExpired()
+          // Ejecución no bloqueante via API (throttled)
+          fetch('/api/cron/resolve-expired').catch(() => {})
 
           const token = localStorage.getItem('expoPushToken')
           if (token) {
