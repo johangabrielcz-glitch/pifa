@@ -29,6 +29,7 @@ interface ChatMessage {
     content: string
     user: { full_name: string }
   }
+  _is_edited?: boolean
 }
 
 interface ReadStatus {
@@ -57,7 +58,9 @@ const MessageItem = React.memo(({
   onImageClick,
   onStickerClick,
   isHighlighted,
-  onScrollToReply
+  onScrollToReply,
+  onEdit,
+  onDelete
 }: { 
   msg: ChatMessage; 
   user: User; 
@@ -71,7 +74,34 @@ const MessageItem = React.memo(({
   onStickerClick: (url: string) => void;
   isHighlighted: boolean;
   onScrollToReply: (id: string) => void;
+  onEdit: (id: string, content: string) => void;
+  onDelete: (id: string) => void;
 }) => {
+  const [showMenu, setShowMenu] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editText, setEditText] = useState(msg.content)
+  const pressTimer = useRef<any>(null)
+
+  const handlePressStart = () => {
+    if (!isOwn) return
+    pressTimer.current = setTimeout(() => {
+      setShowMenu(true)
+      if (window.navigator.vibrate) window.navigator.vibrate(10)
+    }, 500)
+  }
+
+  const handlePressEnd = () => {
+    if (pressTimer.current) clearTimeout(pressTimer.current)
+  }
+
+  const handleEdit = () => {
+    onEdit(msg.id, editText)
+    setIsEditing(false)
+  }
+
+  // Detectamos borrado permanente y edición (marcador invisible persistente o flag de sesión)
+  const isDeleted = msg.content === 'Este mensaje ha sido borrado'
+  const isEdited = msg._is_edited || msg.content.includes('\u200B')
   return (
     <div className={`flex flex-col ${isFirstInGroup ? 'mt-6' : 'mt-1'}`}>
       {showFullDate && (
@@ -85,20 +115,20 @@ const MessageItem = React.memo(({
       <motion.div 
         className={`flex ${isOwn ? 'justify-end' : 'justify-start'} group/msg relative`}
         drag="x"
-        dragConstraints={{ left: 0, right: 80 }}
+        dragConstraints={{ left: 0, right: isDeleted ? 0 : 80 }}
         dragElastic={0.2}
         dragSnapToOrigin={true}
         onDragEnd={(e, info) => {
-          if (info.offset.x > 50) onReply(msg)
+          if (!isDeleted && info.offset.x > 50) onReply(msg)
         }}
         animate={isHighlighted ? { 
-          scale: 1.02,
-          filter: 'drop-shadow(0 0 15px rgba(0, 255, 133, 0.4))'
+          scale: 1.01,
+          backgroundColor: 'rgba(0, 255, 133, 0.05)'
         } : { 
           scale: 1,
-          filter: 'drop-shadow(0 0 0px rgba(0, 255, 133, 0))'
+          backgroundColor: 'rgba(0, 255, 133, 0)'
         }}
-        transition={{ duration: 0.4 }}
+        transition={{ duration: 0.2 }}
       >
         <div className="absolute left-[-40px] top-1/2 -translate-y-1/2 opacity-0 group-active/msg:opacity-100 transition-opacity">
           <Reply className="w-5 h-5 text-[#00FF85]" />
@@ -135,7 +165,7 @@ const MessageItem = React.memo(({
 
           <div className={`group relative px-4 py-2.5 shadow-2xl transition-all ${
             isOwn 
-              ? `bg-[#00FF85]/10 border border-[#00FF85]/30 ${isFirstInGroup ? 'rounded-2xl rounded-tr-none' : 'rounded-2xl'}` 
+              ? `${isDeleted ? 'bg-white/5 border-white/10' : 'bg-[#00FF85]/10 border-[#00FF85]/30'} ${isFirstInGroup ? 'rounded-2xl rounded-tr-none' : 'rounded-2xl'}` 
               : `bg-[#141414] border border-white/5 ${isFirstInGroup ? 'rounded-2xl rounded-tl-none' : 'rounded-2xl'}`
           }`}>
             {msg.reply_to_id && msg.reply_to && (
@@ -154,7 +184,7 @@ const MessageItem = React.memo(({
               </div>
             )}
 
-            {msg.media_url && (
+            {msg.media_url && !isDeleted && (
               <div className="mb-2 overflow-hidden rounded-xl">
                 {msg.media_type === 'image' && (
                   <div className="relative bg-white/5 rounded-xl overflow-hidden min-h-[150px] flex items-center justify-center">
@@ -181,10 +211,20 @@ const MessageItem = React.memo(({
               </div>
             )}
 
-            {msg.media_type !== 'sticker' && (
-              <p className="text-[11.5px] sm:text-xs text-white/95 leading-relaxed font-medium" id={`msg-${msg.id}`}>
-                {msg.content.split(' ').map((word, i) => {
-                  if (word.startsWith('@')) {
+            {msg.media_type !== 'sticker' && !isEditing && (
+              <p 
+                className={`text-[11.5px] sm:text-xs leading-relaxed font-medium ${isDeleted ? 'text-white/20 italic font-normal' : 'text-white/95'}`} 
+                id={`msg-${msg.id}`}
+                onMouseDown={handlePressStart}
+                onMouseUp={handlePressEnd}
+                onTouchStart={handlePressStart}
+                onTouchEnd={handlePressEnd}
+                onContextMenu={(e) => {
+                  if (isOwn && !isDeleted) { e.preventDefault(); setShowMenu(true); }
+                }}
+              >
+                {msg.content.replace(/\u200B/g, '').split(' ').map((word, i) => {
+                  if (!isDeleted && word.startsWith('@')) {
                     return <span key={i} className="text-[#00FF85] font-black italic mr-1">{word} </span>
                   }
                   return word + ' '
@@ -192,7 +232,23 @@ const MessageItem = React.memo(({
               </p>
             )}
 
-            {msg.media_type === 'sticker' && (
+            {isEditing && (
+              <div className="flex flex-col gap-2 min-w-[200px]">
+                <textarea
+                  autoFocus
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  className="w-full bg-black/40 border border-[#00FF85]/30 rounded-lg p-2 text-xs text-white focus:outline-none"
+                  rows={2}
+                />
+                <div className="flex gap-2 justify-end">
+                  <button onClick={() => setIsEditing(false)} className="px-2 py-1 text-[8px] font-black uppercase text-white/40 hover:text-white">Cancelar</button>
+                  <button onClick={handleEdit} className="px-3 py-1 bg-[#00FF85] text-black rounded-lg text-[8px] font-black uppercase">Guardar</button>
+                </div>
+              </div>
+            )}
+
+            {msg.media_type === 'sticker' && !isDeleted && (
               <div className="relative group/sticker cursor-pointer">
                 <div className="w-24 h-24 bg-white/5 rounded-xl absolute inset-0 animate-pulse -z-10" />
                 <img 
@@ -205,6 +261,7 @@ const MessageItem = React.memo(({
             )}
 
             <div className="flex items-center justify-end gap-1.5 mt-1.5 opacity-40 group-hover:opacity-100 transition-opacity">
+              {isEdited && !isDeleted && <span className="text-[6px] font-black text-[#00FF85] uppercase tracking-tighter">Editado</span>}
               <span className="text-[7px] font-black text-white/40">{format(new Date(msg.created_at), 'HH:mm')}</span>
             </div>
 
@@ -226,6 +283,43 @@ const MessageItem = React.memo(({
             )}
           </div>
         </div>
+
+        {/* Action Menu popover */}
+        <AnimatePresence>
+          {showMenu && (
+            <div className="fixed inset-0 z-[60]" onClick={() => setShowMenu(false)}>
+              <div className="absolute inset-0 bg-black/20 backdrop-blur-[1px]" />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 10 }}
+                transition={{ duration: 0.15 }}
+                className={`absolute z-[70] bg-[#141414] border border-white/10 rounded-2xl p-1.5 shadow-2xl flex flex-col min-w-[120px]`}
+                style={{ 
+                  left: isOwn ? 'auto' : '20%', 
+                  right: isOwn ? '20%' : 'auto',
+                  top: '40%' 
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button 
+                  onClick={() => { setIsEditing(true); setShowMenu(false); }}
+                  className="flex items-center gap-3 px-3 py-2.5 hover:bg-white/5 rounded-xl transition-colors text-left"
+                >
+                  <MessageSquare className="w-3.5 h-3.5 text-[#00FF85]" />
+                  <span className="text-[9px] font-black text-white/80 uppercase">Editar</span>
+                </button>
+                <button 
+                  onClick={() => { onDelete(msg.id); setShowMenu(false); }}
+                  className="flex items-center gap-3 px-3 py-2.5 hover:bg-red-500/10 rounded-xl transition-colors text-left"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                  <span className="text-[9px] font-black text-red-500 uppercase">Eliminar</span>
+                </button>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
       </motion.div>
     </div>
   )
@@ -274,7 +368,7 @@ const ChatInputArea = React.memo(({
     <div className="px-6 py-4 z-30 bg-[#0A0A0A] border-t border-white/5">
       <AnimatePresence>
         {pendingMedia && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="mb-3 p-3 bg-[#111111] border border-[#00FF85]/30 rounded-xl relative flex items-center gap-4">
+          <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }} transition={{ duration: 0.15 }} className="mb-3 p-3 bg-[#111111] border border-[#00FF85]/30 rounded-xl relative flex items-center gap-4">
             <div className="w-16 h-16 rounded-lg overflow-hidden border border-white/10 bg-black/50">
               {pendingMedia.type === 'image' ? <img src={pendingMedia.url} className="w-full h-full object-cover" /> : <Film className="w-full h-full p-4 text-[#00FF85]" />}
             </div>
@@ -289,7 +383,7 @@ const ChatInputArea = React.memo(({
 
       <AnimatePresence>
         {replyingTo && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="mb-3 p-3 bg-[#111111] border border-white/10 rounded-xl relative flex flex-col">
+          <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }} transition={{ duration: 0.15 }} className="mb-3 p-3 bg-[#111111] border border-white/10 rounded-xl relative flex flex-col">
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-2">
                 <Reply className="w-3 h-3 text-[#00FF85]" />
@@ -326,7 +420,7 @@ const ChatInputArea = React.memo(({
 
           <AnimatePresence>
             {mediaPickerType === 'attachments' && (
-              <motion.div initial={{ opacity: 0, scale: 0.9, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 10 }} className="absolute bottom-full left-0 mb-3 bg-[#111111] border border-white/10 rounded-2xl p-2 shadow-2xl z-50 flex flex-col gap-2 min-w-[150px]">
+              <motion.div initial={{ opacity: 0, scale: 0.95, y: 5 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 5 }} transition={{ duration: 0.15 }} className="absolute bottom-full left-0 mb-3 bg-[#111111] border border-white/10 rounded-2xl p-2 shadow-2xl z-50 flex flex-col gap-2 min-w-[150px]">
                 <button type="button" onClick={() => fileInputRef.current?.click()} className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 rounded-xl transition-colors text-left group">
                   <div className="p-2 bg-blue-500/20 rounded-lg text-blue-400 group-hover:scale-110 transition-transform"><ImageIcon className="w-4 h-4" /></div>
                   <span className="text-[10px] font-black text-white/80 uppercase">Galería</span>
@@ -344,7 +438,7 @@ const ChatInputArea = React.memo(({
         <div className="flex-1 relative group">
           <AnimatePresence>
             {mediaPickerType === 'stickers' && (
-              <motion.div initial={{ opacity: 0, y: 20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.95 }} className="absolute bottom-full left-0 w-full mb-4 bg-[#111111] border border-white/10 rounded-2xl overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.8)] z-50 flex flex-col h-80">
+              <motion.div initial={{ opacity: 0, y: 10, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.98 }} transition={{ duration: 0.15 }} className="absolute bottom-full left-0 w-full mb-4 bg-[#111111] border border-white/10 rounded-2xl overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.8)] z-50 flex flex-col h-80">
                 <div className="px-4 py-3 bg-white/5 border-b border-white/5 flex items-center justify-between">
                   <div className="flex gap-4">
                     <button type="button" onClick={() => setStickerTab('global')} className={`text-[10px] font-black uppercase tracking-widest pb-1 ${stickerTab === 'global' ? 'text-[#00FF85] border-b-2 border-[#00FF85]' : 'text-white/40'}`}>Mundial</button>
@@ -369,7 +463,7 @@ const ChatInputArea = React.memo(({
 
           <AnimatePresence>
             {showMentionMenu && (
-              <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.95 }} className="absolute bottom-full left-0 w-full mb-3 bg-[#111111] border border-white/10 rounded-2xl overflow-hidden shadow-2xl z-50">
+              <motion.div initial={{ opacity: 0, y: 5, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 5, scale: 0.98 }} transition={{ duration: 0.15 }} className="absolute bottom-full left-0 w-full mb-3 bg-[#111111] border border-white/10 rounded-2xl overflow-hidden shadow-2xl z-50">
                 <div className="px-4 py-2 bg-white/5 border-b border-white/5 flex items-center justify-between"><span className="text-[8px] font-black uppercase text-white/40">Mencionar DT</span><AtSign className="w-3 h-3 text-[#00FF85]" /></div>
                 <div className="max-h-48 overflow-y-auto">
                   {('@todos'.includes(mentionFilter.toLowerCase()) || mentionFilter === '') && (
@@ -413,8 +507,67 @@ const ChatInputArea = React.memo(({
   )
 })
 
-
-
+const PresenceIndicator = React.memo(({ onlineUsers, typingUsers }: any) => {
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
+          <div className="w-1.5 h-1.5 rounded-full bg-[#00FF85] animate-pulse" />
+          <span className="text-[7.5px] font-black text-[#00FF85] uppercase tracking-widest">{onlineUsers.length} DTs</span>
+        </div>
+        {onlineUsers.length > 0 && (
+          <div className="flex -space-x-1.5 items-center">
+            {onlineUsers.slice(0, 4).map((u: any) => (
+              <motion.div 
+                initial={{ scale: 0, x: -10 }}
+                animate={{ scale: 1, x: 0 }}
+                key={u.user_id}
+                className="w-4 h-4 rounded-full bg-[#0A0A0A] border border-white/10 p-0.5 shadow-lg overflow-hidden"
+              >
+                {u.shield_url ? (
+                  <img src={u.shield_url} className="w-full h-full object-contain" />
+                ) : (
+                  <div className="w-full h-full bg-[#00FF85]/20 flex items-center justify-center text-[5px] text-[#00FF85] font-black">{u.full_name?.[0]}</div>
+                )}
+              </motion.div>
+            ))}
+            {onlineUsers.length > 4 && (
+              <div className="w-4 h-4 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
+                <span className="text-[5px] font-black text-white/40">+{onlineUsers.length - 4}</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      
+      <div className="h-3 overflow-hidden">
+        <AnimatePresence mode="wait">
+          {Object.values(typingUsers).length > 0 && (
+            <motion.div
+              key="typing"
+              initial={{ opacity: 0, y: 5 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 5 }}
+              transition={{ duration: 0.15 }}
+              className="flex items-center gap-1.5"
+            >
+              <div className="flex gap-0.5">
+                <span className="w-0.5 h-0.5 bg-[#00FF85] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-0.5 h-0.5 bg-[#00FF85] rounded-full animate-bounce" style={{ animationDelay: '100ms' }} />
+              </div>
+              <span className="text-[6.5px] font-bold text-[#00FF85] uppercase tracking-widest italic opacity-70">
+                {Object.values(typingUsers).length === 1 
+                  ? `${(Object.values(typingUsers)[0] as any).name} escribe...` 
+                  : `${Object.values(typingUsers).length} escribiendo...`
+                }
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  )
+})
 
 export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -662,18 +815,24 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
         }))
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'global_chat_messages' }, async (payload) => {
+        console.log('✨ [Realtime] Nuevo mensaje detectado (INSERT):', payload.new.id)
         const { data: newMsg, error: newMsgError } = await supabase
           .from('global_chat_messages')
           .select('*, user:users(full_name, username), club:clubs(name, shield_url), reply_to:reply_to_id(content, user:users(full_name))')
           .eq('id', payload.new.id)
           .single()
 
-        if (newMsgError) console.error('Error fetching new real-time message:', newMsgError)
+        if (newMsgError) {
+          console.error('❌ [Realtime] Error al re-obtener mensaje insertado:', newMsgError)
+          return
+        }
 
         if (newMsg) {
           setMessages(prev => {
-            const exists = prev.find(m => m.id === newMsg.id)
-            if (exists) return prev
+            if (prev.find(m => m.id === newMsg.id)) {
+              console.log('ℹ️ [Realtime] Mensaje ya existe (de-duplicación aplicada)')
+              return prev
+            }
             
             if (!isAtBottomRef.current) {
               setNewMessagesCount(c => c + 1)
@@ -685,14 +844,51 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
           })
         }
       })
-      .subscribe(async (status) => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'global_chat_messages' }, async (payload: any) => {
+        console.log('🔄 [PAYLOAD_DEBUG] UPDATE:', payload)
+        
+        // Actualización inmediata del contenido basado en el payload para evitar lag de red
+        if (payload.new && payload.new.id) {
+          setMessages(prev => prev.map(m => {
+            if (m.id === payload.new.id) {
+              const isDeleted = payload.new.content === 'Este mensaje ha sido borrado'
+              return { 
+                ...m, 
+                content: payload.new.content,
+                _is_edited: !isDeleted && payload.new.content.includes('\u200B')
+              }
+            }
+            return m
+          }))
+        }
+
+        // Re-fetch como respaldo para garantizar metadatos completos (joins)
+        const { data: updatedMsg } = await supabase
+          .from('global_chat_messages')
+          .select('*, user:users(full_name, username), club:clubs(name, shield_url), reply_to:reply_to_id(content, user:users(full_name))')
+          .eq('id', payload.new.id)
+          .single()
+
+        if (updatedMsg) {
+          setMessages(prev => prev.map(m => m.id === updatedMsg.id ? { ...m, ...updatedMsg, _is_edited: updatedMsg.content !== m.content } : m))
+        }
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'global_chat_messages' }, (payload) => {
+        setMessages(prev => prev.filter(m => m.id !== payload.old.id))
+      })
+      .subscribe(async (status, err) => {
+        console.log(`📡 [Realtime: chat-main] Estado: ${status}`, err || '')
         if (status === 'SUBSCRIBED') {
+          console.log('✅ [Realtime] Suscrito con éxito al canal global')
           await chatChannel.track({
             user_id: user.id,
             full_name: user.full_name || user.username || 'DT',
             shield_url: club?.shield_url || null,
             online_at: new Date().toISOString()
           })
+        }
+        if (status === 'CHANNEL_ERROR') {
+          console.error('❌ [Realtime] Error de canal:', err)
         }
       })
 
@@ -701,7 +897,9 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'global_chat_read_status' }, () => {
         fetchReadStatuses()
       })
-      .subscribe()
+      .subscribe((status) => {
+        console.log(`📡 [Realtime: chat-reads] Estado: ${status}`)
+      })
 
     const stickersChannel = supabase
       .channel('user-stickers')
@@ -716,14 +914,17 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
           return [...prev, payload.new as any]
         })
       })
-      .subscribe()
+      .subscribe((status) => {
+        console.log(`📡 [Realtime: stickers] Estado: ${status}`)
+      })
 
     return () => {
+      console.log('🔌 [Realtime] Limpiando canales...')
       supabase.removeChannel(chatChannel)
       supabase.removeChannel(readChannel)
       supabase.removeChannel(stickersChannel)
     }
-  }, [fetchReadStatuses, updateMyReadStatus])
+  }, [fetchReadStatuses, updateMyReadStatus, user.id, club?.id])
 
   const handleScroll = () => {
     if (!scrollRef.current) return
@@ -833,7 +1034,7 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
   }
 
   const sendMediaMessage = async (url: string, type: 'image' | 'video' | 'sticker') => {
-    const { data } = await supabase
+    const { data: newMsg, error } = await supabase
       .from('global_chat_messages')
       .insert({ 
         user_id: user.id, 
@@ -843,10 +1044,17 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
         media_type: type,
         reply_to_id: replyingTo?.id || null
       })
-      .select('id')
+      .select('*, user:users(full_name, username), club:clubs(name, shield_url), reply_to:reply_to_id(content, user:users(full_name))')
       .single()
     
-    if (data) updateMyReadStatus(data.id)
+    if (newMsg) {
+      setMessages(prev => {
+        if (prev.find(m => m.id === newMsg.id)) return prev
+        updateMyReadStatus(newMsg.id)
+        requestAnimationFrame(() => scrollToBottom('smooth'))
+        return [...prev, newMsg]
+      })
+    }
     setReplyingTo(null)
 
     sendPushToAll(
@@ -871,6 +1079,47 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
       toast.success('Añadido a tus stickers', { id: tid })
     } catch (err) {
       toast.error('Ya tienes este sticker o hubo un error', { id: tid })
+    }
+  }
+
+  const handleEditMessage = async (id: string, newContent: string) => {
+    // Truco: Usamos un marcador invisible (\u200B) para persistir el estado "Editado" sin columna extra
+    const contentWithMarker = newContent.includes('\u200B') ? newContent : newContent + '\u200B'
+    
+    // -- ACTUALIZACION OPTIMISTA INMEDIATA --
+    setMessages(prev => prev.map(m => m.id === id ? { ...m, content: contentWithMarker } : m))
+
+    const { error } = await supabase
+      .from('global_chat_messages')
+      .update({ content: contentWithMarker })
+      .eq('id', id)
+      .eq('user_id', user.id)
+
+    if (error) {
+      console.error('❌ Error de Supabase al editar:', error.message)
+      toast.error(`Error al editar: ${error.message}`)
+    } else {
+      toast.success('Mensaje editado')
+    }
+  }
+
+  const handleDeleteMessage = async (id: string) => {
+    // -- ACTUALIZACION OPTIMISTA INMEDIATA --
+    const deletedPlaceholder = 'Este mensaje ha sido borrado'
+    setMessages(prev => prev.map(m => m.id === id ? { ...m, content: deletedPlaceholder } : m))
+
+    // Soft delete: reemplazamos contenido en lugar de eliminar registro
+    const { error } = await supabase
+      .from('global_chat_messages')
+      .update({ content: deletedPlaceholder })
+      .eq('id', id)
+      .eq('user_id', user.id)
+
+    if (error) {
+      console.error('❌ Error al borrar:', error.message)
+      toast.error('No se pudo borrar el mensaje')
+    } else {
+      toast.success('Mensaje borrado')
     }
   }
 
@@ -932,36 +1181,7 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
           </div>
           <div>
             <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-white">Vestuario Global</h2>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1">
-                <div className="w-1.5 h-1.5 rounded-full bg-[#00FF85] animate-pulse" />
-                <span className="text-[7.5px] font-black text-[#00FF85] uppercase tracking-widest">{onlineUsers.length} DTs</span>
-              </div>
-              {onlineUsers.length > 0 && (
-                <div className="flex -space-x-1.5 items-center">
-                  {onlineUsers.slice(0, 4).map((u, i) => (
-                    <motion.div 
-                      initial={{ scale: 0, x: -10 }}
-                      animate={{ scale: 1, x: 0 }}
-                      key={u.user_id}
-                      className="w-4 h-4 rounded-full bg-[#0A0A0A] border border-white/10 p-0.5 shadow-lg overflow-hidden group/online"
-                      title={u.full_name}
-                    >
-                      {u.shield_url ? (
-                        <img src={u.shield_url} className="w-full h-full object-contain" />
-                      ) : (
-                        <div className="w-full h-full bg-[#00FF85]/20 flex items-center justify-center text-[5px] text-[#00FF85] font-black">{u.full_name?.[0]}</div>
-                      )}
-                    </motion.div>
-                  ))}
-                  {onlineUsers.length > 4 && (
-                    <div className="w-4 h-4 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
-                      <span className="text-[5px] font-black text-white/40">+{onlineUsers.length - 4}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            <PresenceIndicator onlineUsers={onlineUsers} typingUsers={typingUsers} />
           </div>
         </div>
         <div className="px-3 py-1 rounded-full bg-white/5 border border-white/5">
@@ -1019,6 +1239,8 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
               onStickerClick={setStickerToConfirm}
               isHighlighted={highlightedMessageId === msg.id}
               onScrollToReply={scrollToMessage}
+              onEdit={handleEditMessage}
+              onDelete={handleDeleteMessage}
             />
           )
         })}
@@ -1027,9 +1249,10 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
       <AnimatePresence>
         {!isAtBottom && newMessagesCount > 0 && (
           <motion.button
-            initial={{ opacity: 0, y: 30 }}
+            initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 30 }}
+            exit={{ opacity: 0, y: 15 }}
+            transition={{ duration: 0.15 }}
             onClick={() => scrollToBottom()}
             className="absolute bottom-24 left-1/2 -translate-x-1/2 bg-[#00FF85] text-[#0A0A0A] px-6 py-2.5 rounded-full shadow-[0_10px_30px_rgba(0,255,133,0.4)] flex items-center gap-3 z-50 group hover:scale-105 active:scale-95 transition-all"
           >
@@ -1041,35 +1264,11 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
         )}
       </AnimatePresence>
       
-      {/* Typing Indicator */}
-      <div className="h-6 px-6 overflow-hidden">
-        <AnimatePresence>
-          {Object.values(typingUsers).length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 10 }}
-              className="flex items-center gap-2"
-            >
-              <div className="flex gap-1">
-                <span className="w-1 h-1 bg-[#00FF85] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-1 h-1 bg-[#00FF85] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-1 h-1 bg-[#00FF85] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-              </div>
-              <span className="text-[8px] font-black text-[#00FF85] uppercase tracking-[0.2em] italic">
-                {Object.values(typingUsers).length === 1 
-                  ? `${Object.values(typingUsers)[0].name} está escribiendo...` 
-                  : `${Object.values(typingUsers).length} DTs están escribiendo...`
-                }
-              </span>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+      {/* Se eliminó el TypingIndicator antiguo de aquí para integrarlo en la cabecera */}
 
       <ChatInputArea
         onSendMessage={async (text: string) => {
-          const { data } = await supabase
+          const { data: newMsg } = await supabase
             .from('global_chat_messages')
             .insert({ 
               user_id: user.id, 
@@ -1079,10 +1278,18 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
               media_url: pendingMedia?.url || null,
               media_type: pendingMedia?.type || null
             })
-            .select('id')
+            .select('*, user:users(full_name, username), club:clubs(name, shield_url), reply_to:reply_to_id(content, user:users(full_name))')
             .single()
 
-          if (data) updateMyReadStatus(data.id)
+          if (newMsg) {
+            setMessages(prev => {
+              if (prev.find(m => m.id === newMsg.id)) return prev
+              updateMyReadStatus(newMsg.id)
+              requestAnimationFrame(() => scrollToBottom('smooth'))
+              return [...prev, newMsg]
+            })
+          }
+
           setReplyingTo(null)
           setPendingMedia(null)
           
