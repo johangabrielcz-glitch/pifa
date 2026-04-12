@@ -120,11 +120,21 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
   }, [club?.id, user?.id])
 
   const fetchReadStatuses = useCallback(async () => {
-    const { data } = await supabase
+    // Intentamos un join simple. Si falla por el nombre de la relación, el error nos dirá por qué.
+    const { data, error } = await supabase
       .from('global_chat_read_status')
-      .select('*, club:clubs(shield_url), last_read_msg:global_chat_messages!last_read_message_id(created_at)')
+      .select('*, club:clubs(shield_url), last_read_msg:global_chat_messages(created_at)')
     
-    if (data) setReadStatuses(data)
+    if (error) {
+      console.error('Error fetching read receipts (trying fallback):', error)
+      // Fallback: traer solo los datos básicos si el join de mensajes falla
+      const { data: fallbackData } = await supabase
+        .from('global_chat_read_status')
+        .select('*, club:clubs(shield_url)')
+      if (fallbackData) setReadStatuses(fallbackData)
+    } else if (data) {
+      setReadStatuses(data)
+    }
   }, [])
 
   // -- PROCESAMIENTO DE ESTADOS DE LECTURA (Optimización para Receipts) --
@@ -132,8 +142,16 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
     const stats: Record<string, { lastMsgAt: number, shield_url: string | null }> = {}
     
     readStatuses.forEach(rs => {
-      // Usamos el timestamp del mensaje referenciado en el estado de lectura
-      const readAt = rs.last_read_msg?.created_at ? new Date(rs.last_read_msg.created_at).getTime() : 0
+      // Prioridad 1: Usar el timestamp del join (si funcionó)
+      // Prioridad 2: Buscar el mensaje en la lista local para obtener su timestamp
+      let createdAt = rs.last_read_msg?.[0]?.created_at || rs.last_read_msg?.created_at
+      
+      if (!createdAt) {
+        const localMsg = messages.find(m => m.id === rs.last_read_message_id)
+        if (localMsg) createdAt = localMsg.created_at
+      }
+
+      const readAt = createdAt ? new Date(createdAt).getTime() : 0
       if (readAt === 0) return
 
       // Si el club no existe o este usuario ha leído mensajes más recientes
@@ -146,7 +164,7 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
     })
     
     return stats
-  }, [readStatuses])
+  }, [readStatuses, messages])
 
   // -- EFECTOS --
 
