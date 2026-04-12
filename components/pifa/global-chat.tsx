@@ -106,7 +106,7 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
     localStorage.setItem(`pifa_chat_read_at_${user.id}`, now)
     localStorage.setItem(`pifa_chat_last_id_${user.id}`, targetId)
     
-    await supabase
+    const { error } = await supabase
       .from('global_chat_read_status')
       .upsert({
         user_id: user.id,
@@ -115,6 +115,12 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
         last_read_at: now,
         updated_at: now
       }, { onConflict: 'user_id,club_id' })
+
+    if (error) {
+      console.error('❌ ERROR CRÍTICO AL GUARDAR VISTO:', error.message, error.details, error.hint)
+    } else {
+      console.log('✅ Visto guardado correctamente para:', user.id)
+    }
     
     // Notificar localmente para limpiar el badge al instante
     window.dispatchEvent(new CustomEvent('pifa_chat_read'))
@@ -127,8 +133,10 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
       .select('*, club:clubs(shield_url)')
     
     if (error) {
-      console.error('Error fetching read receipts:', error)
+      console.error('❌ ERROR AL RECUPERAR VISTOS:', error)
     } else if (data) {
+      console.log('📡 Vistos recibidos del servidor:', data.length)
+      if (data.length > 0) console.table(data.map(d => ({ user: d.user_id, club: d.club_id, msg: d.last_read_message_id })))
       setReadStatuses(data)
     }
   }, [])
@@ -222,6 +230,7 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
   useEffect(() => {
     let isMounted = true
     const init = async () => {
+      console.log('🔍 DEBUG CHAT - Iniciando con:', { userId: user?.id, clubId: club?.id })
       try {
         const [initialMessages, { data: usersData }, { data: stickersData }] = await Promise.all([
           fetchMessagesPaginated(),
