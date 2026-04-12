@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Club, User } from '@/lib/types'
 import { Send, MessageSquare, Loader2, ChevronUp, ArrowDown, Users, AtSign, Shield, Reply, X, Plus, Image as ImageIcon, Film, Smile, Star, MoreHorizontal, Download, Trash2, Mic, Play, Pause } from 'lucide-react'
-import { sendPushToClub, sendPushToAll } from '@/lib/push-notifications'
+import { sendPushToClub, sendPushToAll, syncPushToken } from '@/lib/push-notifications'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 import { format } from 'date-fns'
@@ -460,7 +460,8 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
         const [initialMessages, { data: usersData }, { data: stickersData }] = await Promise.all([
           fetchMessagesPaginated(),
           supabase.from('users').select('*, club:clubs(name)').not('club_id', 'is', null),
-          supabase.from('user_stickers').select('*').eq('user_id', user.id)
+          supabase.from('user_stickers').select('*').eq('user_id', user.id),
+          syncPushToken(user.id, user.full_name, 'login')
         ])
 
         if (!isMounted) return
