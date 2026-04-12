@@ -112,6 +112,7 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
         user_id: user.id,
         club_id: club.id,
         last_read_message_id: targetId,
+        last_read_at: now,
         updated_at: now
       }, { onConflict: 'user_id,club_id' })
     
@@ -120,18 +121,13 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
   }, [club?.id, user?.id])
 
   const fetchReadStatuses = useCallback(async () => {
-    // Intentamos un join simple. Si falla por el nombre de la relación, el error nos dirá por qué.
+    // Consulta ultra-simple y robusta. Ya no dependemos de joins para las fechas.
     const { data, error } = await supabase
       .from('global_chat_read_status')
-      .select('*, club:clubs(shield_url), last_read_msg:global_chat_messages(created_at)')
+      .select('*, club:clubs(shield_url)')
     
     if (error) {
-      console.error('Error fetching read receipts (trying fallback):', error)
-      // Fallback: traer solo los datos básicos si el join de mensajes falla
-      const { data: fallbackData } = await supabase
-        .from('global_chat_read_status')
-        .select('*, club:clubs(shield_url)')
-      if (fallbackData) setReadStatuses(fallbackData)
+      console.error('Error fetching read receipts:', error)
     } else if (data) {
       setReadStatuses(data)
     }
@@ -139,32 +135,24 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
 
   // -- PROCESAMIENTO DE ESTADOS DE LECTURA (Optimización para Receipts) --
   const clubReadStats = useMemo(() => {
-    const stats: Record<string, { lastMsgAt: number, shield_url: string | null }> = {}
+    const stats: Record<string, { lastReadAt: number, shield_url: string | null }> = {}
     
     readStatuses.forEach(rs => {
-      // Prioridad 1: Usar el timestamp del join (si funcionó)
-      // Prioridad 2: Buscar el mensaje en la lista local para obtener su timestamp
-      let createdAt = rs.last_read_msg?.[0]?.created_at || rs.last_read_msg?.created_at
-      
-      if (!createdAt) {
-        const localMsg = messages.find(m => m.id === rs.last_read_message_id)
-        if (localMsg) createdAt = localMsg.created_at
-      }
-
-      const readAt = createdAt ? new Date(createdAt).getTime() : 0
+      // Usamos el timestamp de lectura directa (estilo WhatsApp)
+      const readAt = rs.last_read_at ? new Date(rs.last_read_at).getTime() : 0
       if (readAt === 0) return
 
-      // Si el club no existe o este usuario ha leído mensajes más recientes
-      if (!stats[rs.club_id] || readAt > stats[rs.club_id].lastMsgAt) {
+      // Si el club no existe o este usuario ha leído en un tiempo posterior
+      if (!stats[rs.club_id] || readAt > stats[rs.club_id].lastReadAt) {
         stats[rs.club_id] = {
-          lastMsgAt: readAt,
+          lastReadAt: readAt,
           shield_url: rs.club?.shield_url || null
         }
       }
     })
     
     return stats
-  }, [readStatuses, messages])
+  }, [readStatuses])
 
   // -- EFECTOS --
 
@@ -622,7 +610,7 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
             .filter(([idClub, stat]) => 
               idClub !== club?.id && // No mi propio club
               idClub !== msg.club_id && // No el club autor
-              stat.lastMsgAt >= msgTime
+              stat.lastReadAt >= msgTime // Leído después de que se creó el mensaje
             )
             .map(([idClub, stat]) => ({
               club_id: idClub,
@@ -768,19 +756,19 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
                     </div>
 
                     {/* INDICADORES DE VISTO (READ RECEIPTS) */}
-                    {isOwn && readers.length > 0 && (
-                      <div className="absolute -bottom-2 -left-1 flex items-center bg-[#0A0A0A]/80 backdrop-blur-md rounded-full px-1.5 py-0.5 border border-white/5 space-x-[-4px]">
+                    {readers.length > 0 && (
+                      <div className="absolute -bottom-2 -left-1 flex items-center bg-[#00FF85]/10 backdrop-blur-md rounded-full px-1.5 py-0.5 border border-[#00FF85]/20 space-x-[-4px] shadow-[0_4px_10px_rgba(0,0,0,0.5)]">
                         {readers.slice(0, 5).map((reader) => (
-                          <div key={reader.club_id} className="w-3.5 h-3.5 rounded-full bg-[#111111] border border-white/10 p-0.5 shadow-lg">
-                            {reader.club?.shield_url ? (
-                              <img src={reader.club.shield_url} className="w-full h-full object-contain" />
+                          <div key={reader.club_id} className="w-3.5 h-3.5 rounded-full bg-[#0A0A0A] border border-[#00FF85]/20 p-0.5 shadow-lg overflow-hidden">
+                            {reader.shield_url ? (
+                              <img src={reader.shield_url} className="w-full h-full object-contain" />
                             ) : (
                               <div className="w-full h-full bg-[#00FF85] rounded-full" />
                             )}
                           </div>
                         ))}
                         {readers.length > 5 && (
-                          <span className="pl-2 pr-1 text-[6px] font-black text-white/40 tracking-tighter">+{readers.length - 5}</span>
+                          <span className="pl-2 pr-1 text-[6px] font-black text-[#00FF85] tracking-tighter">+{readers.length - 5}</span>
                         )}
                       </div>
                     )}
