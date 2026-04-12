@@ -373,6 +373,11 @@ async function finalizeMatch(matchId: string): Promise<void> {
 
   // Update player stats
   await updatePlayerStats(annotations as MatchAnnotation[], (match as any).competition_id, (match as any).id)
+  
+  // Mark stats as done to prevent re-processing
+  await (supabase.from('matches') as any)
+    .update({ notes: '[STATS-DONE]' })
+    .eq('id', matchId)
 
   // For K.O. matches: advance winner to next round
   const isKnockout = competition.type === 'cup' ||
