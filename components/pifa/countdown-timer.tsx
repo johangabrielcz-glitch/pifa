@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Timer, AlertTriangle } from 'lucide-react'
 
 interface CountdownTimerProps {
@@ -17,8 +17,20 @@ export function CountdownTimer({ deadline, onExpired, size = 'md' }: CountdownTi
     totalMs: number
     expired: boolean
   }>({ hours: 0, minutes: 0, seconds: 0, totalMs: 0, expired: false })
+  
+  // Use ref to track if onExpired has been called to prevent multiple calls
+  const hasExpiredRef = useRef(false)
+  const onExpiredRef = useRef(onExpired)
+  
+  // Update ref when onExpired changes
+  useEffect(() => {
+    onExpiredRef.current = onExpired
+  }, [onExpired])
 
   useEffect(() => {
+    // Reset hasExpired when deadline changes
+    hasExpiredRef.current = false
+    
     const calculateTimeLeft = () => {
       const now = Date.now()
       const deadlineMs = new Date(deadline).getTime()
@@ -26,7 +38,11 @@ export function CountdownTimer({ deadline, onExpired, size = 'md' }: CountdownTi
 
       if (diff <= 0) {
         setTimeLeft({ hours: 0, minutes: 0, seconds: 0, totalMs: 0, expired: true })
-        onExpired?.()
+        // Only call onExpired once
+        if (!hasExpiredRef.current) {
+          hasExpiredRef.current = true
+          onExpiredRef.current?.()
+        }
         return true // expired
       }
 
@@ -48,7 +64,7 @@ export function CountdownTimer({ deadline, onExpired, size = 'md' }: CountdownTi
     }, 1000)
 
     return () => clearInterval(interval)
-  }, [deadline, onExpired])
+  }, [deadline]) // Only depend on deadline, not onExpired
 
   const pad = (n: number) => String(n).padStart(2, '0')
 
