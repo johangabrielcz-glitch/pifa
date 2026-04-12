@@ -153,34 +153,6 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
   const [isZoomed, setIsZoomed] = useState(false)
   const [micPermissionStatus, setMicPermissionStatus] = useState<'granted' | 'denied' | 'prompt' | 'unknown'>('unknown')
 
-  const requestMicPermission = async () => {
-    if (!window.isSecureContext) {
-      toast.error('Error de Seguridad: El micrófono requiere HTTPS. Si estás en una App, debe tener certificado SSL.')
-      return
-    }
-
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      toast.error('Hardware no detectado: Tu navegador o App no soporta grabación de audio.')
-      return
-    }
-
-    const tid = toast.loading('Solicitando acceso al micrófono...')
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      stream.getTracks().forEach(track => track.stop()) // Cerrar inmediatamente, solo queríamos el permiso
-      setMicPermissionStatus('granted')
-      toast.success('¡Permiso concedido! Ya puedes grabar audios.', { id: tid })
-    } catch (err: any) {
-      console.error('Mic permission error:', err)
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        setMicPermissionStatus('denied')
-        toast.error('Permiso denegado. Si no ves la opción en Ajustes, es posible que la App necesite ser reinstalada con permisos de audio.', { id: tid, duration: 6000 })
-      } else {
-        toast.error(`Error: ${err.message}`, { id: tid })
-      }
-    }
-  }
-
    const checkMicPermission = async () => {
     if (!navigator.permissions || !navigator.permissions.query) return
     try {
@@ -1170,23 +1142,6 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
                     >
                       <Smile className="w-4 h-4 text-[#00FF85]" />
                       <span className="text-[10px] font-black text-white/80 uppercase">Stickers</span>
-                    </button>
-
-                    <div className="h-px bg-white/5 my-1" />
-
-                    <button 
-                      type="button" 
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        requestMicPermission()
-                      }} 
-                      className="flex items-center gap-3 px-4 py-3 hover:bg-[#00FF85]/10 rounded-xl transition-colors text-left group border border-[#00FF85]/20"
-                    >
-                      <Mic className="w-4 h-4 text-[#00FF85]" />
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-black text-[#00FF85] uppercase">Activar Micrófono</span>
-                        <span className="text-[7px] font-bold text-white/40 uppercase">Solucionar problemas</span>
-                      </div>
                     </button>
                   </motion.div>
                 )}
