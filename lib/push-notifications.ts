@@ -103,11 +103,17 @@ export async function sendPushToUser(userId: string, title: string, body: string
 /**
  * Envía una notificación a TODOS los usuarios registrados.
  */
-export async function sendPushToAll(title: string, body: string, data?: any) {
+export async function sendPushToAll(title: string, body: string, data?: any, excludeUserId?: string) {
   try {
-    const { data: tokenData, error } = await supabase
+    let query = supabase
       .from('user_push_tokens')
       .select('expo_push_token')
+
+    if (excludeUserId) {
+      query = query.neq('user_id', excludeUserId)
+    }
+
+    const { data: tokenData, error } = await query
 
     if (error) throw error
 

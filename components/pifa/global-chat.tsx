@@ -413,7 +413,8 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
       sendPushToAll(
         `📢 @TODOS: Mensaje de ${club?.name || user.full_name}`,
         pushBody,
-        { type: 'chat_mention_all' }
+        { type: 'chat_mention_all' },
+        user.id
       )
     } else if (mentionedClubs.length > 0) {
       // Notificar a los mencionados
@@ -427,9 +428,9 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
           )
         }
       })
-      sendPushToAll(pushTitle, pushBody, { type: 'chat_message' })
+      sendPushToAll(pushTitle, pushBody, { type: 'chat_message' }, user.id)
     } else {
-      sendPushToAll(pushTitle, pushBody, { type: 'chat_message' })
+      sendPushToAll(pushTitle, pushBody, { type: 'chat_message' }, user.id)
     }
 
     setSending(false)
