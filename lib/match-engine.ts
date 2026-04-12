@@ -662,27 +662,44 @@ async function advanceWinner(
   // Find next round TBD match to assign the winner
   // K.O. bracket logic: winner of match N in round R goes to match floor(N/2) in round R+1
   const currentMatchday = match.matchday ?? 1
+  const matchLeg = match.leg ?? 1
 
-  // Get all leg 1 matches in current round to determine bracket position
-  // We always use leg 1 for indexing, even when processing leg 2
-  const { data: currentRoundLeg1Matches } = await supabase
-    .from('matches')
-    .select('*')
-    .eq('competition_id', match.competition_id)
-    .eq('matchday', currentMatchday)
-    .eq('leg', 1)
-    .order('match_order', { ascending: true })
+  // Get matches in current round to determine bracket position
+  // For single leg: get all matches (filter by same leg as current match or leg=1)
+  // For two legs: get leg 1 matches for consistent indexing
+  let currentRoundMatches: any[] | null = null
+  
+  if (totalLegs === 1) {
+    // Single leg: get matches with same leg value, or any leg
+    const { data } = await supabase
+      .from('matches')
+      .select('*')
+      .eq('competition_id', match.competition_id)
+      .eq('matchday', currentMatchday)
+      .order('match_order', { ascending: true })
+    currentRoundMatches = data as any[]
+  } else {
+    // Two legs: get leg 1 matches for consistent bracket indexing
+    const { data } = await supabase
+      .from('matches')
+      .select('*')
+      .eq('competition_id', match.competition_id)
+      .eq('matchday', currentMatchday)
+      .eq('leg', 1)
+      .order('match_order', { ascending: true })
+    currentRoundMatches = data as any[]
+  }
 
-  if (!currentRoundLeg1Matches || currentRoundLeg1Matches.length === 0) return
+  if (!currentRoundMatches || currentRoundMatches.length === 0) return
 
   // Find the index based on the same teams (works for both leg 1 and leg 2)
-  // For leg 2, find the leg 1 match with the same teams
   let matchIndex = -1
   if (totalLegs === 1) {
-    matchIndex = (currentRoundLeg1Matches as any[]).findIndex(m => m.id === match.id)
+    // Single leg: find by match ID
+    matchIndex = currentRoundMatches.findIndex(m => m.id === match.id)
   } else {
-    // For two-leg ties, find the leg 1 match with same teams
-    matchIndex = (currentRoundLeg1Matches as any[]).findIndex(m => 
+    // Two legs: find the leg 1 match with same teams
+    matchIndex = currentRoundMatches.findIndex(m => 
       (m.home_club_id === match.home_club_id && m.away_club_id === match.away_club_id) ||
       (m.home_club_id === match.away_club_id && m.away_club_id === match.home_club_id)
     )
@@ -696,15 +713,28 @@ async function advanceWinner(
   const goesToHome = matchIndex % 2 === 0
 
   // Get next round matches
-  // For single leg: get all matches in next matchday
-  // For two legs: get leg 1 matches only for slot calculation
-  const { data: nextRoundMatches } = await supabase
-    .from('matches')
-    .select('*')
-    .eq('competition_id', match.competition_id)
-    .eq('matchday', currentMatchday + 1)
-    .eq('leg', totalLegs === 1 ? match.leg : 1)
-    .order('match_order', { ascending: true })
+  let nextRoundMatches: any[] | null = null
+  
+  if (totalLegs === 1) {
+    // Single leg: get all matches in next matchday (no leg filter)
+    const { data } = await supabase
+      .from('matches')
+      .select('*')
+      .eq('competition_id', match.competition_id)
+      .eq('matchday', currentMatchday + 1)
+      .order('match_order', { ascending: true })
+    nextRoundMatches = data as any[]
+  } else {
+    // Two legs: get leg 1 matches only for slot calculation
+    const { data } = await supabase
+      .from('matches')
+      .select('*')
+      .eq('competition_id', match.competition_id)
+      .eq('matchday', currentMatchday + 1)
+      .eq('leg', 1)
+      .order('match_order', { ascending: true })
+    nextRoundMatches = data as any[]
+  }
 
   if (!nextRoundMatches || nextRoundMatches.length === 0) return
 
