@@ -83,7 +83,7 @@ export default function SeasonDetailPage({ params }: { params: Promise<{ seasonI
     switch (formData.type) {
       case 'league': return { rounds: formData.rounds, points_win: formData.points_win, points_draw: formData.points_draw, points_loss: formData.points_loss } as LeagueConfig
       case 'cup': return { legs: formData.legs, extra_time: formData.extra_time, penalties: formData.penalties } as CupConfig
-      case 'groups_knockout': return { groups_count: formData.groups_count, teams_per_group: formData.teams_per_group, teams_advance_per_group: formData.teams_advance_per_group, knockout_legs: formData.knockout_legs } as GroupsKnockoutConfig
+      case 'groups_knockout': return { groups_count: formData.groups_count, teams_per_group: formData.teams_per_group, qualify_per_group: formData.teams_advance_per_group, knockout_legs: formData.knockout_legs } as GroupsKnockoutConfig
       default: return {}
     }
   }
@@ -332,14 +332,32 @@ export default function SeasonDetailPage({ params }: { params: Promise<{ seasonI
                   )}
 
                   {formData.type === 'groups_knockout' && (
-                    <div className="grid grid-cols-2 gap-3">
-                       <div className="space-y-1.5">
-                          <Label className="text-[9px] text-[#6A6C6E] uppercase">Núm Grupos</Label>
-                          <Input type="number" value={formData.groups_count} onChange={(e) => setFormData({...formData, groups_count: parseInt(e.target.value) || 1})} className="h-10 bg-[#141414] border-[#202020] rounded-xl text-center text-white" />
+                    <div className="space-y-4">
+                       <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                             <Label className="text-[9px] text-[#6A6C6E] uppercase">Num Grupos</Label>
+                             <Input type="number" value={formData.groups_count} onChange={(e) => setFormData({...formData, groups_count: parseInt(e.target.value) || 1})} className="h-10 bg-[#141414] border-[#202020] rounded-xl text-center text-white" />
+                          </div>
+                          <div className="space-y-1.5">
+                             <Label className="text-[9px] text-[#6A6C6E] uppercase">Equipos/Grupo</Label>
+                             <Input type="number" value={formData.teams_per_group} onChange={(e) => setFormData({...formData, teams_per_group: parseInt(e.target.value) || 1})} className="h-10 bg-[#141414] border-[#202020] rounded-xl text-center text-white" />
+                          </div>
                        </div>
-                       <div className="space-y-1.5">
-                          <Label className="text-[9px] text-[#6A6C6E] uppercase">Equipos/Grupo</Label>
-                          <Input type="number" value={formData.teams_per_group} onChange={(e) => setFormData({...formData, teams_per_group: parseInt(e.target.value) || 1})} className="h-10 bg-[#141414] border-[#202020] rounded-xl text-center text-white" />
+                       <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                             <Label className="text-[9px] text-[#6A6C6E] uppercase">Avanzan/Grupo</Label>
+                             <Input type="number" value={formData.teams_advance_per_group} onChange={(e) => setFormData({...formData, teams_advance_per_group: parseInt(e.target.value) || 1})} className="h-10 bg-[#141414] border-[#202020] rounded-xl text-center text-white" />
+                          </div>
+                          <div className="space-y-1.5">
+                             <Label className="text-[9px] text-[#6A6C6E] uppercase">Partidos K.O.</Label>
+                             <Select value={String(formData.knockout_legs)} onValueChange={(v) => setFormData({...formData, knockout_legs: parseInt(v)})}>
+                                <SelectTrigger className="h-10 bg-[#141414] border-[#202020] rounded-xl text-white text-xs"><SelectValue /></SelectTrigger>
+                                <SelectContent className="bg-[#141414] border-white/10 text-white rounded-xl">
+                                   <SelectItem value="1">Partido Unico</SelectItem>
+                                   <SelectItem value="2">Ida y Vuelta</SelectItem>
+                                </SelectContent>
+                             </Select>
+                          </div>
                        </div>
                     </div>
                   )}

@@ -96,7 +96,7 @@ function generateGroupsMatches(clubs: CompetitionClub[], config: GroupsKnockoutC
     }
     matchdayOffset += totalTeams - 1
   })
-  const totalGroups = Object.keys(groups).length; const teamsPerGroup = config.teams_advance_per_group || 2; const totalAdvancing = totalGroups * teamsPerGroup
+  const totalGroups = Object.keys(groups).length; const teamsPerGroup = config.qualify_per_group || 2; const totalAdvancing = totalGroups * teamsPerGroup
   const bracketSize = nextPowerOf2(totalAdvancing)
   const roundNames: Record<number, string> = { 2: 'Final', 4: 'Semifinales', 8: 'Cuartos de Final', 16: 'Octavos de Final', 32: 'Dieciseisavos de Final' }
   let currentTeams = bracketSize; let koMatchday = matchdayOffset + 1
@@ -312,7 +312,16 @@ export default function CompetitionDetailPage({ params }: { params: Promise<{ se
             </div>
             {canEdit && (
               <button 
-                onClick={() => { setSelectedClubs(enrolledClubs.map(c => c.club_id)); setIsEnrollOpen(true) }} 
+                onClick={() => { 
+                  setSelectedClubs(enrolledClubs.map(c => c.club_id))
+                  // Initialize group assignments from existing data
+                  const groups: Record<string, string> = {}
+                  enrolledClubs.forEach(c => {
+                    if (c.group_name) groups[c.club_id] = c.group_name
+                  })
+                  setClubGroups(groups)
+                  setIsEnrollOpen(true) 
+                }} 
                 className="h-8 px-4 bg-[#FF3131] hover:bg-[#D32F2F] text-white rounded-lg flex items-center gap-2 font-black uppercase tracking-widest text-[9px] transition-all"
               >
                 <Plus size={14} /> Vincular
@@ -406,19 +415,53 @@ export default function CompetitionDetailPage({ params }: { params: Promise<{ se
           <div className="flex-1 overflow-y-auto px-8 py-2 space-y-2 custom-scrollbar">
             {allClubs.map(club => {
               const selected = selectedClubs.includes(club.id)
+              const isGroupsKnockout = competition?.type === 'groups_knockout'
+              const config = competition?.config as GroupsKnockoutConfig | undefined
+              const numberOfGroups = config?.groups_count || 2
+              const availableGroups = GROUP_LETTERS.slice(0, numberOfGroups)
+              
               return (
                 <div 
                   key={club.id} 
-                  onClick={() => toggleClubSelection(club.id)}
-                  className={`flex items-center gap-4 p-4 rounded-2xl border cursor-pointer transition-all ${
+                  className={`flex items-center gap-4 p-4 rounded-2xl border transition-all ${
                     selected ? 'border-[#FF3131]/40 bg-[#FF3131]/10' : 'border-white/5 bg-black/40 hover:bg-black/60'
                   }`}
                 >
-                  <Checkbox checked={selected} className="border-white/20 data-[state=checked]:bg-[#FF3131]" />
-                  <div className="w-10 h-10 rounded-xl bg-black border border-[#202020] p-2 shrink-0">
-                    {club.shield_url ? <img src={club.shield_url} className="w-full h-full object-contain" /> : <Shield size={18} className="text-[#2D2D2D] mx-auto" />}
+                  <div 
+                    onClick={() => toggleClubSelection(club.id)}
+                    className="flex items-center gap-4 flex-1 cursor-pointer"
+                  >
+                    <Checkbox checked={selected} className="border-white/20 data-[state=checked]:bg-[#FF3131]" />
+                    <div className="w-10 h-10 rounded-xl bg-black border border-[#202020] p-2 shrink-0">
+                      {club.shield_url ? <img src={club.shield_url} className="w-full h-full object-contain" /> : <Shield size={18} className="text-[#2D2D2D] mx-auto" />}
+                    </div>
+                    <span className="text-xs font-black text-white uppercase tracking-tight truncate">{club.name}</span>
                   </div>
-                  <span className="text-xs font-black text-white uppercase tracking-tight">{club.name}</span>
+                  
+                  {isGroupsKnockout && selected && (
+                    <Select 
+                      value={clubGroups[club.id] || 'A'} 
+                      onValueChange={(value) => setClubGroups(prev => ({ ...prev, [club.id]: value }))}
+                    >
+                      <SelectTrigger 
+                        className="w-24 h-9 bg-black border-[#202020] text-white text-[10px] font-black uppercase tracking-wide rounded-xl"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <SelectValue placeholder="Grupo" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-[#141414] border-[#202020] rounded-xl">
+                        {availableGroups.map(letter => (
+                          <SelectItem 
+                            key={letter} 
+                            value={letter}
+                            className="text-white text-[10px] font-black uppercase tracking-wide"
+                          >
+                            Grupo {letter}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
               )
             })}
