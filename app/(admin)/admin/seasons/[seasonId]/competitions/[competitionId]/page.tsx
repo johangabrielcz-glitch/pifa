@@ -96,7 +96,7 @@ function generateGroupsMatches(clubs: CompetitionClub[], config: GroupsKnockoutC
     }
     matchdayOffset += totalTeams - 1
   })
-  const totalGroups = Object.keys(groups).length; const teamsPerGroup = config.teams_advance_per_group || 2; const totalAdvancing = totalGroups * teamsPerGroup
+  const totalGroups = Object.keys(groups).length; const teamsPerGroup = config.qualify_per_group || 2; const totalAdvancing = totalGroups * teamsPerGroup
   const bracketSize = nextPowerOf2(totalAdvancing)
   const roundNames: Record<number, string> = { 2: 'Final', 4: 'Semifinales', 8: 'Cuartos de Final', 16: 'Octavos de Final', 32: 'Dieciseisavos de Final' }
   let currentTeams = bracketSize; let koMatchday = matchdayOffset + 1
@@ -417,7 +417,7 @@ export default function CompetitionDetailPage({ params }: { params: Promise<{ se
               const selected = selectedClubs.includes(club.id)
               const isGroupsKnockout = competition?.type === 'groups_knockout'
               const config = competition?.config as GroupsKnockoutConfig | undefined
-              const numberOfGroups = config?.groups || 4
+              const numberOfGroups = config?.groups_count || 2
               const availableGroups = GROUP_LETTERS.slice(0, numberOfGroups)
               
               return (
