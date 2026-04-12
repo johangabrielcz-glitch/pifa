@@ -799,6 +799,13 @@ export default function DashboardPage() {
                             {(compSubTabs[comp.id] || 'standings') === 'standings' && (
                               <div className="space-y-4 pt-1">
                                 {/* League / Group Standings */}
+                                {(comp.type === 'league' || comp.type === 'groups_knockout') && (comp.standings?.length ?? 0) === 0 && (
+                                  <div className="py-8 text-center bg-white/[0.02] border border-dashed border-white/[0.05] rounded-2xl">
+                                    <Trophy className="w-8 h-8 text-[#2D2D2D] mx-auto mb-2" />
+                                    <p className="text-[10px] text-[#2D2D2D] font-black uppercase tracking-widest">Clasificacion no disponible</p>
+                                    <p className="text-[9px] text-[#2D2D2D]/60 mt-1">El fixture aun no ha sido generado</p>
+                                  </div>
+                                )}
                                 {(comp.type === 'league' || comp.type === 'groups_knockout') && (comp.standings?.length ?? 0) > 0 && (
                                   <div className="space-y-4">
                                     {(() => {

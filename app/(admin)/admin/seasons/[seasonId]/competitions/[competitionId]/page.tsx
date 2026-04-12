@@ -214,6 +214,31 @@ export default function CompetitionDetailPage({ params }: { params: Promise<{ se
       }))
       const { error } = await supabase.from('matches').insert(matchesWithOrder)
       if (error) throw error
+      
+      // Create standings for league and groups_knockout (group stage)
+      if (competition.type === 'league' || competition.type === 'groups_knockout') {
+        // Delete existing standings first
+        await supabase.from('standings').delete().eq('competition_id', competitionId)
+        
+        // Create standings for each enrolled club
+        const standingsInserts = enrolledClubs.map(ec => ({
+          competition_id: competitionId,
+          club_id: ec.club_id,
+          group_name: ec.group_name || null,
+          played: 0,
+          won: 0,
+          drawn: 0,
+          lost: 0,
+          goals_for: 0,
+          goals_against: 0,
+          goal_difference: 0,
+          points: 0
+        }))
+        
+        const { error: standingsError } = await supabase.from('standings').insert(standingsInserts)
+        if (standingsError) console.error('Error creating standings:', standingsError)
+      }
+      
       toast.success(`${matchesWithOrder.length} enfrentamientos sincronizados`); loadData()
     } catch (error) { 
       toast.error('Error en el generador táctico') 
