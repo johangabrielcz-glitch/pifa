@@ -1025,18 +1025,59 @@ export async function checkAndAutoResolveExpired(): Promise<number> {
         await supabase.from('match_annotations').upsert(annotationsToUpsert as any, { onConflict: 'match_id,club_id' })
       }
 
-      // For K.O. matches: if auto-resolved result is a tie, give win to the team that annotated
+      // For K.O. matches: if auto-resolved result is a tie, determine winner
       const competition = match.competition as Competition
       const isKnockout = competition?.type === 'cup' ||
         (competition?.type === 'groups_knockout' && !match.group_name)
+      
+      const config = competition?.config as CupConfig | GroupsKnockoutConfig | undefined
+      const totalLegs = config ? ('legs' in config ? config.legs : ('knockout_legs' in config ? config.knockout_legs : 1)) : 1
 
       if (isKnockout && homeScore === awayScore) {
         if (homeAnnotation && !awayAnnotation) {
+          // Home annotated, away didn't - home wins
           homeScore = Math.max(homeScore, 1)
         } else if (!homeAnnotation && awayAnnotation) {
+          // Away annotated, home didn't - away wins
           awayScore = Math.max(awayScore, 1)
+        } else if (totalLegs === 2 && match.leg === 2) {
+          // Both empty in leg 2 of a two-leg tie: check who won leg 1
+          const { data: leg1Data } = await supabase
+            .from('matches')
+            .select('home_score, away_score, home_club_id, away_club_id')
+            .eq('competition_id', match.competition_id)
+            .eq('matchday', match.matchday)
+            .eq('leg', 1)
+            .or(`and(home_club_id.eq.${match.away_club_id},away_club_id.eq.${match.home_club_id}),and(home_club_id.eq.${match.home_club_id},away_club_id.eq.${match.away_club_id})`)
+            .single()
+          
+          if (leg1Data && leg1Data.home_score !== null && leg1Data.away_score !== null) {
+            // Determine who won leg 1
+            if (leg1Data.home_score > leg1Data.away_score) {
+              // Leg 1 home team won - they should win leg 2 too
+              // In leg 2, leg1's home team is usually away
+              if (leg1Data.home_club_id === match.away_club_id) {
+                awayScore = 1 // Leg 1 winner (now away) wins
+              } else {
+                homeScore = 1 // Leg 1 winner (still home) wins
+              }
+            } else if (leg1Data.away_score > leg1Data.home_score) {
+              // Leg 1 away team won
+              if (leg1Data.away_club_id === match.home_club_id) {
+                homeScore = 1 // Leg 1 winner (now home) wins
+              } else {
+                awayScore = 1 // Leg 1 winner (still away) wins
+              }
+            } else {
+              // Leg 1 was also a tie - home advantage in leg 2
+              homeScore = 1
+            }
+          } else {
+            // Can't find leg 1, default to home advantage
+            homeScore = 1
+          }
         } else {
-          // Both empty or both annotated with same score: home advantage
+          // Single leg or leg 1 of two-leg: home advantage
           homeScore = homeScore + 1
         }
       }
