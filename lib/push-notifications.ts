@@ -1,4 +1,4 @@
-import { supabase } from './supabase'
+import { supabaseAdmin as supabase } from './supabase'
 
 /**
  * Envía una notificación push a través del servicio de Expo o el proxy interno.
