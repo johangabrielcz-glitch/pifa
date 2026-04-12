@@ -153,6 +153,34 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
   const [isZoomed, setIsZoomed] = useState(false)
   const [micPermissionStatus, setMicPermissionStatus] = useState<'granted' | 'denied' | 'prompt' | 'unknown'>('unknown')
 
+  const requestMicPermission = async () => {
+    if (!window.isSecureContext) {
+      toast.error('Error de Seguridad: El micrófono requiere HTTPS. Si estás en una App, debe tener certificado SSL.')
+      return
+    }
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      toast.error('Hardware no detectado: Tu navegador o App no soporta grabación de audio.')
+      return
+    }
+
+    const tid = toast.loading('Solicitando acceso al micrófono...')
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      stream.getTracks().forEach(track => track.stop()) // Cerrar inmediatamente, solo queríamos el permiso
+      setMicPermissionStatus('granted')
+      toast.success('¡Permiso concedido! Ya puedes grabar audios.', { id: tid })
+    } catch (err: any) {
+      console.error('Mic permission error:', err)
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setMicPermissionStatus('denied')
+        toast.error('Permiso denegado. Si no ves la opción en Ajustes, es posible que la App necesite ser reinstalada con permisos de audio.', { id: tid, duration: 6000 })
+      } else {
+        toast.error(`Error: ${err.message}`, { id: tid })
+      }
+    }
+  }
+
    const checkMicPermission = async () => {
     if (!navigator.permissions || !navigator.permissions.query) return
     try {
@@ -1042,89 +1070,8 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
       </AnimatePresence>
 
       {/* Input de Mensaje - Estilo Flotante */}
-      <div className="px-6 py-4 z-30 bg-[#0A0A0A] border-t border-white/5">
+      <div className="px-6 py-4 z-30 bg-[#0A0A0A] border-t border-white/5 relative">
         {/* PANEL DE STICKERS (FLOTANTE) */}
-        <AnimatePresence>
-          {mediaPickerType === 'stickers' && (
-            <motion.div 
-              initial={{ opacity: 0, y: 20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 20, scale: 0.95 }}
-              className="absolute bottom-full left-6 right-6 mb-4 bg-[#111111] border border-white/10 rounded-2xl overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.8)] z-50 flex flex-col h-80"
-            >
-              <div className="px-4 py-3 bg-white/5 border-b border-white/5 flex items-center justify-between">
-                <div className="flex gap-4">
-                  <button 
-                    type="button" 
-                    onClick={() => setStickerTab('global')}
-                    className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-2 pb-1 transition-all ${
-                      stickerTab === 'global' ? 'text-[#00FF85] border-b-2 border-[#00FF85]' : 'text-white/40'
-                    }`}
-                  >
-                    Mundial
-                  </button>
-                  <button 
-                    type="button" 
-                    onClick={() => setStickerTab('personal')} 
-                    className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-2 pb-1 transition-all ${
-                      stickerTab === 'personal' ? 'text-[#00FF85] border-b-2 border-[#00FF85]' : 'text-white/40'
-                    }`}
-                  >
-                    Favoritos
-                  </button>
-                </div>
-                <button onClick={() => setMediaPickerType(null)}><X className="w-4 h-4 text-white/20" /></button>
-              </div>
-              
-              <div className="flex-1 p-4 overflow-y-auto grid grid-cols-4 gap-4 custom-scrollbar">
-                <button 
-                  type="button"
-                  onClick={() => {
-                    const input = document.createElement('input')
-                    input.type = 'file'
-                    input.accept = 'image/*'
-                    input.onchange = (ev: any) => {
-                      const f = ev.target.files[0]
-                      if (f) {
-                        const event = { target: { files: [f] }, type: 'custom' }
-                        handleFileUpload(event, 'sticker')
-                      }
-                    }
-                    input.click()
-                  }}
-                  className="aspect-square rounded-xl border-2 border-dashed border-white/5 flex items-center justify-center hover:border-[#00FF85]/40 transition-all text-white/20 hover:text-[#00FF85]"
-                >
-                  <Plus className="w-6 h-6" />
-                </button>
-
-                {stickerTab === 'global' ? (
-                  officialStickers.map(st => (
-                    <button 
-                      key={st.id} 
-                      type="button"
-                      onClick={() => sendMediaMessage(st.url, 'sticker')}
-                      className="aspect-square hover:scale-110 transition-transform relative"
-                    >
-                      <img src={st.url} loading="lazy" className="w-full h-full object-contain relative z-10" />
-                    </button>
-                  ))
-                ) : (
-                  myStickers.map(st => (
-                    <button 
-                      key={st.id} 
-                      type="button"
-                      onClick={() => sendMediaMessage(st.url, 'sticker')}
-                      className="aspect-square hover:scale-110 transition-transform relative group/personal"
-                    >
-                      <img src={st.url} loading="lazy" className="w-full h-full object-contain relative z-10" />
-                      <Star className="absolute -top-1 -right-1 w-3 h-3 text-yellow-400 fill-current z-20" />
-                    </button>
-                  ))
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         {/* PREVIEW DE MULTIMEDIA PENDIENTE */}
         <AnimatePresence>
@@ -1207,16 +1154,124 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
                     initial={{ opacity: 0, scale: 0.9, y: 10 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.9, y: 10 }}
-                    className="absolute bottom-full left-0 mb-3 bg-[#111111] border border-white/10 rounded-2xl p-2 shadow-2xl z-50 flex flex-col gap-2 min-w-[150px]"
+                    className="absolute bottom-full left-0 mb-3 bg-[#111111] border border-white/10 rounded-2xl p-2 shadow-2xl z-[60] flex flex-col gap-2 min-w-[150px]"
                   >
                     <button type="button" onClick={() => fileInputRef.current?.click()} className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 rounded-xl transition-colors text-left group">
                       <ImageIcon className="w-4 h-4 text-blue-400" />
                       <span className="text-[10px] font-black text-white/80 uppercase">Galería</span>
                     </button>
-                    <button type="button" onClick={() => setMediaPickerType('stickers')} className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 rounded-xl transition-colors text-left group">
+                    <button 
+                      type="button" 
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setMediaPickerType('stickers')
+                      }} 
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 rounded-xl transition-colors text-left group"
+                    >
                       <Smile className="w-4 h-4 text-[#00FF85]" />
                       <span className="text-[10px] font-black text-white/80 uppercase">Stickers</span>
                     </button>
+
+                    <div className="h-px bg-white/5 my-1" />
+
+                    <button 
+                      type="button" 
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        requestMicPermission()
+                      }} 
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-[#00FF85]/10 rounded-xl transition-colors text-left group border border-[#00FF85]/20"
+                    >
+                      <Mic className="w-4 h-4 text-[#00FF85]" />
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-black text-[#00FF85] uppercase">Activar Micrófono</span>
+                        <span className="text-[7px] font-bold text-white/40 uppercase">Solucionar problemas</span>
+                      </div>
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* PANEL DE STICKERS (NUEVA POSICIÓN CONSOLIDADA) */}
+              <AnimatePresence>
+                {mediaPickerType === 'stickers' && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 20, scale: 0.95 }}
+                    className="absolute bottom-full left-0 mb-4 bg-[#111111] border border-white/10 rounded-2xl overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.8)] z-[70] flex flex-col h-80 w-[300px] sm:w-[400px]"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="px-4 py-3 bg-white/5 border-b border-white/5 flex items-center justify-between">
+                      <div className="flex gap-4">
+                        <button 
+                          type="button" 
+                          onClick={() => setStickerTab('global')}
+                          className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-2 pb-1 transition-all ${
+                            stickerTab === 'global' ? 'text-[#00FF85] border-b-2 border-[#00FF85]' : 'text-white/40'
+                          }`}
+                        >
+                          Mundial
+                        </button>
+                        <button 
+                          type="button" 
+                          onClick={() => setStickerTab('personal')} 
+                          className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-2 pb-1 transition-all ${
+                            stickerTab === 'personal' ? 'text-[#00FF85] border-b-2 border-[#00FF85]' : 'text-white/40'
+                          }`}
+                        >
+                          Favoritos
+                        </button>
+                      </div>
+                      <button onClick={() => setMediaPickerType(null)} className="p-1 hover:bg-white/10 rounded-full"><X className="w-4 h-4 text-white/20" /></button>
+                    </div>
+                    
+                    <div className="flex-1 p-4 overflow-y-auto grid grid-cols-4 gap-4 custom-scrollbar">
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          const input = document.createElement('input')
+                          input.type = 'file'
+                          input.accept = 'image/*'
+                          input.onchange = (ev: any) => {
+                            const f = ev.target.files[0]
+                            if (f) {
+                              const event = { target: { files: [f] }, type: 'custom' }
+                              handleFileUpload(event, 'sticker')
+                            }
+                          }
+                          input.click()
+                        }}
+                        className="aspect-square rounded-xl border-2 border-dashed border-white/5 flex items-center justify-center hover:border-[#00FF85]/40 transition-all text-white/20 hover:text-[#00FF85]"
+                      >
+                        <Plus className="w-6 h-6" />
+                      </button>
+
+                      {stickerTab === 'global' ? (
+                        officialStickers.map(st => (
+                          <button 
+                            key={st.id} 
+                            type="button"
+                            onClick={() => sendMediaMessage(st.url, 'sticker')}
+                            className="aspect-square hover:scale-110 transition-transform relative"
+                          >
+                            <img src={st.url} loading="lazy" className="w-full h-full object-contain relative z-10" />
+                          </button>
+                        ))
+                      ) : (
+                        myStickers.map(st => (
+                          <button 
+                            key={st.id} 
+                            type="button"
+                            onClick={() => sendMediaMessage(st.url, 'sticker')}
+                            className="aspect-square hover:scale-110 transition-transform relative group/personal"
+                          >
+                            <img src={st.url} loading="lazy" className="w-full h-full object-contain relative z-10" />
+                            <Star className="absolute -top-1 -right-1 w-3 h-3 text-yellow-400 fill-current z-20" />
+                          </button>
+                        ))
+                      )}
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
