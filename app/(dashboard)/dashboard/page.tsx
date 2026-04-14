@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   Shield, Users, LogOut, Loader2, AlertCircle, Wallet,
   ChevronDown, ChevronUp, Trophy, Calendar, Swords, LayoutList,
   Clock, Goal, HandHelping, Star, Play, Check, BarChart3,
-  Hourglass, TrendingUp, Flame, Award, Newspaper, ChevronRight
+  Hourglass, TrendingUp, Flame, Award, Newspaper, ChevronRight, Camera
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
@@ -99,6 +99,8 @@ export default function DashboardPage() {
   const [assistsPage, setAssistsPage] = useState(0)
   const [mvpsPage, setMvpsPage] = useState(0)
   const [topNews, setTopNews] = useState<any[]>([])
+  const [shieldLoading, setShieldLoading] = useState(false)
+  const shieldInputRef = useRef<HTMLInputElement>(null)
 
   // Optimización de Estadísticas: Memoizar el cálculo de rankings en el nivel superior (Rules of Hooks)
   const statsComps = useMemo(() => 
@@ -129,6 +131,58 @@ export default function DashboardPage() {
       mvps: [...playerMap.values()].filter(p => p.mvps > 0).sort((a, b) => b.mvps - a.mvps).slice(0, 50)
     }
   }, [statsComps])
+
+  // Motor In-Browser para comprimir imágenes y ahorrar el storage pesado
+  const resizeImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const img = new window.Image()
+        img.onload = () => {
+          const canvas = document.createElement('canvas')
+          let width = img.width
+          let height = img.height
+          const MAX_SIZE = 250 // Escudo Ligero 250x250
+          if (width > height && width > MAX_SIZE) {
+            height *= MAX_SIZE / width
+            width = MAX_SIZE
+          } else if (height > MAX_SIZE) {
+            width *= MAX_SIZE / height
+            height = MAX_SIZE
+          }
+          canvas.width = width
+          canvas.height = height
+          const ctx = canvas.getContext('2d')
+          ctx?.drawImage(img, 0, 0, width, height)
+          resolve(canvas.toDataURL('image/png', 0.8)) // Soporte a escudos con transparencia
+        }
+        img.src = e.target?.result as string
+      }
+      reader.onerror = error => reject(error)
+      reader.readAsDataURL(file)
+    })
+  }
+
+  const handleShieldUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !club) return
+    if (!file.type.startsWith('image/')) {
+      toast.error('Sube un formato de imagen válido')
+      return
+    }
+    setShieldLoading(true)
+    try {
+      const base64Shield = await resizeImage(file)
+      const { error } = await supabase.from('clubs').update({ shield_url: base64Shield }).eq('id', club.id)
+      if (error) throw error
+      setClub({ ...club, shield_url: base64Shield }) // update client state
+      toast.success('Escudo institucional aplicado con éxito')
+    } catch (err) {
+      toast.error('Error al actualizar el escudo')
+    } finally {
+      setShieldLoading(false)
+    }
+  }
 
   const refreshData = async () => {
     const stored = localStorage.getItem('pifa_auth_session')
@@ -1359,14 +1413,53 @@ export default function DashboardPage() {
           {/* ======== TAB: SQUAD ======== */}
           {activeTab === 'squad' && (
             <div className="flex-1 overflow-y-auto px-4 py-5 space-y-6" key="tab-squad">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xs font-bold text-[#6A6C6E] uppercase tracking-widest flex items-center gap-2">
-                  <Users className="w-4 h-4 text-[#00FF85]" />
-                  Plantilla
-                </h2>
-                <span className="text-[10px] text-[#00FF85] font-bold bg-[#00FF85]/10 px-2.5 py-1 rounded-full uppercase tracking-wider">
-                  {players.length} jugadores
-                </span>
+              {/* Identidad del Club y Título de Plantilla */}
+              <div className="bg-[#141414] rounded-2xl border border-[#202020] p-5 shadow-xl relative overflow-hidden group">
+                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#00FF85] to-transparent opacity-50" />
+                 
+                 <div className="flex items-center justify-between">
+                   <div className="flex items-center gap-4">
+                     {/* Subida de Escudo */}
+                     <div 
+                       className="relative group/shield cursor-pointer"
+                       onClick={() => shieldInputRef.current?.click()}
+                     >
+                        <input 
+                          type="file" 
+                          ref={shieldInputRef}
+                          className="hidden" 
+                          accept="image/*"
+                          onChange={handleShieldUpload}
+                        />
+                        <div className="w-16 h-16 bg-[#0A0A0A] rounded-[14px] flex items-center justify-center border border-white/[0.05] shadow-xl overflow-hidden relative transition-transform duration-300 group-hover/shield:scale-105 group-hover/shield:border-[#00FF85]/30">
+                           {shieldLoading ? (
+                             <Loader2 className="w-6 h-6 text-[#00FF85] animate-spin" />
+                           ) : club?.shield_url ? (
+                             <img src={club.shield_url} alt={club.name} className="w-full h-full object-contain p-1.5" />
+                           ) : (
+                             <Shield className="w-8 h-8 text-[#00FF85]/30" />
+                           )}
+                           <div className="absolute inset-0 bg-black/80 opacity-0 group-hover/shield:opacity-100 transition-opacity flex flex-col items-center justify-center">
+                             <Camera className="w-5 h-5 text-white mb-1" />
+                             <span className="text-[6px] font-black uppercase tracking-widest text-[#00FF85]">EDITAR</span>
+                           </div>
+                        </div>
+                     </div>
+                     <div>
+                       <h2 className="text-sm font-black text-white uppercase tracking-tighter flex items-center gap-2">
+                         PLANTILLA ABSOLUTA
+                       </h2>
+                       <p className="text-[9px] font-black uppercase text-[#6A6C6E] tracking-[0.2em] mt-0.5">
+                         {club?.name}
+                       </p>
+                     </div>
+                   </div>
+                   
+                   <div className="text-right flex flex-col items-end">
+                     <span className="text-[14px] font-black text-[#00FF85]">{players.length}</span>
+                     <span className="text-[7px] text-[#6A6C6E] font-bold uppercase tracking-widest leading-none mt-0.5">FICHAS ACTIVAS</span>
+                   </div>
+                 </div>
               </div>
 
               {/* Squad Sub-Tabs */}
