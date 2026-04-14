@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Bell, X, Check, XCircle, RefreshCw, Info, Trash2, ArrowRight, DollarSign, Wallet, ShieldCheck, User as UserIcon } from 'lucide-react'
+import { Bell, X, Check, XCircle, RefreshCw, Info, Trash2, ArrowRight, DollarSign, Wallet, ShieldCheck, User as UserIcon, Activity, AlertTriangle } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase'
 import { Notification } from '@/lib/types'
@@ -97,6 +97,8 @@ export function NotificationsDrawer({ clubId, isOpen, onClose, onActionComplete 
       case 'offer_countered': return { icon: <RefreshCw className="w-4 h-4" />, color: 'text-blue-400', bg: 'bg-blue-400/10' }
       case 'transfer_complete': return { icon: <ShieldCheck className="w-4 h-4" />, color: 'text-[#00FF85]', bg: 'bg-[#00FF85]/10' }
       case 'offer_rejected': return { icon: <XCircle className="w-4 h-4" />, color: 'text-red-400', bg: 'bg-red-400/10' }
+      case 'injury': return { icon: <Activity className="w-4 h-4" />, color: 'text-red-500', bg: 'bg-red-500/10' }
+      case 'red_card': return { icon: <AlertTriangle className="w-4 h-4" />, color: 'text-red-600', bg: 'bg-red-600/10' }
       default: return { icon: <Bell className="w-4 h-4" />, color: 'text-white/60', bg: 'bg-white/5' }
     }
   }

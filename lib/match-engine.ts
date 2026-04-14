@@ -8,8 +8,17 @@ import type {
   LeagueConfig,
   CupConfig,
   GroupsKnockoutConfig,
+  SubstitutionEntry,
 } from './types'
 import { sendPushToClub } from './push-notifications'
+import {
+  decrementSuspensionsAndInjuries,
+  processMatchFatigue,
+  processRestRecovery,
+  processInjuries,
+  processRedCards,
+  getSubsInPlayerIds,
+} from './injury-engine'
 
 // =============================================
 // DEADLINE CALCULATION
@@ -122,7 +131,7 @@ export async function submitAnnotation(
   assists: AssistEntry[],
   mvpPlayerId: string | null,
   starting_xi: string[] = [],
-  substitutes_in: string[] = []
+  substitutes_in: SubstitutionEntry[] | string[] = []
 ): Promise<SubmitAnnotationResult> {
   const { data: mData, error: matchError } = await supabase
     .from('matches')
@@ -405,6 +414,23 @@ async function finalizeMatch(matchId: string): Promise<void> {
   
   sendPushToClub(match.home_club_id, '🏁 Partido Finalizado', resultMessage, { type: 'match_finished', match_id: matchId })
   sendPushToClub(match.away_club_id, '🏁 Partido Finalizado', resultMessage, { type: 'match_finished', match_id: matchId })
+
+  // ====== INJURY ENGINE: Post-match processing ======
+  try {
+    // 1. Decrement existing injuries/suspensions first (counts this match)
+    await decrementSuspensionsAndInjuries((match as any).home_club_id)
+    await decrementSuspensionsAndInjuries((match as any).away_club_id)
+    // 2. Process fatigue for players who participated
+    await processMatchFatigue(matchId)
+    // 3. Recover stamina for players who didn't play
+    await processRestRecovery(matchId)
+    // 4. Roll for injuries (probability based on stamina)
+    await processInjuries(matchId)
+    // 5. Roll for red cards (every 3 matches per club)
+    await processRedCards(matchId)
+  } catch (injuryError) {
+    console.warn('[finalizeMatch] Injury engine error (non-blocking):', injuryError)
+  }
 }
 
 // =============================================
@@ -516,11 +542,11 @@ async function updatePlayerStats(annotations: MatchAnnotation[], competitionId: 
     const goals = (annotation.goals || []) as GoalEntry[]
     const assists = (annotation.assists || []) as AssistEntry[]
     const starting_xi = (annotation.starting_xi || []) as string[]
-    const substitutes_in = (annotation.substitutes_in || []) as string[]
+    const substitutes_in_ids = getSubsInPlayerIds(annotation.substitutes_in)
     const clubId = annotation.club_id;
 
     // Track matches played first
-    const playedPlayers = new Set([...starting_xi, ...substitutes_in]);
+    const playedPlayers = new Set([...starting_xi, ...substitutes_in_ids]);
     for (const playerId of playedPlayers) {
       if (!playerStatsMap.has(playerId)) {
         playerStatsMap.set(playerId, { goals: 0, assists: 0, mvp: 0, played: true, clubId });
@@ -1189,6 +1215,18 @@ export async function checkAndAutoResolveExpired(): Promise<number> {
       // K.O. advancement
       if (isKnockout) {
         await advanceWinner(match, homeScore, awayScore, competition)
+      }
+
+      // ====== INJURY ENGINE: Post-match processing ======
+      try {
+        await decrementSuspensionsAndInjuries(match.home_club_id)
+        await decrementSuspensionsAndInjuries(match.away_club_id)
+        await processMatchFatigue(match.id)
+        await processRestRecovery(match.id)
+        await processInjuries(match.id)
+        await processRedCards(match.id)
+      } catch (injuryError) {
+        console.warn('[autoResolve] Injury engine error (non-blocking):', injuryError)
       }
 
       resolved++

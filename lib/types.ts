@@ -87,6 +87,7 @@ export interface Club {
   shield_url: string | null
   budget: number
   default_lineup: any | null
+  red_card_check_counter: number
   created_at: string
   updated_at: string
 }
@@ -97,6 +98,7 @@ export interface ClubInsert {
   shield_url?: string | null
   budget?: number
   default_lineup?: any | null
+  red_card_check_counter?: number
   created_at?: string
   updated_at?: string
 }
@@ -107,6 +109,7 @@ export interface ClubUpdate {
   shield_url?: string | null
   budget?: number
   default_lineup?: any | null
+  red_card_check_counter?: number
   updated_at?: string
 }
 
@@ -172,6 +175,11 @@ export interface Player {
   photo_url: string | null
   is_on_sale: boolean
   sale_price: number | null
+  stamina: number
+  injury_matches_left: number
+  injury_reason: string | null
+  red_card_matches_left: number
+  red_card_reason: string | null
   created_at: string
   updated_at: string
 }
@@ -187,6 +195,11 @@ export interface PlayerInsert {
   photo_url?: string | null
   is_on_sale?: boolean
   sale_price?: number | null
+  stamina?: number
+  injury_matches_left?: number
+  injury_reason?: string | null
+  red_card_matches_left?: number
+  red_card_reason?: string | null
   created_at?: string
   updated_at?: string
 }
@@ -202,6 +215,11 @@ export interface PlayerUpdate {
   photo_url?: string | null
   is_on_sale?: boolean
   sale_price?: number | null
+  stamina?: number
+  injury_matches_left?: number
+  injury_reason?: string | null
+  red_card_matches_left?: number
+  red_card_reason?: string | null
   updated_at?: string
 }
 
@@ -218,6 +236,8 @@ export type NotificationType =
   | 'offer_rejected' 
   | 'offer_countered' 
   | 'offer_cancelled'
+  | 'injury'
+  | 'red_card'
 
 export interface MarketOffer {
   id: string
@@ -563,6 +583,11 @@ export interface AssistEntry {
   count: number
 }
 
+export interface SubstitutionEntry {
+  player_in: string
+  player_out: string
+}
+
 export interface MatchAnnotation {
   id: string
   match_id: string
@@ -571,7 +596,7 @@ export interface MatchAnnotation {
   assists: AssistEntry[]
   mvp_player_id: string | null
   starting_xi: string[]
-  substitutes_in: string[]
+  substitutes_in: SubstitutionEntry[] | string[]
   created_at: string
   updated_at: string
 }

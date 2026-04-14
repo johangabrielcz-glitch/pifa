@@ -170,6 +170,56 @@ export function PlayerManagementDialog({ player, isOpen, onClose, onUpdate }: Pl
           <div className="w-full h-px bg-gradient-to-r from-transparent via-white/[0.05] to-transparent my-4"></div>
 
           <div className="space-y-4">
+            {/* Stamina & Status Section */}
+            <div className="space-y-3">
+              {/* Stamina Bar */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[8px] font-black text-[#6A6C6E] uppercase tracking-[0.2em]">⚡ Energía</span>
+                  <span className="text-[10px] font-black" style={{ color: (player.stamina ?? 100) > 60 ? '#00FF85' : (player.stamina ?? 100) > 30 ? '#FFB800' : '#FF3333' }}>
+                    {player.stamina ?? 100}%
+                  </span>
+                </div>
+                <div className="w-full h-2 bg-[#141414] rounded-full overflow-hidden border border-[#202020]">
+                  <div 
+                    className="h-full rounded-full transition-all" 
+                    style={{ 
+                      width: `${player.stamina ?? 100}%`, 
+                      backgroundColor: (player.stamina ?? 100) > 60 ? '#00FF85' : (player.stamina ?? 100) > 30 ? '#FFB800' : '#FF3333' 
+                    }} 
+                  />
+                </div>
+              </div>
+
+              {/* Injury Status */}
+              {(player.injury_matches_left ?? 0) > 0 && (
+                <div className="p-3 rounded-xl bg-red-500/5 border border-red-500/20">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-sm">🏥</span>
+                    <span className="text-[9px] font-black text-red-400 uppercase tracking-wider">Lesionado — {player.injury_matches_left} partido{(player.injury_matches_left ?? 0) > 1 ? 's' : ''}</span>
+                  </div>
+                  {player.injury_reason && (
+                    <p className="text-[9px] text-red-400/70 font-bold italic ml-6">"{player.injury_reason}"</p>
+                  )}
+                </div>
+              )}
+
+              {/* Red Card Status */}
+              {(player.red_card_matches_left ?? 0) > 0 && (
+                <div className="p-3 rounded-xl bg-red-500/5 border border-red-500/20">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-sm">🟥</span>
+                    <span className="text-[9px] font-black text-red-400 uppercase tracking-wider">Suspendido — {player.red_card_matches_left} partido{(player.red_card_matches_left ?? 0) > 1 ? 's' : ''}</span>
+                  </div>
+                  {player.red_card_reason && (
+                    <p className="text-[9px] text-red-400/70 font-bold italic ml-6">"{player.red_card_reason}"</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="w-full h-px bg-gradient-to-r from-transparent via-white/[0.05] to-transparent"></div>
+
             <div className="space-y-2">
               <label className="text-[8px] font-black text-[#FF3131] uppercase tracking-[0.2em] flex items-center gap-2 ml-1">
                 <Tag className="w-3 h-3" />

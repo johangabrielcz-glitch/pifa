@@ -81,7 +81,22 @@ export default function SeasonsPage() {
     try {
       const { error } = await supabase.from('seasons').delete().eq('id', deletingSeason.id)
       if (error) throw error
-      toast.success('Ciclo purgado correctamente'); loadSeasons()
+
+      // Restaurar estamina, lesiones y suspensiones de todos los jugadores
+      await supabase.from('players').update({
+        stamina: 100,
+        injury_matches_left: 0,
+        injury_reason: null,
+        red_card_matches_left: 0,
+        red_card_reason: null
+      }).gte('stamina', 0)
+
+      // Reiniciar los contadores de verificación de rojas en todos los clubes
+      await supabase.from('clubs').update({
+        red_card_check_counter: 0
+      }).gte('red_card_check_counter', 0)
+
+      toast.success('Ciclo purgado y estatus de jugadores reseteado'); loadSeasons()
     } catch (error) { 
       toast.error('Fallo en la purga del ciclo') 
     } finally { 

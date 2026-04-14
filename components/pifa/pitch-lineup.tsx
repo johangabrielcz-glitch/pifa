@@ -441,14 +441,25 @@ export function PitchLineup({ players, initialLineup, onSave }: PitchLineupProps
                     /* Premium Player Badge */
                     <div className={`flex flex-col items-center transition-all ${draggingPlayer?.id === pDetails.id ? 'scale-110' : ''}`}>
                       <div className="relative group/badge">
-                        <div className="w-10 h-10 rounded-full border-2 border-[#00FF85] bg-[#0A0A0A] overflow-hidden shadow-[0_0_15px_rgba(0,255,133,0.3)] z-10 relative">
+                        <div className={`w-10 h-10 rounded-full border-2 bg-[#0A0A0A] overflow-hidden shadow-lg relative z-10 ${
+                          (pDetails.injury_matches_left ?? 0) > 0 || (pDetails.red_card_matches_left ?? 0) > 0 
+                            ? 'border-red-500 shadow-red-500/30' 
+                            : 'border-[#00FF85] shadow-[#00FF85]/30'
+                        }`}>
                            {pDetails.photo_url ? (
-                              <img src={pDetails.photo_url} alt="" className="w-full h-full object-cover select-none" draggable="false" />
+                              <img src={pDetails.photo_url} alt="" className={`w-full h-full object-cover select-none ${(pDetails.injury_matches_left ?? 0) > 0 || (pDetails.red_card_matches_left ?? 0) > 0 ? 'opacity-50 grayscale' : ''}`} draggable="false" />
                            ) : (
-                              <Shield className="w-full h-full p-2 text-[#00FF85]/20" />
+                              <Shield className={`w-full h-full p-2 ${((pDetails.injury_matches_left ?? 0) > 0 || (pDetails.red_card_matches_left ?? 0) > 0) ? 'text-red-500/20' : 'text-[#00FF85]/20'}`} />
                            )}
+                           
+                           {/* Status overlay */}
+                           {(pDetails.injury_matches_left ?? 0) > 0 && <div className="absolute inset-0 flex items-center justify-center bg-black/40"><span className="text-[10px]">🏥</span></div>}
+                           {(pDetails.red_card_matches_left ?? 0) > 0 && <div className="absolute inset-0 flex items-center justify-center bg-black/40"><span className="text-[10px]">🟥</span></div>}
+
                            {/* Small position badge */}
-                           <div className="absolute top-0 right-0 bg-[#00FF85] text-black text-[7px] font-black px-1 rounded-bl-md border-l border-b border-black/20">
+                           <div className={`absolute top-0 right-0 text-black text-[7px] font-black px-1 rounded-bl-md border-l border-b border-black/20 ${
+                              (pDetails.injury_matches_left ?? 0) > 0 || (pDetails.red_card_matches_left ?? 0) > 0 ? 'bg-red-500 text-white' : 'bg-[#00FF85]'
+                           }`}>
                              {slot.role}
                            </div>
                         </div>
@@ -457,10 +468,21 @@ export function PitchLineup({ players, initialLineup, onSave }: PitchLineupProps
                       </div>
                       
                       {/* Nameplate - Wider and Glassmorphic */}
-                      <div className="mt-[-8px] min-w-[70px] max-w-[90px] px-2 py-0.5 bg-black/80 backdrop-blur-md rounded-md border border-[#00FF85]/30 shadow-2xl z-20">
-                        <p className="text-[9px] font-black text-white uppercase truncate text-center leading-tight tracking-tight">
+                      <div className="mt-[-6px] min-w-[70px] max-w-[90px] px-2 py-0.5 bg-black/80 backdrop-blur-md rounded-md border border-white/10 shadow-2xl z-20 flex flex-col items-center">
+                        <p className={`text-[9px] font-black uppercase truncate text-center leading-tight tracking-tight ${
+                          (pDetails.injury_matches_left ?? 0) > 0 || (pDetails.red_card_matches_left ?? 0) > 0 ? 'text-red-400' : 'text-white'
+                        }`}>
                           {pDetails.name.split(' ').pop()}
                         </p>
+                        {/* Stamina bar */}
+                        {((pDetails.injury_matches_left ?? 0) === 0 && (pDetails.red_card_matches_left ?? 0) === 0) && (
+                          <div className="w-full h-[2px] bg-white/10 rounded-full overflow-hidden mt-0.5">
+                            <div className="h-full rounded-full" style={{
+                              width: `${pDetails.stamina ?? 100}%`,
+                              backgroundColor: (pDetails.stamina ?? 100) > 60 ? '#00FF85' : (pDetails.stamina ?? 100) > 30 ? '#FFB800' : '#FF3333'
+                            }} />
+                          </div>
+                        )}
                       </div>
                     </div>
                   ) : (
@@ -487,26 +509,54 @@ export function PitchLineup({ players, initialLineup, onSave }: PitchLineupProps
           {bench.length === 0 ? (
              <p className="text-[10px] text-white/20 italic w-full text-center py-2 uppercase font-black">Equipo Completo</p>
           ) : (
-             bench.map(player => (
-               <div 
-                  key={player.id} 
-                  onPointerDown={(e) => onPointerDown(e, player.id, false)}
-                  onPointerUp={onPointerUp}
-                  className="flex flex-col items-center gap-1.5 shrink-0 group active:scale-95 transition-transform"
-               >
-                  <div className="w-10 h-10 rounded-full bg-[#1D1D1D] border border-[#252525] overflow-hidden shadow-lg group-hover:border-[#00FF85]/40 transition-colors relative">
-                     {player.photo_url ? (
-                        <img src={player.photo_url} alt="" className="w-full h-full object-cover select-none" draggable="false" />
-                     ) : (
-                        <Shield className="w-full h-full p-2.5 text-white/5" />
-                     )}
-                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                  <span className="text-[8px] font-black text-[#6A6C6E] uppercase truncate w-12 text-center group-hover:text-white transition-colors">
-                    {player.name.split(' ').pop()}
-                  </span>
-               </div>
-             ))
+              bench.map(player => {
+                const isInjured = (player.injury_matches_left ?? 0) > 0;
+                const isSuspended = (player.red_card_matches_left ?? 0) > 0;
+                const isUnavailable = isInjured || isSuspended;
+
+                return (
+                 <div 
+                    key={player.id} 
+                    onPointerDown={(e) => {
+                       if (isUnavailable) {
+                         toast.error('Este jugador no está disponible')
+                         return
+                       }
+                       onPointerDown(e, player.id, false)
+                    }}
+                    onPointerUp={onPointerUp}
+                    className={`flex flex-col items-center gap-1.5 shrink-0 group transition-transform ${isUnavailable ? 'opacity-50' : 'active:scale-95 cursor-pointer'}`}
+                 >
+                    <div className={`w-10 h-10 rounded-full bg-[#1D1D1D] border overflow-hidden shadow-lg transition-colors relative ${
+                       isUnavailable ? 'border-red-500/50' : 'border-[#252525] group-hover:border-[#00FF85]/40'
+                    }`}>
+                       {player.photo_url ? (
+                          <img src={player.photo_url} alt="" className={`w-full h-full object-cover select-none ${isUnavailable ? 'grayscale' : ''}`} draggable="false" />
+                       ) : (
+                          <Shield className="w-full h-full p-2.5 text-white/5" />
+                       )}
+                       {isInjured && <div className="absolute inset-0 flex items-center justify-center bg-black/40"><span className="text-[10px]">🏥</span></div>}
+                       {isSuspended && <div className="absolute inset-0 flex items-center justify-center bg-black/40"><span className="text-[10px]">🟥</span></div>}
+                       {!isUnavailable && <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />}
+                    </div>
+                    <div className="flex flex-col items-center w-12">
+                      <span className={`text-[8px] font-black uppercase truncate w-full text-center transition-colors ${
+                         isUnavailable ? 'text-red-400' : 'text-[#6A6C6E] group-hover:text-white'
+                      }`}>
+                        {player.name.split(' ').pop()}
+                      </span>
+                      {!isUnavailable && (
+                        <div className="w-full h-[2px] bg-white/5 rounded-full overflow-hidden mt-0.5">
+                          <div className="h-full rounded-full" style={{
+                            width: `${player.stamina ?? 100}%`,
+                            backgroundColor: (player.stamina ?? 100) > 60 ? '#00FF85' : (player.stamina ?? 100) > 30 ? '#FFB800' : '#FF3333'
+                          }} />
+                        </div>
+                      )}
+                    </div>
+                 </div>
+               )
+              })
           )}
         </div>
       </div>

@@ -9,8 +9,9 @@ import {
   SheetDescription 
 } from '@/components/ui/sheet'
 import { supabase } from '@/lib/supabase'
-import { Loader2, Shield, Goal, HandHelping, Star, Trophy, Calendar, Users, XCircle } from 'lucide-react'
-import type { Match, Club, MatchAnnotation, Player } from '@/lib/types'
+import { Loader2, Shield, Goal, HandHelping, Star, Trophy, Calendar, Users, XCircle, ArrowRightLeft } from 'lucide-react'
+import type { Match, Club, MatchAnnotation, Player, SubstitutionEntry } from '@/lib/types'
+import { normalizeSubstitutions } from '@/lib/injury-engine'
 
 interface MatchDetailsDrawerProps {
   matchId: string | null
@@ -30,11 +31,18 @@ interface StatEntry {
   clubId: string
 }
 
+interface SubEntry {
+  playerInName: string
+  playerOutName: string
+  clubId: string
+}
+
 export function MatchDetailsDrawer({ matchId, isOpen, onClose }: MatchDetailsDrawerProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [match, setMatch] = useState<MatchWithClubs | null>(null)
   const [goals, setGoals] = useState<StatEntry[]>([])
   const [assists, setAssists] = useState<StatEntry[]>([])
+  const [subs, setSubs] = useState<SubEntry[]>([])
   const [mvp, setMvp] = useState<{ player: Player; club: Club } | null>(null)
 
   useEffect(() => {
@@ -44,6 +52,7 @@ export function MatchDetailsDrawer({ matchId, isOpen, onClose }: MatchDetailsDra
       setMatch(null)
       setGoals([])
       setAssists([])
+      setSubs([])
       setMvp(null)
     }
   }, [matchId, isOpen])
@@ -81,6 +90,12 @@ export function MatchDetailsDrawer({ matchId, isOpen, onClose }: MatchDetailsDra
         ann.goals?.forEach(g => playerIds.add(g.player_id))
         ann.assists?.forEach(a => playerIds.add(a.player_id))
         if (ann.mvp_player_id) playerIds.add(ann.mvp_player_id)
+        // Add substitute player IDs
+        const annSubs = normalizeSubstitutions(ann.substitutes_in)
+        annSubs.forEach(s => {
+          playerIds.add(s.player_in)
+          if (s.player_out) playerIds.add(s.player_out)
+        })
       })
 
       let playersMap: Record<string, Player> = {}
@@ -123,7 +138,21 @@ export function MatchDetailsDrawer({ matchId, isOpen, onClose }: MatchDetailsDra
       setGoals(goalList.sort((a, b) => b.count - a.count))
       setAssists(assistList.sort((a, b) => b.count - a.count))
 
-      // 5. Process MVP (assuming they should agree, but taking first available or prioritizing winner)
+      // 5. Process Substitutions
+      const subList: SubEntry[] = []
+      annotations.forEach(ann => {
+        const annSubs = normalizeSubstitutions(ann.substitutes_in)
+        annSubs.forEach(s => {
+          subList.push({
+            playerInName: playersMap[s.player_in]?.name || 'Desconocido',
+            playerOutName: s.player_out ? (playersMap[s.player_out]?.name || 'Desconocido') : '',
+            clubId: ann.club_id
+          })
+        })
+      })
+      setSubs(subList)
+
+      // 6. Process MVP (assuming they should agree, but taking first available or prioritizing winner)
       const mvpId = annotations[0]?.mvp_player_id || annotations[1]?.mvp_player_id
       if (mvpId && playersMap[mvpId]) {
         const p = playersMap[mvpId]
@@ -257,6 +286,36 @@ export function MatchDetailsDrawer({ matchId, isOpen, onClose }: MatchDetailsDra
                   </div>
                 )}
               </section>
+
+              {/* SUBSTITUTIONS */}
+              {subs.length > 0 && (
+                <section className="space-y-4">
+                  <div className="flex items-center gap-2 h-4">
+                    <ArrowRightLeft className="w-4 h-4 text-amber-400" />
+                    <h3 className="text-[10px] font-black text-[#6A6C6E] uppercase tracking-[0.2em]">Cambios</h3>
+                    <div className="h-px flex-1 bg-white/5" />
+                  </div>
+                  
+                  <div className="grid gap-2">
+                    {subs.map((s, i) => (
+                      <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/5">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`w-1 h-4 rounded-full ${s.clubId === match.home_club_id ? 'bg-[#00FF85]' : 'bg-blue-400'}`} />
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="text-[10px] font-black text-[#00FF85] uppercase truncate">🔼 {s.playerInName.split(' ').pop()}</span>
+                            {s.playerOutName && (
+                              <>
+                                <span className="text-[8px] text-[#6A6C6E]">←</span>
+                                <span className="text-[10px] font-black text-[#FF3333] uppercase truncate">🔽 {s.playerOutName.split(' ').pop()}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
 
               {/* MVP */}
               {mvp && (

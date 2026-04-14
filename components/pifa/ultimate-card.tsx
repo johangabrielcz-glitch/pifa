@@ -14,6 +14,11 @@ interface UltimateCardProps {
     photo_url: string | null
     is_on_sale?: boolean
     sale_price?: number | null
+    stamina?: number
+    injury_matches_left?: number
+    injury_reason?: string | null
+    red_card_matches_left?: number
+    red_card_reason?: string | null
   }
   stats?: {
     goals: number
@@ -27,6 +32,12 @@ interface UltimateCardProps {
 }
 
 export function UltimateCard({ player, stats, showPrice = false, onClick, color = '#00FF85', hideStats = false }: UltimateCardProps) {
+  const isInjured = (player.injury_matches_left ?? 0) > 0
+  const isSuspended = (player.red_card_matches_left ?? 0) > 0
+  const isUnavailable = isInjured || isSuspended
+  const stamina = player.stamina ?? 100
+  const staminaColor = stamina > 60 ? '#00FF85' : stamina > 30 ? '#FFB800' : '#FF3333'
+
   return (
     <div 
       className={`group relative w-full aspect-[2/3] max-w-[220px] mx-auto animate-fade-in-up ${onClick ? 'cursor-pointer' : ''}`}
@@ -113,6 +124,26 @@ export function UltimateCard({ player, stats, showPrice = false, onClick, color 
 
         {/* Decorative corner accent */}
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-8 h-1 bg-[#00FF85]/20 rounded-full blur-sm" />
+
+        {/* Stamina Bar */}
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-[60%] z-20">
+          <div className="w-full h-1.5 bg-black/40 rounded-full overflow-hidden border border-white/5">
+            <div className="h-full rounded-full transition-all" style={{ width: `${stamina}%`, backgroundColor: staminaColor }} />
+          </div>
+        </div>
+
+        {/* Injury/Suspension Overlay */}
+        {isUnavailable && (
+          <div className="absolute inset-0 bg-black/60 z-30 flex flex-col items-center justify-center" style={{ clipPath: 'polygon(50% 0%, 100% 15%, 100% 85%, 50% 100%, 0% 85%, 0% 15%)' }}>
+            <span className="text-2xl mb-1">{isInjured ? '🏥' : '🟥'}</span>
+            <span className="text-[9px] font-black text-red-400 uppercase tracking-wider">
+              {isInjured ? `Lesionado` : `Suspendido`}
+            </span>
+            <span className="text-[8px] font-bold text-red-400/70 uppercase">
+              {isInjured ? `${player.injury_matches_left}P restantes` : `${player.red_card_matches_left}P restantes`}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Rarity Glow Background (Hidden until hover) */}
