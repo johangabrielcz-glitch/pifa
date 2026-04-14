@@ -113,11 +113,13 @@ const MessageItem = React.memo(({
       )}
 
       <motion.div 
-        className={`flex ${isOwn ? 'justify-end' : 'justify-start'} group/msg relative`}
+        className={`flex ${isOwn ? 'justify-end' : 'justify-start'} group/msg relative ${showMenu ? 'z-50' : 'z-0'}`}
+        style={{ willChange: showMenu ? 'auto' : 'transform' }}
         drag="x"
         dragDirectionLock={true}
-        dragConstraints={{ left: 0, right: isDeleted ? 0 : 50 }}
-        dragElastic={0.05}
+        dragConstraints={{ left: 0, right: isDeleted ? 0 : 60 }}
+        dragElastic={0.15}
+        dragTransition={{ bounceStiffness: 600, bounceDamping: 20 }}
         dragSnapToOrigin={true}
         onDragEnd={(e, info) => {
           if (!isDeleted && info.offset.x > 50) onReply(msg)
@@ -481,8 +483,8 @@ const ChatInputArea = React.memo(({
                   ))}
                   {stickerTab === 'personal' && myStickers.map((st: any) => (
                     <div key={st.id} className="relative group/stk aspect-square">
-                      <button type="button" onClick={() => { onSendMediaMessage(st.url, 'sticker'); addToRecents(st.url); setMediaPickerType(null); }} className="w-full h-full hover:scale-110 transition-transform relative"><img src={st.url} className="w-full h-full object-contain relative z-10" /></button>
-                      <button onClick={(e) => { e.stopPropagation(); if (onRemoveSticker) onRemoveSticker(st.id); }} className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center opacity-0 md:opacity-0 md:group-hover/stk:opacity-100 transition-opacity z-30 shadow-lg"><Trash2 className="w-3 h-3 text-white" /></button>
+                      <button type="button" onClick={() => { onSendMediaMessage(st.url, 'sticker'); addToRecents(st.url); setMediaPickerType(null); }} onContextMenu={(e) => { e.preventDefault(); if(window.confirm('¿Eliminar sticker de favoritos?')) { if(onRemoveSticker) onRemoveSticker(st.id); } }} className="w-full h-full hover:scale-110 transition-transform relative"><img src={st.url} className="w-full h-full object-contain relative z-10 pointer-events-none" /></button>
+                      <button onClick={(e) => { e.stopPropagation(); if (window.confirm('¿Eliminar sticker de favoritos?')) { if (onRemoveSticker) onRemoveSticker(st.id); } }} className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 rounded-full hidden md:flex items-center justify-center opacity-0 group-hover/stk:opacity-100 transition-opacity z-30 shadow-lg"><Trash2 className="w-3 h-3 text-white pointer-events-none" /></button>
                     </div>
                   ))}
                 </div>
