@@ -315,9 +315,9 @@ export async function processInjuries(matchId: string): Promise<void> {
     if (player.injury_matches_left > 0) continue
 
     const stamina = player.stamina ?? 100
-    // Base 1% chance at 100 stamina, scaling up as stamina decreases
-    // At 0 stamina: 1 + (100 * 0.15) = 16%
-    const injuryChance = 1 + (100 - stamina) * 0.15
+    // Base 0.7% chance at 100 stamina, scaling up as stamina decreases
+    // At 0 stamina: 0.7 + (100 * 0.12) = 12.7%
+    const injuryChance = 0.7 + (100 - stamina) * 0.12
 
     const roll = Math.random() * 100
     if (roll < injuryChance) {
