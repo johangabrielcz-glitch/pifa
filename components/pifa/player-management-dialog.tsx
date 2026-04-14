@@ -56,8 +56,8 @@ export function PlayerManagementDialog({ player, isOpen, onClose, onUpdate }: Pl
           canvas.height = height
           const ctx = canvas.getContext('2d')
           ctx?.drawImage(img, 0, 0, width, height)
-          // Comprimir al 70% calidad
-          resolve(canvas.toDataURL('image/jpeg', 0.7))
+          // Comprimir al 80% calidad en WebP para mantener fondos transparentes (Alpha Channel)
+          resolve(canvas.toDataURL('image/webp', 0.8))
         }
         img.src = e.target?.result as string
       }
