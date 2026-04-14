@@ -64,6 +64,15 @@ export async function createOffer(
     { type: 'offer_received', offer_id: offer.id }
   )
 
+  // -- AUTO NEWS TRIGGER --
+  try {
+    fetch('/api/news/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isMarketTrigger: true, marketEvent: 'offer', textData: `${buyerName} filtró su interés ofreciendo $${amount} por ${player.name} de manera encubierta.` })
+    }).catch(() => {})
+  } catch (e) {}
+
   return offer
 }
 
@@ -227,6 +236,15 @@ export async function buyPlayerDirectly(player: Player, buyerClubId: string) {
     { type: 'transfer_complete', player_id: player.id }
   )
 
+  // -- AUTO NEWS TRIGGER --
+  try {
+    fetch('/api/news/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isMarketTrigger: true, marketEvent: 'clausula', textData: `¡BOMBAZO! ${latestBuyer.name} ha robado a ${player.name} de las manos de ${latestSeller?.name} ejecutando su cláusula por $${amount}.` })
+    }).catch(() => {})
+  } catch (e) {}
+
   return true
 }
 
@@ -306,6 +324,15 @@ async function executeTransfer(offer: any) {
     `Has vendido a ${player.name} al ${offer.buyer_club?.name} por $${amount.toLocaleString()}.`,
     { type: 'transfer_complete', player_id: offer.player_id }
   )
+
+  // -- AUTO NEWS TRIGGER --
+  try {
+    fetch('/api/news/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isMarketTrigger: true, marketEvent: 'transfer', textData: `OFICIAL: ${offer.buyer_club?.name} completó la compra de la estrella ${player.name} pagándole $${amount} a ${offer.seller_club?.name}.` })
+    }).catch(() => {})
+  } catch (e) {}
 
   return true
 }

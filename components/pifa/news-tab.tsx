@@ -27,13 +27,36 @@ export function NewsTab({ club }: { club: Club }) {
   const [generating, setGenerating] = useState(false)
   const [currentPage, setCurrentPage] = useState(0)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [cooldownRemaining, setCooldownRemaining] = useState<string | null>(null)
+
+  useEffect(() => {
+    const checkCooldown = () => {
+      const lastGen = localStorage.getItem(`pifa_last_ai_news_${club.id}`)
+      if (lastGen) {
+        const timeDiff = new Date().getTime() - parseInt(lastGen)
+        const eightHours = 1000 * 60 * 60 * 8
+        if (timeDiff < eightHours) {
+          const remainingMs = eightHours - timeDiff
+          const hours = Math.floor(remainingMs / (1000 * 60 * 60))
+          const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60))
+          setCooldownRemaining(`${hours}h ${minutes}m`)
+        } else {
+          setCooldownRemaining(null)
+          localStorage.removeItem(`pifa_last_ai_news_${club.id}`)
+        }
+      }
+    }
+    
+    checkCooldown()
+    const int = setInterval(checkCooldown, 60000)
+    return () => clearInterval(int)
+  }, [club.id])
 
   const fetchNews = async () => {
     try {
       const { data, error } = await supabase
         .from('news')
         .select('*')
-        .eq('club_id', club.id)
         .order('created_at', { ascending: false })
 
       if (error) throw error
@@ -56,6 +79,9 @@ export function NewsTab({ club }: { club: Club }) {
       
       if (!res.ok) throw new Error('Failed to generate news')
       
+      localStorage.setItem(`pifa_last_ai_news_${club.id}`, new Date().getTime().toString())
+      setCooldownRemaining('7h 59m')
+
       await fetchNews()
       setCurrentPage(0)
       toast.success('¡Nueva edición de portada publicada!', {
@@ -121,9 +147,9 @@ export function NewsTab({ club }: { club: Club }) {
 
             <button 
               onClick={generateNews}
-              disabled={generating}
+              disabled={generating || !!cooldownRemaining}
               className={`relative group/btn overflow-hidden flex items-center gap-2 px-4 py-2 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all ${
-                generating 
+                (generating || !!cooldownRemaining)
                   ? 'bg-white/5 text-white/20' 
                   : 'bg-white text-black hover:bg-[#00FF85] active:scale-95 shadow-[0_5px_15px_rgba(0,255,133,0.1)]'
               }`}
@@ -133,7 +159,7 @@ export function NewsTab({ club }: { club: Club }) {
               ) : (
                 <Zap className="w-3 h-3 fill-current group-hover/btn:animate-bounce" />
               )}
-              {generating ? '...' : 'Nueva Edición'}
+              {generating ? 'Generando...' : cooldownRemaining || 'Nueva Edición'}
             </button>
           </div>
         </div>

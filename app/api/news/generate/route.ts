@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { sendPushToClub } from '@/lib/push-notifications'
+import { sendPushToAll } from '@/lib/push-notifications'
 
 export async function POST(req: Request) {
   try {
-    const { clubId, isManual = false, isMatchTrigger = false, matchId = null } = await req.json()
+    const { clubId, isManual = false, isMatchTrigger = false, matchId = null, isMarketTrigger = false, textData = null } = await req.json()
     
     const apiKey = process.env.GROQ_API_KEY
     if (!apiKey) return NextResponse.json({ error: 'GROQ_API_KEY not configured' }, { status: 500 })
@@ -37,14 +37,37 @@ export async function POST(req: Request) {
         Resultado: ${m.home_club?.name} ${m.home_score} - ${m.away_score} ${m.away_club?.name}
         Detalles de anotaciones: ${annotations?.map(a => `${a.player?.name || 'Jugador'} marcó para ${a.club_id === m.home_club_id ? m.home_club?.name : m.away_club?.name}`).join(', ')}
       `
-    } 
+    }
+    // CASO M: Disparador del Mercado (1 Noticia bomba)
+    else if (isMarketTrigger) {
+      const { data: pastTransfers } = await supabase
+        .from('market_history')
+        .select('amount, type, player:players(name), from_club:clubs!market_history_from_club_id_fkey(name), to_club:clubs!market_history_to_club_id_fkey(name)')
+        .order('created_at', { ascending: false })
+        .limit(5)
+
+      const historyStr = pastTransfers?.map((t: any) => 
+        `- ${t.player?.name} fue ${t.type === 'sale' ? 'vendido del' : 'movido del'} ${t.from_club?.name} al ${t.to_club?.name} por $${t.amount}`
+      ).join('\n') || 'Ninguno reciente.'
+
+      context = `
+        BOMBAZO EN EL MERCADO (REPORTE EXCLUSIVO NO PUBLICADO AÚN):
+        ===========================================================
+        El siguiente suceso confidencial acaba de ocurrir en las negociaciones o despachos:
+        "${textData}"
+        ===========================================================
+
+        ÚLTIMAS PUBLICACIONES Y FICHAJES REALIZADOS (PROHIBIDO REPETIRLOS EN LA NOTICIA ACTUAL):
+        ${historyStr}
+      `
+    }
     // CASO B: Manual o Refresco Diario (3 o 6 noticias)
     else {
       if (!clubId) return NextResponse.json({ error: 'Club ID required' }, { status: 400 })
       
       const { data: enrollment } = await supabase
         .from('competition_clubs')
-        .select('competition_id, competition:competitions(*)')
+        .select('competition_id, competition:competitions(*, season:seasons(*))')
         .eq('club_id', clubId)
       
       const compIds = enrollment?.map(e => e.competition_id) || []
@@ -81,33 +104,42 @@ export async function POST(req: Request) {
       const leagueScorers = topScorersRes.data || []
       const clubPlayers = clubPlayersRes.data || []
 
-      context = `
-        COMPETICIONES ACTIVAS:
-        ${competitionDetails.map((c: any) => `- ${c.name} (Tipo: ${c.type})`).join('\n')}
+      const activeComps = competitionDetails.filter((c: any) => c.season?.status === 'active')
+      const isOffseason = activeComps.length === 0
 
-        DATOS DE LA LIGA:
-        - Club del Usuario: ${club?.name}
-        - Jugadores del Club: ${clubPlayers.map((p: any) => p.name).join(', ')}
-        - Resultados: ${recentMatches.map(m => `[${m.competition?.name}] ${m.home_club?.name} ${m.home_score}-${m.away_score} ${m.away_club?.name}`).join(', ')}
-        - Goleadores (Jugador - Club): ${leagueScorers.map(s => `${s.player?.name} (${s.club?.name}) [${s.goals} goles]`).join(', ')}
+      context = `
+        ESTADO DEL TIEMPO LIGUERO:
+        [ ${isOffseason ? '🚨 PRETEMPORADA / SIN PARTIDOS ACTIVOS' : '🟢 TEMPORADA REGULAR EN JUEGO'} ]
+        
+        TUS COMPETICIONES INSCRITAS:
+        ${competitionDetails.map((c: any) => `- ${c.name} (Estatus: ${c.season?.status === 'active' ? 'Jugándose' : 'En Receso / Finalizada'})`).join('\n')}
+
+        DATOS VERÍDICOS (NO INVENTAR AFUERA DE ESTOS):
+        - Club Investigado (Menciónalo): ${club?.name}
+        - Plantel de este club: ${clubPlayers.map((p: any) => p.name).join(', ')}
+        - Últimos Resultados (Ignorar en pretemporada): ${recentMatches.map(m => `[${m.competition?.name} | Fase/Jornada: ${m.round_name || m.matchday}] ${m.home_club?.name} ${m.home_score}-${m.away_score} ${m.away_club?.name}`).join(' | ')}
+        - Goleadores Globales Actuales: ${leagueScorers.map(s => `${s.player?.name} (${s.club?.name}): ${s.goals} goles`).join(', ')}
       `
     }
 
     const promptBody = isMatchTrigger ? `
-      Genera EXACTAMENTE 1 noticia (crónica) sobre el partido finalizado que te proporciono.
-      Tono: MUY AMARILLISTA, sensacionalista y polémico.
-      Regla: Usa el nombre real de la competición: "${matchData.competition?.name}".
-      ` : isManual ? `
-      Genera EXACTAMENTE 3 noticias polémicas centradas en el club ${clubId}. 
-      Incluye chismes, mercado y rendimiento.
-      Usa los nombres reales de las competencias: ${competitionDetails.map(c => `"${c.name}"`).join(', ')}.
+      Genera EXACTAMENTE 1 noticia deportiva rompedora sobre el partido finalizado en los datos.
+      Tono: MUY AMARILLISTA, tabloide y explosivo.
+      Regla: Usa el nombre real de la competición ("${matchData?.competition?.name}") y la fase del torneo si aplica. Habla del fracaso o heroísmo en el resultado.
+      ` : isMarketTrigger ? `
+      Genera EXACTAMENTE 1 noticia de última hora enfocada ESTRICTAMENTE en el "BOMBAZO EN EL MERCADO" que se te dio en tus datos.
+      Tono: Súper dramático, sensacionalista, filtración exclusiva y especulando sobre el dinero pagado o la traición.
+      REGLA INQUEBRANTABLE PREVENTIVA: Tienes estrictamente PROHIBIDO hablar de los nombres listados en "ÚLTIMAS PUBLICACIONES Y FICHAJES REALIZADOS", esa lista solo existe para que NO repitas esos nombres antiguos. Céntrate exclusivamente en dictar la noticia de tu "BOMBAZO". Categorízala como 'market'.
       ` : `
-      Genera EXACTAMENTE 6 noticias polémicas globales sobre la liga y sus competencias.
-      Mezcla resultados, chismes y mercado.
+      Genera EXACTAMENTE 3 noticias polémicas, tóxicas o virales sobre la liga, dándole énfasis en una de ellas al 'Club Investigado'.
+      
+      PARÁMETRO STRICTO DE LÍNEA TEMPORAL (LEER CON ATENCIÓN):
+      Verifica el "ESTADO DEL TIEMPO LIGUERO" en los datos.
+      - SI ESTÁN EN "PRETEMPORADA": Tienes **ESTRICTAMENTE PROHIBIDO** hablar de resultados recientes, crónicas de partidos, puntos o goles en curso. Todo es un espejismo si lo haces. En pretemporada debes centrarte 100% en: Fichajes del mercado, rumores, escándalos de la plantilla en vacaciones, declaraciones del presidente del club, cambios de táctica del DT y tensión de preparación.
+      - SI ESTÁN EN "TEMPORADA": Céntrate en criticar rachas de puntos con los Últimos Resultados, alabar o atacar a la mesa de Goleadores mostrada, y especular sobre crisis en el vestuario para la jornada en curso.
 
-      REGLA DE VERACIDAD:
-      SOLO usa las afiliaciones de club indicadas en los "DATOS DE LA LIGA". 
-      NO INVENTES de qué club es un jugador. Si un jugador no aparece en la lista de goleadores o jugadores del club, NO menciones su club de origen.
+      REGLA DE VERACIDAD (PENALIZACIÓN ALUCINATORIA):
+      NUNCA filies a un jugador a un club al azar si no figura en los TUS DATOS. Si vas a decir que alguien será fichado o es una estrella de un rival, usa a los listados en los Goleadores globales. Si necesitas hablar de la plantilla local, usa el "Plantel de este club". No inventes equipos que no existen.
     `
 
     const finalPrompt = `
@@ -152,6 +184,10 @@ export async function POST(req: Request) {
       participants.forEach(cid => {
         if (cid) toInsert.push({ club_id: cid, title: article.title, content: article.content, emoji: article.emoji, category: 'match', summary: article.color })
       })
+    } else if (isMarketTrigger) {
+      const article = newsItems[0] || newsItems
+      // Insertar global o dirigida al primer club (en Global Chat UI esto se distribuye igual a todos)
+      toInsert.push({ club_id: null, title: article.title, content: article.content, emoji: article.emoji || '💰', category: 'market', summary: article.color || '#00FF85' })
     } else {
       newsItems.forEach((item: any) => {
         toInsert.push({ club_id: clubId, title: item.title, content: item.content, emoji: item.emoji, category: item.category, summary: item.color })
@@ -160,22 +196,16 @@ export async function POST(req: Request) {
 
     const { data: inserted } = await supabase.from('news').insert(toInsert).select()
 
-    // -- PUSH NOTIFICATIONS (News) --
+    // -- PUSH NOTIFICATIONS (News Globales) --
     if (toInsert.length > 0) {
-      // Usamos un Set para no repetir notificaciones al mismo club si hay varias noticias
-      const notifiedClubs = new Set<string>()
+      const topArticle = toInsert[0]
+      const count = toInsert.length
       
-      toInsert.forEach((item: any) => {
-        if (item.club_id && !notifiedClubs.has(item.club_id)) {
-          sendPushToClub(
-            item.club_id, 
-            `${item.emoji || '🗞️'} PIFA Daily: ${item.title}`, 
-            `Nueva noticia publicada sobre tu club.`,
-            { type: 'news_alert' }
-          )
-          notifiedClubs.add(item.club_id)
-        }
-      })
+      sendPushToAll(
+        `${topArticle.emoji || '🗞️'} PIFA Daily: ${topArticle.title}`, 
+        count > 1 ? `Y otras ${count - 1} exclusivas acaban de reventar en la prensa. Entra a leerlas...` : `La rotativa acaba de publicar una exclusiva global. ¡Infórmate!`,
+        { type: 'news_alert' }
+      )
     }
 
     return NextResponse.json(inserted || toInsert)

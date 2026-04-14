@@ -7,7 +7,7 @@ import {
   Shield, Users, LogOut, Loader2, AlertCircle, Wallet,
   ChevronDown, ChevronUp, Trophy, Calendar, Swords, LayoutList,
   Clock, Goal, HandHelping, Star, Play, Check, BarChart3,
-  Hourglass, TrendingUp, Flame, Award
+  Hourglass, TrendingUp, Flame, Award, Newspaper, ChevronRight
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
@@ -98,6 +98,7 @@ export default function DashboardPage() {
   const [scorersPage, setScorersPage] = useState(0)
   const [assistsPage, setAssistsPage] = useState(0)
   const [mvpsPage, setMvpsPage] = useState(0)
+  const [topNews, setTopNews] = useState<any[]>([])
 
   // Optimización de Estadísticas: Memoizar el cálculo de rankings en el nivel superior (Rules of Hooks)
   const statsComps = useMemo(() => 
@@ -149,27 +150,17 @@ export default function DashboardPage() {
       if (session.user.club_id) {
         const clubId = session.user.club_id
 
-        // Background: Trigger auto-news if last gen was > 12h ago
-        const lastNewsGen = localStorage.getItem(`last_news_gen_${clubId}`)
-        const now = new Date().getTime()
-        if (!lastNewsGen || (now - parseInt(lastNewsGen)) > 1000 * 60 * 60 * 12) {
-          fetch('/api/news/generate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ clubId, isManual: false })
-          }).then(() => {
-            localStorage.setItem(`last_news_gen_${clubId}`, now.toString())
-          }).catch(() => {})
-        }
+        // Removido auto-news generation por cliente (causaba spam por múltiples usuarios logueados simultáneamente)
 
         // OPTIMIZACIÓN: Lanzar todas las consultas base en paralelo
-        const [clubRes, playersRes, enrolledRes, nextMatchRes, allMatchesRes, unreadRes] = await Promise.all([
+        const [clubRes, playersRes, enrolledRes, nextMatchRes, allMatchesRes, unreadRes, newsRes] = await Promise.all([
           supabase.from('clubs').select('*').eq('id', clubId).single(),
           supabase.from('players').select('*').eq('club_id', clubId).order('position', { ascending: true }).order('number', { ascending: true }),
           supabase.from('competition_clubs').select('competition:competitions!inner(*, season:seasons!inner(*))').eq('club_id', clubId),
           getNextMatchForClub(clubId),
           supabase.from('matches').select('*, home_club:clubs!matches_home_club_id_fkey(*), away_club:clubs!matches_away_club_id_fkey(*), competition:competitions!inner(*, season:seasons!inner(*))').or(`home_club_id.eq.${clubId},away_club_id.eq.${clubId}`).order('match_order', { ascending: true }),
-          supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('club_id', clubId).eq('is_read', false)
+          supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('club_id', clubId).eq('is_read', false),
+          supabase.from('news').select('*').order('created_at', { ascending: false }).limit(2)
         ])
 
         if (clubRes.data) {
@@ -177,6 +168,7 @@ export default function DashboardPage() {
           if (playersRes.data) setPlayers(playersRes.data as Player[])
           setMatchResult(nextMatchRes)
           if (unreadRes.count && unreadRes.count > 0) setHasNewNotifications(true)
+          if (newsRes.data) setTopNews(newsRes.data)
           
           if (allMatchesRes.data) {
             const allMatchData = allMatchesRes.data as MatchWithDetails[]
@@ -437,6 +429,41 @@ export default function DashboardPage() {
           {/* ======== TAB: HOME ======== */}
           {activeTab === 'home' && (
             <div className="flex-1 overflow-y-auto px-4 py-5 space-y-6" key="tab-home">
+              
+              {/* Titulares Principales (Noticias) */}
+              {topNews.length > 0 && (
+                <div className="rounded-2xl bg-[#141414] border border-[#202020] overflow-hidden flex flex-col relative animate-fade-in-up">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-[#00FF85]/5 rounded-full blur-[50px] pointer-events-none" />
+                  
+                  <div className="px-5 pt-4 pb-2 flex items-center justify-between z-10 border-b border-white/[0.03]">
+                    <div className="flex items-center gap-2">
+                       <Newspaper className="w-4 h-4 text-[#00FF85]" />
+                       <h3 className="text-[10px] font-black text-[#6A6C6E] uppercase tracking-[0.2em]">Titulares Globales</h3>
+                    </div>
+                    <button onClick={() => setActiveTab('news')} className="text-[9px] font-black text-[#00FF85] hover:text-white uppercase transition-colors tracking-widest flex items-center gap-1 group/ntn">
+                      Rotativa <ChevronRight className="w-3 h-3 group-hover/ntn:translate-x-1 transition-transform" />
+                    </button>
+                  </div>
+                  
+                  <div className="flex flex-col z-10">
+                    {topNews.map((news, idx) => (
+                      <div key={news.id} className={`p-4 ${idx !== topNews.length - 1 ? 'border-b border-[#202020]/50' : ''}`}>
+                         <div className="flex items-center gap-1.5 mb-2">
+                           <div className="w-1.5 h-1.5 rounded-full bg-[#00FF85] animate-pulse" />
+                           <span className="text-[7.5px] font-black text-[#00FF85] uppercase tracking-[0.2em]">
+                             {news.category === 'match' ? 'FLASH' : news.category === 'gossip' ? 'BOMBA' : 'INSIDER'}
+                           </span>
+                           <span className="text-[7px] text-[#6A6C6E] ml-auto uppercase">{new Date(news.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
+                         </div>
+                         <h4 className="text-sm font-black text-white italic uppercase tracking-tighter leading-tight mb-1">
+                           <span className="mr-1.5">{news.emoji}</span>{news.title}
+                         </h4>
+                         <p className="text-[10px] text-white/50 leading-relaxed font-medium line-clamp-2">{news.content}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Bento Grid: Club Profile */}
               <div className="rounded-2xl bg-[#141414] border border-[#202020] p-4 flex flex-col justify-center items-center gap-3 text-center shadow-2xl relative overflow-hidden group">
