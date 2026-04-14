@@ -64,11 +64,20 @@ export async function sendExpoPush(tokens: string[], title: string, body: string
  */
 export async function sendPushToClub(clubId: string, title: string, body: string, data?: any) {
   try {
-    // Join entre tokens y usuarios para filtrar por club
+    // Step 1: Get all user IDs belonging to the club
+    const { data: userData } = await supabase
+      .from('users')
+      .select('id')
+      .eq('club_id', clubId)
+
+    const userIds = (userData as any[] || []).map(u => u.id)
+    if (userIds.length === 0) return { success: true, sentCount: 0 }
+
+    // Step 2: Get all tokens for those specific users
     const { data: tokenData, error } = await supabase
       .from('user_push_tokens')
-      .select('expo_push_token, users!inner(club_id)')
-      .eq('users.club_id', clubId)
+      .select('expo_push_token')
+      .in('user_id', userIds)
 
     if (error) throw error
 

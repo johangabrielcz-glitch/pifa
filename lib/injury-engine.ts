@@ -1,5 +1,6 @@
 import { supabaseAdmin as supabase } from './supabase'
 import type { SubstitutionEntry } from './types'
+import { sendPushToAll } from './push-notifications'
 
 // =============================================
 // SUBSTITUTION HELPERS (backward-compatible)
@@ -290,7 +291,7 @@ export async function processInjuries(matchId: string): Promise<void> {
 
   const { data: playersData } = await supabase
     .from('players')
-    .select('id, name, stamina, injury_matches_left, club_id')
+    .select('id, name, stamina, injury_matches_left, club_id, club:clubs(name)')
     .in('id', playerIds)
 
   if (!playersData) return
@@ -326,6 +327,14 @@ export async function processInjuries(matchId: string): Promise<void> {
         data: { player_id: player.id, duration, reason },
         is_read: false,
       } as any)
+
+      // --- GLOBAL PUSH NOTIFICATION ---
+      const clubName = (player.club as any)?.name || 'su club'
+      await sendPushToAll(
+        '🏥 Lesión en la Liga',
+        `${player.name} (${clubName}) se ha lesionado: "${reason}". Estará fuera ${duration} partido${duration > 1 ? 's' : ''}.`,
+        { type: 'injury', player_id: player.id }
+      )
     }
   }
 }
@@ -388,7 +397,7 @@ export async function processRedCards(matchId: string): Promise<void> {
       // Load player data
       const { data: playersData } = await supabase
         .from('players')
-        .select('id, name, red_card_matches_left, club_id')
+        .select('id, name, red_card_matches_left, club_id, club:clubs(name)')
         .in('id', fullMatchPlayers)
 
       if (playersData) {
@@ -416,6 +425,14 @@ export async function processRedCards(matchId: string): Promise<void> {
               data: { player_id: player.id, duration, reason },
               is_read: false,
             } as any)
+
+            // --- GLOBAL PUSH NOTIFICATION ---
+            const clubName = (player.club as any)?.name || 'su club'
+            await sendPushToAll(
+              '🟥 Expulsión en la Liga',
+              `${player.name} (${clubName}) ha recibido una Tarjeta Roja Directa: "${reason}". Suspendido ${duration} partidos.`,
+              { type: 'red_card', player_id: player.id }
+            )
 
             // Only one red card per club per check (to keep it rare)
             break
