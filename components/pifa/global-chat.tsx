@@ -114,7 +114,6 @@ const MessageItem = React.memo(({
 
       <motion.div 
         className={`flex ${isOwn ? 'justify-end' : 'justify-start'} group/msg relative ${showMenu ? 'z-50' : 'z-0'}`}
-        style={{ willChange: showMenu ? 'auto' : 'transform' }}
         drag="x"
         dragDirectionLock={true}
         dragConstraints={{ left: 0, right: isDeleted ? 0 : 60 }}
@@ -166,7 +165,7 @@ const MessageItem = React.memo(({
             </div>
           )}
 
-          <div className={`group relative px-3.5 py-2 shadow-[0_2px_10px_rgba(0,0,0,0.15)] border border-white/[0.04] ${
+          <div className={`group relative px-3.5 py-2 shadow-sm border border-white/[0.04] ${
             isOwn 
               ? `${isDeleted ? 'bg-[#141414]' : 'bg-gradient-to-br from-[#082b1d] to-[#031c12]'} ${isFirstInGroup ? 'rounded-[18px] rounded-tr-[4px]' : 'rounded-[14px]'}` 
               : `bg-[#0B1115] ${isFirstInGroup ? 'rounded-[18px] rounded-tl-[4px]' : 'rounded-[14px]'}`
@@ -216,7 +215,7 @@ const MessageItem = React.memo(({
 
             {msg.media_type !== 'sticker' && !isEditing && (
               <p 
-                className={`text-[12.5px] leading-[1.4] font-medium tracking-[-0.01em] ${isDeleted ? 'text-white/20 italic font-normal' : 'text-[#e9edef] drop-shadow-sm'}`} 
+                className={`text-[12.5px] leading-[1.4] font-medium tracking-[-0.01em] ${isDeleted ? 'text-white/20 italic font-normal' : 'text-[#e9edef]'}`} 
                 id={`msg-${msg.id}`}
                 onMouseDown={handlePressStart}
                 onMouseUp={handlePressEnd}
