@@ -115,8 +115,9 @@ const MessageItem = React.memo(({
       <motion.div 
         className={`flex ${isOwn ? 'justify-end' : 'justify-start'} group/msg relative`}
         drag="x"
-        dragConstraints={{ left: 0, right: isDeleted ? 0 : 80 }}
-        dragElastic={0.2}
+        dragDirectionLock={true}
+        dragConstraints={{ left: 0, right: isDeleted ? 0 : 50 }}
+        dragElastic={0.05}
         dragSnapToOrigin={true}
         onDragEnd={(e, info) => {
           if (!isDeleted && info.offset.x > 50) onReply(msg)
@@ -163,10 +164,10 @@ const MessageItem = React.memo(({
             </div>
           )}
 
-          <div className={`group relative px-3.5 py-2 shadow-[0_2px_10px_rgba(0,0,0,0.15)] transition-all border border-white/[0.04] ${
+          <div className={`group relative px-3.5 py-2 shadow-[0_2px_10px_rgba(0,0,0,0.15)] border border-white/[0.04] ${
             isOwn 
-              ? `${isDeleted ? 'bg-[#141414]' : 'bg-gradient-to-br from-[#082b1d] to-[#031c12] backdrop-blur-sm'} ${isFirstInGroup ? 'rounded-[18px] rounded-tr-[4px]' : 'rounded-[14px]'}` 
-              : `bg-[#0B1115] backdrop-blur-sm ${isFirstInGroup ? 'rounded-[18px] rounded-tl-[4px]' : 'rounded-[14px]'}`
+              ? `${isDeleted ? 'bg-[#141414]' : 'bg-gradient-to-br from-[#082b1d] to-[#031c12]'} ${isFirstInGroup ? 'rounded-[18px] rounded-tr-[4px]' : 'rounded-[14px]'}` 
+              : `bg-[#0B1115] ${isFirstInGroup ? 'rounded-[18px] rounded-tl-[4px]' : 'rounded-[14px]'}`
           }`}>
             {msg.reply_to_id && msg.reply_to && (
               <div 
@@ -385,7 +386,7 @@ const ChatInputArea = React.memo(({
   }
 
   return (
-    <div className="px-6 py-4 z-30 bg-[#0A0A0A] border-t border-white/5">
+    <div className="px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] z-30 bg-[#0A0A0A] border-t border-white/5">
       <AnimatePresence>
         {pendingMedia && (
           <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 5 }} transition={{ duration: 0.15 }} className="mb-3 p-3 bg-[#111111] border border-[#00FF85]/30 rounded-xl relative flex items-center gap-4">
