@@ -201,11 +201,15 @@ export async function POST(req: Request) {
       const topArticle = toInsert[0]
       const count = toInsert.length
       
-      sendPushToAll(
-        `${topArticle.emoji || '🗞️'} PIFA Daily: ${topArticle.title}`, 
-        count > 1 ? `Y otras ${count - 1} exclusivas acaban de reventar en la prensa. Entra a leerlas...` : `La rotativa acaba de publicar una exclusiva global. ¡Infórmate!`,
-        { type: 'news_alert' }
-      )
+      try {
+        await sendPushToAll(
+          `${topArticle.emoji || '🗞️'} PIFA Daily: ${topArticle.title}`, 
+          count > 1 ? `Y otras ${count - 1} exclusivas acaban de reventar en la prensa. Entra a leerlas...` : `La rotativa acaba de publicar una exclusiva global. ¡Infórmate!`,
+          { type: 'news_alert' }
+        )
+      } catch (err) {
+        console.error('Error enviando broadcast de push:', err)
+      }
     }
 
     return NextResponse.json(inserted || toInsert)
