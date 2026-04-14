@@ -192,19 +192,29 @@ export async function processMatchFatigue(matchId: string): Promise<void> {
     }
   }
 
-  // Apply stamina changes
-  for (const [playerId, delta] of staminaUpdates) {
-    const { data: player } = await supabase
-      .from('players')
-      .select('stamina')
-      .eq('id', playerId)
-      .single()
+  // Apply stamina changes in batches to optimize performance
+  const playerIds = Array.from(staminaUpdates.keys())
+  if (playerIds.length === 0) return
 
-    if (player) {
-      const newStamina = Math.max(0, Math.min(100, ((player as any).stamina ?? 100) + delta))
-      await (supabase.from('players') as any).update({ stamina: newStamina }).eq('id', playerId)
-    }
-  }
+  const { data: players } = await supabase
+    .from('players')
+    .select('id, stamina')
+    .in('id', playerIds)
+
+  if (!players || players.length === 0) return
+
+  const updatePromises = players.map(player => {
+    const delta = staminaUpdates.get(player.id) || 0
+    const newStamina = Math.max(0, Math.min(100, (player.stamina ?? 100) + delta))
+    
+    if (newStamina === player.stamina) return Promise.resolve()
+    
+    return (supabase.from('players') as any)
+      .update({ stamina: newStamina })
+      .eq('id', player.id)
+  })
+
+  await Promise.allSettled(updatePromises)
 }
 
 /**
@@ -244,14 +254,19 @@ export async function processRestRecovery(matchId: string): Promise<void> {
 
   if (!allPlayers) return
 
-  for (const p of allPlayers as any[]) {
-    if (!participatedIds.has(p.id)) {
-      const newStamina = Math.min(100, (p.stamina ?? 100) + 15)
-      if (newStamina !== (p.stamina ?? 100)) {
-        await (supabase.from('players') as any).update({ stamina: newStamina }).eq('id', p.id)
-      }
-    }
-  }
+  const updatePromises = (allPlayers as any[] || [])
+    .filter(p => !participatedIds.has(p.id))
+    .map(p => {
+      // Recovery: +25% stamina for non-participating players
+      const newStamina = Math.min(100, (p.stamina ?? 100) + 25)
+      if (newStamina === (p.stamina ?? 100)) return Promise.resolve()
+      
+      return (supabase.from('players') as any)
+        .update({ stamina: newStamina })
+        .eq('id', p.id)
+    })
+
+  await Promise.allSettled(updatePromises)
 }
 
 /**
@@ -301,9 +316,9 @@ export async function processInjuries(matchId: string): Promise<void> {
     if (player.injury_matches_left > 0) continue
 
     const stamina = player.stamina ?? 100
-    // Base 3% chance at 100 stamina, scaling up as stamina decreases
-    // At 0 stamina: 3 + (100 * 0.4) = 43%
-    const injuryChance = 3 + (100 - stamina) * 0.4
+    // Base 1% chance at 100 stamina, scaling up as stamina decreases
+    // At 0 stamina: 1 + (100 * 0.15) = 16%
+    const injuryChance = 1 + (100 - stamina) * 0.15
 
     const roll = Math.random() * 100
     if (roll < injuryChance) {
