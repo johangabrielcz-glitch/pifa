@@ -123,7 +123,16 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
     const defLineup = (clubData as any)?.default_lineup
     if (defLineup?.players) {
       const initial11 = Object.values(defLineup.players).filter(Boolean) as string[]
-      setStartingXi(initial11)
+      
+      // FILTRO ANALÍTICO: Solo incluimos a los jugadores DISPONIBLES del 11 ideal
+      const availableInitial11 = initial11.filter(id => {
+        const p = (players as Player[])?.find(player => player.id === id)
+        if (!p) return false
+        const isUnavailable = (p.injury_matches_left ?? 0) > 0 || (p.red_card_matches_left ?? 0) > 0
+        return !isUnavailable
+      })
+      
+      setStartingXi(availableInitial11)
     }
 
     // Load existing annotations

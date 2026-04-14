@@ -112,27 +112,21 @@ const RED_CARD_REASONS: string[] = [
  * This way, "injury_matches_left = 3" means the player misses 3 future matches.
  */
 export async function decrementSuspensionsAndInjuries(clubId: string): Promise<void> {
-  // Decrement injuries
-  try {
-    await supabase.rpc('decrement_player_counters', { p_club_id: clubId })
-  } catch (err) {
-    // Fallback: manual update if RPC doesn't exist
-  }
-
-  // Manual fallback approach since we may not have RPC
+  // Optimization: Only fetch players who actually need an update
   const { data: players } = await supabase
     .from('players')
     .select('id, injury_matches_left, injury_reason, red_card_matches_left, red_card_reason')
     .eq('club_id', clubId)
+    .or('injury_matches_left.gt.0,red_card_matches_left.gt.0')
 
-  if (!players) return
+  if (!players || players.length === 0) return
 
-  for (const p of players as any[]) {
+  const updatePromises = (players as any[]).map(p => {
     const updates: any = {}
     let needsUpdate = false
 
     if (p.injury_matches_left > 0) {
-      updates.injury_matches_left = p.injury_matches_left - 1
+      updates.injury_matches_left = Math.max(0, p.injury_matches_left - 1)
       if (updates.injury_matches_left === 0) {
         updates.injury_reason = null
       }
@@ -140,7 +134,7 @@ export async function decrementSuspensionsAndInjuries(clubId: string): Promise<v
     }
 
     if (p.red_card_matches_left > 0) {
-      updates.red_card_matches_left = p.red_card_matches_left - 1
+      updates.red_card_matches_left = Math.max(0, p.red_card_matches_left - 1)
       if (updates.red_card_matches_left === 0) {
         updates.red_card_reason = null
       }
@@ -148,9 +142,14 @@ export async function decrementSuspensionsAndInjuries(clubId: string): Promise<v
     }
 
     if (needsUpdate) {
-      await (supabase.from('players') as any).update(updates).eq('id', p.id)
+      return (supabase.from('players') as any)
+        .update(updates)
+        .eq('id', p.id)
     }
-  }
+    return Promise.resolve()
+  })
+
+  await Promise.allSettled(updatePromises)
 }
 
 /**
