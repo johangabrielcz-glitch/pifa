@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Club, User } from '@/lib/types'
-import { Send, MessageSquare, Loader2, ChevronUp, ArrowDown, Users, AtSign, Shield, Reply, X, Plus, Image as ImageIcon, Film, Smile, Star, MoreHorizontal, Download, Trash2 } from 'lucide-react'
+import { Send, MessageSquare, Loader2, ChevronUp, ArrowDown, Users, AtSign, Shield, Reply, X, Plus, Image as ImageIcon, Film, Smile, Star, MoreHorizontal, Download, Trash2, ArrowLeft, History, GripVertical, ImagePlus } from 'lucide-react'
 import { sendPushToClub, sendPushToAll } from '@/lib/push-notifications'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -40,7 +40,7 @@ interface ReadStatus {
   }
 }
 
-const PAGE_SIZE = 15
+const PAGE_SIZE = 40
 
 // -- SUB-COMPONENTES OPTIMIZADOS --
 
@@ -103,7 +103,7 @@ const MessageItem = React.memo(({
   const isDeleted = msg.content === 'Este mensaje ha sido borrado'
   const isEdited = msg._is_edited || msg.content.includes('\u200B')
   return (
-    <div className={`flex flex-col ${isFirstInGroup ? 'mt-6' : 'mt-1'}`}>
+    <div className={`flex flex-col ${isFirstInGroup ? 'mt-3' : 'mt-0.5'} z-10 relative`}>
       {showFullDate && (
         <div className="flex justify-center my-6">
           <div className="px-4 py-1 rounded-full bg-white/5 border border-white/5 text-[7px] font-black uppercase tracking-[0.2em] text-[#6A6C6E]">
@@ -128,7 +128,7 @@ const MessageItem = React.memo(({
           scale: 1,
           backgroundColor: 'rgba(0, 255, 133, 0)'
         }}
-        transition={{ duration: 0.2 }}
+        transition={{ duration: 0.1 }}
       >
         <div className="absolute left-[-40px] top-1/2 -translate-y-1/2 opacity-0 group-active/msg:opacity-100 transition-opacity">
           <Reply className="w-5 h-5 text-[#00FF85]" />
@@ -163,10 +163,10 @@ const MessageItem = React.memo(({
             </div>
           )}
 
-          <div className={`group relative px-4 py-2.5 shadow-2xl transition-all ${
+          <div className={`group relative px-3.5 py-2 shadow-[0_2px_10px_rgba(0,0,0,0.15)] transition-all border border-white/[0.04] ${
             isOwn 
-              ? `${isDeleted ? 'bg-white/5 border-white/10' : 'bg-[#00FF85]/10 border-[#00FF85]/30'} ${isFirstInGroup ? 'rounded-2xl rounded-tr-none' : 'rounded-2xl'}` 
-              : `bg-[#141414] border border-white/5 ${isFirstInGroup ? 'rounded-2xl rounded-tl-none' : 'rounded-2xl'}`
+              ? `${isDeleted ? 'bg-[#141414]' : 'bg-gradient-to-br from-[#082b1d] to-[#031c12] backdrop-blur-sm'} ${isFirstInGroup ? 'rounded-[18px] rounded-tr-[4px]' : 'rounded-[14px]'}` 
+              : `bg-[#0B1115] backdrop-blur-sm ${isFirstInGroup ? 'rounded-[18px] rounded-tl-[4px]' : 'rounded-[14px]'}`
           }`}>
             {msg.reply_to_id && msg.reply_to && (
               <div 
@@ -213,7 +213,7 @@ const MessageItem = React.memo(({
 
             {msg.media_type !== 'sticker' && !isEditing && (
               <p 
-                className={`text-[11.5px] sm:text-xs leading-relaxed font-medium ${isDeleted ? 'text-white/20 italic font-normal' : 'text-white/95'}`} 
+                className={`text-[12.5px] leading-[1.4] font-medium tracking-[-0.01em] ${isDeleted ? 'text-white/20 italic font-normal' : 'text-[#e9edef] drop-shadow-sm'}`} 
                 id={`msg-${msg.id}`}
                 onMouseDown={handlePressStart}
                 onMouseUp={handlePressEnd}
@@ -325,6 +325,8 @@ const MessageItem = React.memo(({
   )
 }, (prev, next) => {
   return prev.msg.id === next.msg.id && 
+         prev.msg.content === next.msg.content &&
+         prev.msg._is_edited === next.msg._is_edited &&
          prev.readers.length === next.readers.length &&
          prev.isFirstInGroup === next.isFirstInGroup &&
          prev.showFullDate === next.showFullDate &&
@@ -344,12 +346,30 @@ const ChatInputArea = React.memo(({
   pendingMedia,
   setPendingMedia,
   onSendMediaMessage,
-  onTyping
+  onTyping,
+  onRemoveSticker
 }: any) => {
   const [inputText, setInputText] = useState('')
   const [mediaPickerType, setMediaPickerType] = useState<'attachments' | 'stickers' | null>(null)
-  const [stickerTab, setStickerTab] = useState<'global' | 'personal'>('global')
+  const [stickerTab, setStickerTab] = useState<'global' | 'personal' | 'recent'>('recent')
   const [showMentionMenu, setShowMentionMenu] = useState(false)
+  const [recentStickers, setRecentStickers] = useState<{id: string, url: string}[]>([])
+
+  useEffect(() => {
+    const stored = localStorage.getItem('pifa_recent_stickers')
+    if (stored) {
+      try { setRecentStickers(JSON.parse(stored)) } catch (e) {}
+    }
+  }, [])
+
+  const addToRecents = (url: string) => {
+    setRecentStickers(prev => {
+      const filtered = prev.filter(s => s.url !== url)
+      const next = [{ id: Date.now().toString(), url }, ...filtered].slice(0, 15)
+      localStorage.setItem('pifa_recent_stickers', JSON.stringify(next))
+      return next
+    })
+  }
   const [mentionFilter, setMentionFilter] = useState('')
   const [sending, setSending] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -441,6 +461,7 @@ const ChatInputArea = React.memo(({
               <motion.div initial={{ opacity: 0, y: 10, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.98 }} transition={{ duration: 0.15 }} className="absolute bottom-full left-0 w-full mb-4 bg-[#111111] border border-white/10 rounded-2xl overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.8)] z-50 flex flex-col h-80">
                 <div className="px-4 py-3 bg-white/5 border-b border-white/5 flex items-center justify-between">
                   <div className="flex gap-4">
+                    <button type="button" onClick={() => setStickerTab('recent')} className={`text-[10px] font-black uppercase tracking-widest pb-1 ${stickerTab === 'recent' ? 'text-[#00FF85] border-b-2 border-[#00FF85]' : 'text-white/40'}`}><History className="w-3.5 h-3.5 inline-block -mt-0.5 mr-1" />Recientes</button>
                     <button type="button" onClick={() => setStickerTab('global')} className={`text-[10px] font-black uppercase tracking-widest pb-1 ${stickerTab === 'global' ? 'text-[#00FF85] border-b-2 border-[#00FF85]' : 'text-white/40'}`}>Mundial</button>
                     <button type="button" onClick={() => setStickerTab('personal')} className={`text-[10px] font-black uppercase tracking-widest pb-1 ${stickerTab === 'personal' ? 'text-[#00FF85] border-b-2 border-[#00FF85]' : 'text-white/40'}`}>Favoritos</button>
                   </div>
@@ -451,10 +472,17 @@ const ChatInputArea = React.memo(({
                     const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*';
                     input.onchange = (ev: any) => { if(ev.target.files[0]) { onUploadMedia(ev, 'sticker'); setMediaPickerType(null); } }; input.click();
                   }} className="aspect-square rounded-xl border-2 border-dashed border-white/5 flex items-center justify-center text-white/20 hover:text-[#00FF85]"><Plus className="w-6 h-6" /></button>
-                  {stickerTab === 'global' ? officialStickers.map((st: any) => (
-                    <button key={st.id} type="button" onClick={() => { onSendMediaMessage(st.url, 'sticker'); setMediaPickerType(null); }} className="aspect-square hover:scale-110 transition-transform relative"><img src={st.url} className="w-full h-full object-contain relative z-10" /></button>
-                  )) : myStickers.map((st: any) => (
-                    <button key={st.id} type="button" onClick={() => { onSendMediaMessage(st.url, 'sticker'); setMediaPickerType(null); }} className="aspect-square hover:scale-110 transition-transform relative"><img src={st.url} className="w-full h-full object-contain relative z-10" /><Star className="absolute -top-1 -right-1 w-3 h-3 text-yellow-400 fill-current z-20" /></button>
+                  {stickerTab === 'recent' && recentStickers.map((st: any) => (
+                    <button key={st.id} type="button" onClick={() => { onSendMediaMessage(st.url, 'sticker'); addToRecents(st.url); setMediaPickerType(null); }} className="aspect-square hover:scale-110 transition-transform relative"><img src={st.url} className="w-full h-full object-contain relative z-10" /></button>
+                  ))}
+                  {stickerTab === 'global' && officialStickers.map((st: any) => (
+                    <button key={st.id} type="button" onClick={() => { onSendMediaMessage(st.url, 'sticker'); addToRecents(st.url); setMediaPickerType(null); }} className="aspect-square hover:scale-110 transition-transform relative"><img src={st.url} className="w-full h-full object-contain relative z-10" /></button>
+                  ))}
+                  {stickerTab === 'personal' && myStickers.map((st: any) => (
+                    <div key={st.id} className="relative group/stk aspect-square">
+                      <button type="button" onClick={() => { onSendMediaMessage(st.url, 'sticker'); addToRecents(st.url); setMediaPickerType(null); }} className="w-full h-full hover:scale-110 transition-transform relative"><img src={st.url} className="w-full h-full object-contain relative z-10" /></button>
+                      <button onClick={(e) => { e.stopPropagation(); if (onRemoveSticker) onRemoveSticker(st.id); }} className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center opacity-0 md:opacity-0 md:group-hover/stk:opacity-100 transition-opacity z-30 shadow-lg"><Trash2 className="w-3 h-3 text-white" /></button>
+                    </div>
                   ))}
                 </div>
               </motion.div>
@@ -483,7 +511,7 @@ const ChatInputArea = React.memo(({
             )}
           </AnimatePresence>
 
-          <input type="text" value={inputText} onChange={(e) => {
+          <input id="chat-message-input" type="text" value={inputText} onChange={(e) => {
             const val = e.target.value; setInputText(val);
             const words = val.split(' '); const lastWord = words[words.length - 1];
             if (lastWord.startsWith('@')) { setShowMentionMenu(true); setMentionFilter(lastWord.slice(1)); } else { setShowMentionMenu(false); }
@@ -540,38 +568,72 @@ const PresenceIndicator = React.memo(({ onlineUsers, typingUsers }: any) => {
         )}
       </div>
       
-      <div className="h-3 overflow-hidden">
-        <AnimatePresence mode="wait">
-          {Object.values(typingUsers).length > 0 && (
-            <motion.div
-              key="typing"
-              initial={{ opacity: 0, y: 5 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 5 }}
-              transition={{ duration: 0.15 }}
-              className="flex items-center gap-1.5"
-            >
-              <div className="flex gap-0.5">
-                <span className="w-0.5 h-0.5 bg-[#00FF85] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-0.5 h-0.5 bg-[#00FF85] rounded-full animate-bounce" style={{ animationDelay: '100ms' }} />
-              </div>
-              <span className="text-[6.5px] font-bold text-[#00FF85] uppercase tracking-widest italic opacity-70">
-                {Object.values(typingUsers).length === 1 
-                  ? `${(Object.values(typingUsers)[0] as any).name} escribe...` 
-                  : `${Object.values(typingUsers).length} escribiendo...`
-                }
-              </span>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+      {/* Indicador de escritura movido al input */}
     </div>
   )
 })
 
-export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
+export function GlobalChat({ user, club, onBack }: { user: User; club: Club | null; onBack?: () => void }) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [readStatuses, setReadStatuses] = useState<ReadStatus[]>([])
+
+  const [bgImage, setBgImage] = useState<string | null>(null)
+  
+  useEffect(() => {
+    const savedBg = localStorage.getItem('pifa_chat_bg')
+    if (savedBg !== null) setBgImage(savedBg)
+  }, [])
+
+  const handleBgUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const result = ev.target?.result as string
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        let width = img.width
+        let height = img.height
+        const maxSize = 800
+        
+        if (width > height && width > maxSize) {
+          height *= maxSize / width
+          width = maxSize
+        } else if (height > maxSize) {
+          width *= maxSize / height
+          height = maxSize
+        }
+        
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')
+        ctx?.drawImage(img, 0, 0, width, height)
+        
+        const compressed = canvas.toDataURL('image/jpeg', 0.6)
+        
+        setBgImage(compressed)
+        try {
+          localStorage.setItem('pifa_chat_bg', compressed)
+          toast.success('Fondo actualizado')
+        } catch (err) {
+          toast.error('La imagen es demasiado grande. Intenta con otra.')
+        }
+      }
+      img.src = result
+    }
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }
+
+  const handleRemoveSticker = async (id: string) => {
+    const { error } = await supabase.from('user_stickers').delete().eq('id', id)
+    if (!error) {
+      setMyStickers(prev => prev.filter(s => s.id !== id))
+      toast.success('Sticker eliminado de favoritos')
+    }
+  }
   const [loading, setLoading] = useState(true)
   const [hasMore, setHasMore] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -595,6 +657,7 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
   const [allDTs, setAllDTs] = useState<User[]>([])
   const scrollRef = useRef<HTMLDivElement>(null)
   const isAtBottomRef = useRef(true)
+  const bgInputRef = useRef<HTMLInputElement>(null)
   const [onlineUsers, setOnlineUsers] = useState<any[]>([])
   const [typingUsers, setTypingUsers] = useState<Record<string, { name: string, expiresAt: number }>>({})
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null)
@@ -937,6 +1000,10 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
       setNewMessagesCount(0)
       if (messages.length > 0) updateMyReadStatus(messages[messages.length - 1].id)
     }
+
+    if (scrollTop < 100 && hasMore && !loadingMore) {
+      handleLoadMore()
+    }
   }
 
   // Limpiar usuarios escribiendo que han expirado
@@ -1172,36 +1239,55 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full relative overflow-hidden bg-transparent">
+    <div className="flex-1 flex flex-col h-full relative overflow-hidden bg-black">
+      <input 
+        type="file" 
+        accept="image/*" 
+        className="hidden" 
+        ref={bgInputRef} 
+        onChange={handleBgUpload} 
+      />
+      <div className="absolute inset-0 bg-repeat bg-fixed pointer-events-none z-0" style={{ backgroundImage: bgImage ? `url(${bgImage})` : 'url(https://i.pinimg.com/originals/8c/98/99/8c98994518b575bfd8c949e91d20548b.jpg)', backgroundSize: bgImage ? 'cover' : '400px', opacity: bgImage ? 0.3 : 0.04 }} />
       
-      <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-[#0A0A0A]/60 backdrop-blur-md z-20">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[#00FF85]/20 bg-[#0A0A0A]/80 backdrop-blur-xl z-20 shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-[#00FF85]/10 rounded-xl border border-[#00FF85]/20">
-            <Users className="w-4 h-4 text-[#00FF85]" />
+          {onBack && (
+            <button onClick={onBack} className="p-2 -ml-2 text-[#6A6C6E] hover:text-[#00FF85] hover:bg-white/5 rounded-full transition-all active:scale-95 group">
+              <ArrowLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
+            </button>
+          )}
+          <div className="relative">
+            <div className="absolute inset-0 bg-[#00FF85] blur-[10px] opacity-20 rounded-xl" />
+            <div className="w-11 h-11 bg-gradient-to-br from-[#1A1A1A] to-[#0A0A0A] rounded-[14px] border border-white/10 flex items-center justify-center shadow-inner relative z-10">
+              <Users className="w-5 h-5 text-[#00FF85]" />
+            </div>
           </div>
-          <div>
-            <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-white">Vestuario Global</h2>
+          <div className="flex flex-col justify-center ml-1">
+            <h2 className="text-[15px] font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-[#A0A2A4] leading-tight mb-0.5 uppercase tracking-widest">
+              Comunidad PIFA
+            </h2>
             <PresenceIndicator onlineUsers={onlineUsers} typingUsers={typingUsers} />
           </div>
         </div>
-        <div className="px-3 py-1 rounded-full bg-white/5 border border-white/5">
-          <span className="text-[8px] font-black text-white/40 uppercase tracking-widest">{messages.length} Mensajes</span>
+        <div className="flex items-center gap-1">
+          {bgImage && (
+            <button onClick={() => { setBgImage(null); localStorage.removeItem('pifa_chat_bg'); }} className="p-2 text-[#6A6C6E] hover:text-red-500 hover:bg-white/5 rounded-full transition-all active:scale-95 flex items-center justify-center group" title="Volver al fondo oscuro">
+               <Trash2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
+            </button>
+          )}
+          <button onClick={() => bgInputRef.current?.click()} className="p-2.5 text-[#6A6C6E] hover:text-[#00FF85] hover:bg-[#00FF85]/10 rounded-full transition-all active:scale-95 flex items-center justify-center group" title="Cambiar Fondo">
+             <ImagePlus className="w-5 h-5 group-hover:scale-110 transition-transform" />
+          </button>
         </div>
       </div>
 
       <div 
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto pt-4 pb-24 px-4 custom-scrollbar flex flex-col"
+        className="flex-1 overflow-y-auto overflow-x-hidden pt-4 pb-24 px-4 custom-scrollbar flex flex-col"
       >
-        {hasMore && (
-          <button 
-            onClick={handleLoadMore}
-            disabled={loadingMore}
-            className="self-center mb-6 px-4 py-2 rounded-full bg-white/5 border border-white/5 text-[8px] font-black uppercase tracking-widest text-[#6A6C6E] hover:text-white transition-all active:scale-95"
-          >
-            {loadingMore ? 'Cargando...' : 'Cargar historial anterior'}
-          </button>
+        {hasMore && loadingMore && (
+           <div className="self-center py-4"><Loader2 className="w-5 h-5 text-[#00FF85] opacity-50 animate-spin" /></div>
         )}
 
         {messages.map((msg, idx) => {
@@ -1234,7 +1320,7 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
               isFirstInGroup={isFirstInGroup}
               showFullDate={showFullDate}
               readers={readers}
-              onReply={setReplyingTo}
+              onReply={(msg) => { setReplyingTo(msg); setTimeout(() => document.getElementById('chat-message-input')?.focus(), 50); }}
               onImageClick={setActiveMediaUrl}
               onStickerClick={setStickerToConfirm}
               isHighlighted={highlightedMessageId === msg.id}
@@ -1264,7 +1350,32 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
         )}
       </AnimatePresence>
       
-      {/* Se eliminó el TypingIndicator antiguo de aquí para integrarlo en la cabecera */}
+      <div className="px-4 pb-1">
+        <AnimatePresence mode="wait">
+          {Object.values(typingUsers).length > 0 && (
+            <motion.div
+              key="typing"
+              initial={{ opacity: 0, y: 5 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 5 }}
+              transition={{ duration: 0.15 }}
+              className="flex items-center gap-1.5 self-start px-1 inline-flex w-max"
+            >
+              <div className="flex gap-0.5 items-center mt-0.5">
+                <span className="w-1 h-1 bg-[#00FF85] rounded-full animate-pulse" />
+                <span className="w-1 h-1 bg-[#00FF85] rounded-full animate-pulse" style={{ animationDelay: '150ms' }} />
+                <span className="w-1 h-1 bg-[#00FF85] rounded-full animate-pulse" style={{ animationDelay: '300ms' }} />
+              </div>
+              <span className="text-[10px] font-semibold text-white/50 italic capitalize">
+                {Object.values(typingUsers).length === 1 
+                  ? `${(Object.values(typingUsers)[0] as any).name?.toLowerCase()} está escribiendo...` 
+                  : `${Object.values(typingUsers).length} personas escribiendo...`
+                }
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       <ChatInputArea
         onSendMessage={async (text: string) => {
@@ -1324,6 +1435,7 @@ export function GlobalChat({ user, club }: { user: User; club: Club | null }) {
           setPendingMedia={setPendingMedia}
           onSendMediaMessage={sendMediaMessage}
           onTyping={handleTyping}
+          onRemoveSticker={handleRemoveSticker}
         />
 
       {/* MODAL DE CONFIRMACIÓN DE STICKER */}

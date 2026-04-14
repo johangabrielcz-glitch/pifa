@@ -395,38 +395,40 @@ export default function DashboardPage() {
   return (
     <div className="h-dvh flex flex-col bg-[#0A0A0A] safe-area-top font-sans overflow-hidden">
       {/* Header */}
-      <header className="flex items-center justify-between px-5 py-4 shrink-0 bg-[#0A0A0A] border-b border-[#141414]">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded bg-[#141414] flex items-center justify-center">
-             <Shield className="w-5 h-5 text-white" />
+      {activeTab !== 'chat' && (
+        <header className="flex items-center justify-between px-5 py-4 shrink-0 bg-[#0A0A0A] border-b border-[#141414]">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded bg-[#141414] flex items-center justify-center">
+               <Shield className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <p className="text-[10px] text-[#00FF85] uppercase font-bold tracking-widest">
+                 {competitions[0]?.season?.name || 'Pretemporada'}
+              </p>
+              <p className="text-sm font-semibold text-white">
+                 {competitions[0]?.name || 'PIFA Global'}
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="text-[10px] text-[#00FF85] uppercase font-bold tracking-widest">
-               {competitions[0]?.season?.name || 'Pretemporada'}
-            </p>
-            <p className="text-sm font-semibold text-white">
-               {competitions[0]?.name || 'PIFA Global'}
-            </p>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => {
+                setIsNotificationsOpen(true)
+                setHasNewNotifications(false)
+              }}
+              className="relative p-2 text-[#6A6C6E] hover:text-[#00FF85] transition-colors"
+            >
+              <Bell className="w-5 h-5" />
+              {hasNewNotifications && (
+                <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-[#00FF85] rounded-full border-2 border-[#0A0A0A]" />
+              )}
+            </button>
+            <Button variant="ghost" size="sm" onClick={handleLogout} className="text-[#6A6C6E] hover:text-[#00FF85] hover:bg-[#141414]">
+              <LogOut className="w-4 h-4" />
+            </Button>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button 
-            onClick={() => {
-              setIsNotificationsOpen(true)
-              setHasNewNotifications(false)
-            }}
-            className="relative p-2 text-[#6A6C6E] hover:text-[#00FF85] transition-colors"
-          >
-            <Bell className="w-5 h-5" />
-            {hasNewNotifications && (
-              <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-[#00FF85] rounded-full border-2 border-[#0A0A0A]" />
-            )}
-          </button>
-          <Button variant="ghost" size="sm" onClick={handleLogout} className="text-[#6A6C6E] hover:text-[#00FF85] hover:bg-[#141414]">
-            <LogOut className="w-4 h-4" />
-          </Button>
-        </div>
-      </header>
+        </header>
+      )}
 
       {/* Main Content */}
       <div className="flex-1 overflow-hidden relative">
@@ -1428,7 +1430,7 @@ export default function DashboardPage() {
 
           {/* ======== TAB: CHAT ======== */}
           {activeTab === 'chat' && (
-            <GlobalChat club={club} user={user} />
+            <GlobalChat club={club} user={user} onBack={() => setActiveTab('home')} />
           )}
         </div>
       </div>
@@ -1460,7 +1462,7 @@ export default function DashboardPage() {
       />
 
       {/* Bottom Navigation */}
-      {!isNotificationsOpen && !isMatchDetailsOpen && !selectedManagePlayer && (
+      {!isNotificationsOpen && !isMatchDetailsOpen && !selectedManagePlayer && activeTab !== 'chat' && (
         <DtNavigation
           activeTab={activeTab}
           onTabChange={setActiveTab}
