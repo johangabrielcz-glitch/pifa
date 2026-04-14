@@ -248,6 +248,22 @@ export default function DashboardPage() {
   }
   useEffect(() => {
     refreshData()
+
+    // Realtime News Sync para el Widget de Titulares
+    const newsChannel = supabase
+      .channel('dashboard_news_channel')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'news' }, (payload) => {
+        const newArticle = payload.new
+        setTopNews(prev => {
+          // Prepend and limit to 2
+          return [newArticle, ...prev].slice(0, 2)
+        })
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(newsChannel)
+    }
   }, [])
 
   // Failsafe for loading state
