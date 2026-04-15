@@ -7,7 +7,7 @@ import {
   Shield, Users, LogOut, Loader2, AlertCircle, Wallet,
   ChevronDown, ChevronUp, Trophy, Calendar, Swords, LayoutList,
   Clock, Goal, HandHelping, Star, Play, Check, BarChart3,
-  Hourglass, TrendingUp, Flame, Award, Newspaper, ChevronRight, Camera
+  Hourglass, TrendingUp, Flame, Award, Newspaper, ChevronRight, Camera, Megaphone
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
@@ -32,6 +32,8 @@ import MarketPage from './market/page'
 import { NewsTab } from '@/components/pifa/news-tab'
 import { GlobalChat } from '@/components/pifa/global-chat'
 import { PlayerInbox } from '@/components/pifa/player-inbox'
+import { LatestAnnouncement } from '@/components/pifa/latest-announcement'
+import { AnnouncementsList } from '@/components/pifa/announcements-list'
 import { getSeasonState, payAllSalaries } from '@/lib/contract-engine'
 import type { User, Club, Player, AuthSession, Competition, Match, Standing, PlayerCompetitionStats, MatchAnnotation, Season, Notification } from '@/lib/types'
 
@@ -512,6 +514,9 @@ export default function DashboardPage() {
           {/* ======== TAB: HOME ======== */}
           {activeTab === 'home' && (
             <div className="flex-1 overflow-y-auto px-4 py-5 space-y-6" key="tab-home">
+
+              {/* Latest Announcement (Gold/Official) */}
+              <LatestAnnouncement onSeeAll={() => setActiveTab('announcements')} />
 
               {/* Player Inbox (Correos de Jugadores) */}
               {club && <PlayerInbox clubId={club.id} />}
@@ -1598,6 +1603,24 @@ export default function DashboardPage() {
           {activeTab === 'news' && club && (
             <div className="flex-1 overflow-y-auto px-4 py-5" key="tab-news">
               <NewsTab club={club} />
+            </div>
+          )}
+
+          {/* ======== TAB: ANNOUNCEMENTS ======== */}
+
+          {activeTab === 'announcements' && (
+            <div className="flex-1 overflow-y-auto px-4 py-5 space-y-6" key="tab-announcements">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-xl bg-[#FFD700]/10 flex items-center justify-center border border-[#FFD700]/20">
+                  <Megaphone className="w-5 h-5 text-[#FFD700]" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-black text-white uppercase tracking-tight">Comunicados Oficiales</h2>
+                  <p className="text-[8px] font-black text-[#6A6C6E] uppercase tracking-widest">Historial de la Presidencia PIFA</p>
+                </div>
+              </div>
+
+              <AnnouncementsList />
             </div>
           )}
 

@@ -3,13 +3,13 @@
 import { useState, useRef, useEffect } from 'react'
 import { 
   Home, Trophy, BarChart3, Calendar, Users, 
-  ShoppingCart, Newspaper, MessageCircle, MoreHorizontal 
+  ShoppingCart, Newspaper, MessageCircle, MoreHorizontal, Megaphone 
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 import { useUnreadChat } from '@/lib/use-unread-chat'
 
-export type DtTab = 'home' | 'competitions' | 'stats' | 'calendar' | 'squad' | 'market' | 'news' | 'chat'
+export type DtTab = 'home' | 'competitions' | 'stats' | 'calendar' | 'squad' | 'market' | 'news' | 'chat' | 'announcements'
 
 interface DtNavigationProps {
   activeTab: DtTab
@@ -33,6 +33,7 @@ const moreTabs: { id: DtTab; label: string; icon: any }[] = [
   { id: 'stats', label: 'Stats', icon: BarChart3 },
   { id: 'calendar', label: 'Calen.', icon: Calendar },
   { id: 'news', label: 'Noticias', icon: Newspaper },
+  { id: 'announcements', label: 'Comunicados', icon: Megaphone },
 ]
 
 const TabButton = ({ 

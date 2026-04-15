@@ -166,6 +166,7 @@ export type PlayerPosition =
 
 export type SquadRole = 'essential' | 'important' | 'rotation'
 export type ContractStatus = 'active' | 'free_agent' | 'renewal_pending'
+export type DtTab = 'home' | 'competitions' | 'stats' | 'calendar' | 'squad' | 'market' | 'news' | 'chat' | 'announcements'
 export type PlayerEmailType = 'complaint' | 'apology' | 'demand' | 'farewell' | 'general' | 'promotion_demand' | 'plea'
 
 export interface Player {
@@ -702,4 +703,19 @@ export interface PlayerEmailInsert {
   is_read?: boolean
   action_data?: { requested_role?: string; requested_salary?: number } | null
   action_taken?: boolean
+}
+export interface Diffusion {
+  id: string
+  title: string
+  content: string
+  image_url: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface DiffusionInsert {
+  id?: string
+  title: string
+  content: string
+  image_url?: string | null
 }
