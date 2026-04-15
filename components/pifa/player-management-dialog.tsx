@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Player } from '@/lib/types'
+import { Player, SquadRole } from '@/lib/types'
 import { supabase } from '@/lib/supabase'
+import { paySalary } from '@/lib/contract-engine'
 import { 
   Dialog, 
   DialogContent, 
@@ -14,23 +15,37 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
-import { DollarSign, Tag, XCircle, CheckCircle2, User as UserIcon, Camera, Loader2 } from 'lucide-react'
+import { DollarSign, Tag, XCircle, CheckCircle2, User as UserIcon, Camera, Loader2, FileText, Heart, Star, ChevronRight } from 'lucide-react'
 
 interface PlayerManagementDialogProps {
   player: Player | null
   isOpen: boolean
   onClose: () => void
   onUpdate?: () => void
+  isPreseason?: boolean
+  clubBudget?: number
 }
 
-export function PlayerManagementDialog({ player, isOpen, onClose, onUpdate }: PlayerManagementDialogProps) {
+export function PlayerManagementDialog({ player, isOpen, onClose, onUpdate, isPreseason = false, clubBudget = 0 }: PlayerManagementDialogProps) {
   const [loading, setLoading] = useState(false)
   const [photoLoading, setPhotoLoading] = useState(false)
   const [salePrice, setSalePrice] = useState<string>(player?.sale_price?.toString() || '')
+  const [payingsalary, setPayingsalary] = useState(false)
+  const [selectedRole, setSelectedRole] = useState<SquadRole | null>(player?.squad_role ?? null)
+  const [showContractSection, setShowContractSection] = useState(true)
   
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   if (!player) return null
+
+  const morale = player.morale ?? 75
+  const moraleColor = morale > 70 ? '#00FF85' : morale > 55 ? '#FFB800' : morale > 30 ? '#FF8C00' : '#FF3333'
+  const moraleLabel = morale > 70 ? 'Contento' : morale > 55 ? 'Neutral' : morale > 30 ? 'Descontento' : 'Furioso'
+  const salary = player.salary ?? 25000
+  const contractSeasons = player.contract_seasons_left ?? 0
+  const salaryPaid = player.salary_paid_this_season ?? false
+  const wantsToLeave = player.wants_to_leave ?? false
+  const contractStatus = player.contract_status ?? 'active'
 
   // Redimensionador Canvas super ligero (250px max)
   const resizeImage = (file: File): Promise<string> => {
@@ -95,13 +110,48 @@ export function PlayerManagementDialog({ player, isOpen, onClose, onUpdate }: Pl
     }
   }
 
+  async function handlePaySalary() {
+    if (!player) return
+    setPayingsalary(true)
+    try {
+      const result = await paySalary(player.id, player.club_id)
+      if (result.success) {
+        toast.success(`Salario de $${salary.toLocaleString()} pagado a ${player.name}`)
+        if (onUpdate) onUpdate()
+        onClose()
+      } else {
+        toast.error(result.error || 'Error al pagar salario')
+      }
+    } catch (err: any) {
+      toast.error('Error al pagar salario')
+    } finally {
+      setPayingsalary(false)
+    }
+  }
+
+  async function handleRoleChange(role: SquadRole) {
+    setSelectedRole(role)
+    try {
+      const { error } = await supabase
+        .from('players')
+        .update({ squad_role: role, updated_at: new Date().toISOString() })
+        .eq('id', player!.id)
+
+      if (error) throw error
+      toast.success(`Rol actualizado: ${role === 'essential' ? 'Esencial' : role === 'important' ? 'Importante' : 'Rotación'}`)
+      if (onUpdate) onUpdate()
+    } catch (err: any) {
+      toast.error('Error al actualizar rol')
+    }
+  }
+
   async function toggleSaleStatus() {
     setLoading(true)
     try {
       const isCurrentlyOnSale = player?.is_on_sale
       
       if (!isCurrentlyOnSale && (!salePrice || isNaN(Number(salePrice)) || Number(salePrice) <= 0)) {
-        toast.error('Ingresa un precio de venta vAAlido')
+        toast.error('Ingresa un precio de venta válido')
         setLoading(false)
         return
       }
@@ -126,9 +176,15 @@ export function PlayerManagementDialog({ player, isOpen, onClose, onUpdate }: Pl
     }
   }
 
+  const roleButtons: { value: SquadRole; label: string; emoji: string; color: string }[] = [
+    { value: 'essential', label: 'Esencial', emoji: '⭐', color: 'amber' },
+    { value: 'important', label: 'Importante', emoji: '🔵', color: 'blue' },
+    { value: 'rotation', label: 'Rotación', emoji: '🔄', color: 'zinc' },
+  ]
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-[#0A0A0A] border-white/[0.08] text-white rounded-[24px] sm:max-w-[380px] overflow-hidden p-0 gap-0 shadow-2xl fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+      <DialogContent className="bg-[#0A0A0A] border-white/[0.08] text-white rounded-[24px] sm:max-w-[380px] overflow-hidden p-0 gap-0 shadow-2xl fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 max-h-[90vh] overflow-y-auto">
         <div className="p-6 pb-2">
           <DialogHeader className="mb-4">
             <div className="flex flex-col items-center text-center">
@@ -163,6 +219,13 @@ export function PlayerManagementDialog({ player, isOpen, onClose, onUpdate }: Pl
               <DialogDescription className="text-[#2D2D2D] text-[8px] font-black uppercase tracking-[0.3em] mt-1">
                 {player.position} · DORSAL {player.number || '?'}
               </DialogDescription>
+
+              {/* Wants to leave badge */}
+              {wantsToLeave && (
+                <div className="mt-2 px-3 py-1 bg-red-500/10 border border-red-500/30 rounded-full">
+                  <span className="text-[8px] font-black text-red-400 uppercase tracking-widest">🚪 En busca de equipo</span>
+                </div>
+              )}
             </div>
           </DialogHeader>
 
@@ -170,6 +233,131 @@ export function PlayerManagementDialog({ player, isOpen, onClose, onUpdate }: Pl
           <div className="w-full h-px bg-gradient-to-r from-transparent via-white/[0.05] to-transparent my-4"></div>
 
           <div className="space-y-4">
+            {/* CONTRACT SECTION */}
+            <div className="space-y-3">
+              <button 
+                onClick={() => setShowContractSection(!showContractSection)}
+                className="flex items-center justify-between w-full"
+              >
+                <span className="text-[8px] font-black text-[#FF3131] uppercase tracking-[0.2em] flex items-center gap-2 ml-1">
+                  <FileText className="w-3 h-3" />
+                  Contrato
+                </span>
+                <ChevronRight className={`w-3 h-3 text-[#2D2D2D] transition-transform ${showContractSection ? 'rotate-90' : ''}`} />
+              </button>
+
+              {showContractSection && (
+                <div className="space-y-3 animate-fade-in">
+                  {/* Contract Info Row */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="bg-[#141414] rounded-xl p-2.5 border border-[#202020] text-center">
+                      <span className="text-[7px] font-black text-[#6A6C6E] uppercase tracking-wider block mb-1">Duración</span>
+                      <span className={`text-sm font-black ${contractSeasons <= 1 ? 'text-red-400' : 'text-white'}`}>
+                        {contractSeasons}T
+                      </span>
+                    </div>
+                    <div className="bg-[#141414] rounded-xl p-2.5 border border-[#202020] text-center">
+                      <span className="text-[7px] font-black text-[#6A6C6E] uppercase tracking-wider block mb-1">Salario</span>
+                      <span className="text-sm font-black text-[#00FF85]">
+                        ${salary >= 1000 ? `${(salary / 1000).toFixed(0)}K` : salary}
+                      </span>
+                    </div>
+                    <div className="bg-[#141414] rounded-xl p-2.5 border border-[#202020] text-center">
+                      <span className="text-[7px] font-black text-[#6A6C6E] uppercase tracking-wider block mb-1">Estado</span>
+                      <span className={`text-[9px] font-black uppercase ${
+                        contractStatus === 'active' ? 'text-emerald-400' : 
+                        contractStatus === 'renewal_pending' ? 'text-amber-400' : 'text-red-400'
+                      }`}>
+                        {contractStatus === 'active' ? 'Activo' : contractStatus === 'renewal_pending' ? 'Renovar' : 'Libre'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Role Selector */}
+                  <div className="space-y-1.5">
+                    <span className="text-[7px] font-black text-[#6A6C6E] uppercase tracking-[0.2em] ml-1">Rol en plantilla</span>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {roleButtons.map(role => (
+                        <button
+                          key={role.value}
+                          onClick={() => isPreseason ? handleRoleChange(role.value) : null}
+                          disabled={!isPreseason}
+                          className={`py-2 px-1 rounded-xl text-[8px] font-black uppercase tracking-wider transition-all border ${
+                            (selectedRole || player.squad_role) === role.value
+                              ? role.value === 'essential' 
+                                ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                                : role.value === 'important'
+                                ? 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+                                : 'bg-white/10 text-white/60 border-white/20'
+                              : 'bg-[#141414] text-[#2D2D2D] border-[#202020] hover:border-white/20'
+                          } ${!isPreseason ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                          {role.emoji} {role.label}
+                        </button>
+                      ))}
+                    </div>
+                    {!isPreseason && (
+                      <p className="text-[7px] font-bold text-[#2D2D2D] uppercase tracking-widest text-center mt-1">
+                        Solo modificable en pretemporada
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Morale Bar */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[8px] font-black text-[#6A6C6E] uppercase tracking-[0.2em] flex items-center gap-1">
+                        <Heart className="w-3 h-3" /> Moral
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[9px] font-black" style={{ color: moraleColor }}>{moraleLabel}</span>
+                        <span className="text-[10px] font-black" style={{ color: moraleColor }}>{morale}%</span>
+                      </div>
+                    </div>
+                    <div className="w-full h-2 bg-[#141414] rounded-full overflow-hidden border border-[#202020]">
+                      <div 
+                        className="h-full rounded-full transition-all" 
+                        style={{ width: `${morale}%`, backgroundColor: moraleColor }} 
+                      />
+                    </div>
+                  </div>
+
+                  {/* Pay Salary Button (only in preseason) */}
+                  {isPreseason && !salaryPaid && !wantsToLeave && contractStatus !== 'free_agent' && (
+                    <button
+                      onClick={handlePaySalary}
+                      disabled={payingsalary || clubBudget < salary}
+                      className="w-full py-2.5 rounded-xl bg-[#00FF85]/10 border border-[#00FF85]/20 text-[#00FF85] hover:bg-[#00FF85] hover:text-[#0A0A0A] text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {payingsalary ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <>
+                          <DollarSign className="w-3 h-3" />
+                          Pagar Salario (${salary.toLocaleString()})
+                        </>
+                      )}
+                    </button>
+                  )}
+
+                  {isPreseason && salaryPaid && (
+                    <div className="text-center py-2 bg-emerald-500/5 rounded-xl border border-emerald-500/20">
+                      <span className="text-[8px] font-black text-emerald-400 uppercase tracking-widest">✓ Salario pagado esta temporada</span>
+                    </div>
+                  )}
+
+                  {clubBudget < salary && isPreseason && !salaryPaid && (
+                    <p className="text-[7px] font-black text-red-400/70 uppercase tracking-widest text-center">
+                      Presupuesto insuficiente — Necesitas ${salary.toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Separador */}
+            <div className="w-full h-px bg-gradient-to-r from-transparent via-white/[0.05] to-transparent my-4"></div>
+
             {/* Stamina & Status Section */}
             <div className="space-y-3">
               {/* Stamina Bar */}
@@ -220,56 +408,61 @@ export function PlayerManagementDialog({ player, isOpen, onClose, onUpdate }: Pl
 
             <div className="w-full h-px bg-gradient-to-r from-transparent via-white/[0.05] to-transparent"></div>
 
-            <div className="space-y-2">
-              <label className="text-[8px] font-black text-[#FF3131] uppercase tracking-[0.2em] flex items-center gap-2 ml-1">
-                <Tag className="w-3 h-3" />
-                Valor de Cláusula (USD)
-              </label>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-                  <DollarSign className={`w-4 h-4 transition-colors duration-300 ${player.is_on_sale ? 'text-[#FF3131]' : 'text-[#2D2D2D]'}`} />
+            {/* Sale Section */}
+            {!wantsToLeave && contractStatus === 'active' && (
+              <div className="space-y-2">
+                <label className="text-[8px] font-black text-[#FF3131] uppercase tracking-[0.2em] flex items-center gap-2 ml-1">
+                  <Tag className="w-3 h-3" />
+                  Valor de Cláusula (USD)
+                </label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                    <DollarSign className={`w-4 h-4 transition-colors duration-300 ${player.is_on_sale ? 'text-[#FF3131]' : 'text-[#2D2D2D]'}`} />
+                  </div>
+                  <Input
+                    type="number"
+                    placeholder="Ej. 150000"
+                    disabled={player.is_on_sale}
+                    className="bg-[#141414] border-[#202020] h-10.5 pl-10 text-xs font-bold text-white rounded-xl focus:border-[#FF3131]/30 transition-all uppercase tracking-widest disabled:opacity-50"
+                    value={salePrice}
+                    onChange={(e) => setSalePrice(e.target.value)}
+                  />
                 </div>
-                <Input
-                  type="number"
-                  placeholder="Ej. 150000"
-                  disabled={player.is_on_sale}
-                  className="bg-[#141414] border-[#202020] h-10.5 pl-10 text-xs font-bold text-white rounded-xl focus:border-[#FF3131]/30 transition-all uppercase tracking-widest disabled:opacity-50"
-                  value={salePrice}
-                  onChange={(e) => setSalePrice(e.target.value)}
-                />
+                {player.is_on_sale && (
+                  <p className="text-[7px] font-black text-[#2D2D2D] uppercase tracking-widest text-center mt-2 px-4">
+                    IDENTIDAD EN EL MERCADO: RETIRAR PARA NEGOCIAR
+                  </p>
+                )}
               </div>
-              {player.is_on_sale && (
-                <p className="text-[7px] font-black text-[#2D2D2D] uppercase tracking-widest text-center mt-2 px-4">
-                  IDENTIDAD EN EL MERCADO: RETIRAR PARA NEGOCIAR
-                </p>
-              )}
-            </div>
+            )}
           </div>
         </div>
 
-        <DialogFooter className="bg-[#0A0A0A]/50 border-t border-white/[0.04] p-5 sm:p-5 sm:justify-center">
-          <Button
-            className={`w-full h-10 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all duration-300 shadow-xl flex items-center gap-2 ${
-              player.is_on_sale 
-                ? 'bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20' 
-                : 'bg-[#FF3131] text-white hover:bg-[#D32F2F] shadow-[0_0_15px_rgba(255,49,49,0.2)]'
-            }`}
-            onClick={toggleSaleStatus}
-            disabled={loading}
-          >
-            {player.is_on_sale ? (
-              <>
-                <XCircle className="w-4 h-4" />
-                Retirar de la Venta
-              </>
-            ) : (
-              <>
-                <CheckCircle2 className="w-4 h-4" />
-                Poner en Venta
-              </>
-            )}
-          </Button>
-        </DialogFooter>
+        {!wantsToLeave && contractStatus === 'active' && (
+          <DialogFooter className="bg-[#0A0A0A]/50 border-t border-white/[0.04] p-5 sm:p-5 sm:justify-center">
+            <Button
+              className={`w-full h-10 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all duration-300 shadow-xl flex items-center gap-2 ${
+                player.is_on_sale 
+                  ? 'bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20' 
+                  : 'bg-[#FF3131] text-white hover:bg-[#D32F2F] shadow-[0_0_15px_rgba(255,49,49,0.2)]'
+              }`}
+              onClick={toggleSaleStatus}
+              disabled={loading}
+            >
+              {player.is_on_sale ? (
+                <>
+                  <XCircle className="w-4 h-4" />
+                  Retirar de la Venta
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-4 h-4" />
+                  Poner en Venta
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   )

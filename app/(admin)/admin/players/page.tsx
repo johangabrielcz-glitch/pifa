@@ -56,7 +56,10 @@ export default function AdminPlayersPage() {
     position: '',
     number: '',
     club_id: '' as string | null,
-    photo_url: ''
+    photo_url: '',
+    salary: '25000',
+    contract_seasons_left: '3',
+    squad_role: '' as string
   })
 
   const loadData = async () => {
@@ -87,7 +90,10 @@ export default function AdminPlayersPage() {
       position: '',
       number: '',
       club_id: null,
-      photo_url: ''
+      photo_url: '',
+      salary: '25000',
+      contract_seasons_left: '3',
+      squad_role: ''
     })
     setEditingPlayer(null)
   }
@@ -104,7 +110,10 @@ export default function AdminPlayersPage() {
       position: player.position,
       number: player.number?.toString() || '',
       club_id: player.club_id,
-      photo_url: player.photo_url || ''
+      photo_url: player.photo_url || '',
+      salary: (player.salary ?? 25000).toString(),
+      contract_seasons_left: (player.contract_seasons_left ?? 3).toString(),
+      squad_role: player.squad_role || ''
     })
     setIsFormOpen(true)
   }
@@ -123,7 +132,10 @@ export default function AdminPlayersPage() {
         position: formData.position,
         number: formData.number ? parseInt(formData.number) : null,
         club_id: formData.club_id === 'none' ? null : formData.club_id,
-        photo_url: formData.photo_url.trim() || null
+        photo_url: formData.photo_url.trim() || null,
+        salary: formData.salary ? parseInt(formData.salary) : 25000,
+        contract_seasons_left: formData.contract_seasons_left ? parseInt(formData.contract_seasons_left) : 3,
+        squad_role: formData.squad_role || null
       }
 
       if (editingPlayer) {
@@ -397,6 +409,36 @@ export default function AdminPlayersPage() {
               <div className="space-y-1.5">
                 <Label className="text-[8px] text-[#6A6C6E] uppercase tracking-[0.2em] font-black ml-1">Dorsal</Label>
                 <Input value={formData.number} onChange={(e) => setFormData({ ...formData, number: e.target.value })} placeholder="00" className="h-10.5 bg-[#0A0A0A] border-[#202020] rounded-xl text-white text-center font-bold text-xs" />
+              </div>
+
+              {/* Contract Fields */}
+              <div className="w-full h-px bg-gradient-to-r from-transparent via-white/[0.05] to-transparent my-2"></div>
+              <p className="text-[8px] text-[#FF3131] font-black uppercase tracking-[0.2em] ml-1">📋 Protocolo de Contrato</p>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-[8px] text-[#6A6C6E] uppercase tracking-[0.2em] font-black ml-1">Salario ($)</Label>
+                  <Input value={formData.salary} onChange={(e) => setFormData({ ...formData, salary: e.target.value })} placeholder="25000" className="h-10.5 bg-[#0A0A0A] border-[#202020] rounded-xl text-white text-center font-bold text-xs" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[8px] text-[#6A6C6E] uppercase tracking-[0.2em] font-black ml-1">Temporadas</Label>
+                  <Input value={formData.contract_seasons_left} onChange={(e) => setFormData({ ...formData, contract_seasons_left: e.target.value })} placeholder="3" className="h-10.5 bg-[#0A0A0A] border-[#202020] rounded-xl text-white text-center font-bold text-xs" />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[8px] text-[#6A6C6E] uppercase tracking-[0.2em] font-black ml-1">Rol en Plantilla</Label>
+                <Select value={formData.squad_role || 'none'} onValueChange={(v) => setFormData({ ...formData, squad_role: v === 'none' ? '' : v })}>
+                  <SelectTrigger className="h-10.5 bg-[#0A0A0A] border-[#202020] rounded-xl text-white text-xs font-bold uppercase tracking-widest focus:border-[#FF3131]/30 transition-all px-4">
+                    <SelectValue placeholder="Sin asignar" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#141414] border-white/[0.08] rounded-xl">
+                    <SelectItem value="none" className="text-xs font-bold uppercase tracking-widest text-white/40">Sin asignar</SelectItem>
+                    <SelectItem value="essential" className="text-xs font-bold uppercase tracking-widest text-amber-400">⭐ Esencial</SelectItem>
+                    <SelectItem value="important" className="text-xs font-bold uppercase tracking-widest text-blue-400">🔵 Importante</SelectItem>
+                    <SelectItem value="rotation" className="text-xs font-bold uppercase tracking-widest text-white/60">🔄 Rotación</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>

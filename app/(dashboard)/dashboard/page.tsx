@@ -31,6 +31,8 @@ import { PlayerManagementDialog } from '@/components/pifa/player-management-dial
 import MarketPage from './market/page'
 import { NewsTab } from '@/components/pifa/news-tab'
 import { GlobalChat } from '@/components/pifa/global-chat'
+import { PlayerInbox } from '@/components/pifa/player-inbox'
+import { getSeasonState, payAllSalaries } from '@/lib/contract-engine'
 import type { User, Club, Player, AuthSession, Competition, Match, Standing, PlayerCompetitionStats, MatchAnnotation, Season, Notification } from '@/lib/types'
 
 const positionColors: Record<string, string> = {
@@ -101,6 +103,8 @@ export default function DashboardPage() {
   const [topNews, setTopNews] = useState<any[]>([])
   const [shieldLoading, setShieldLoading] = useState(false)
   const shieldInputRef = useRef<HTMLInputElement>(null)
+  const [isPreseason, setIsPreseason] = useState(false)
+  const [transferWindowOpen, setTransferWindowOpen] = useState(false)
 
   // Optimización de Estadísticas: Memoizar el cálculo de rankings en el nivel superior (Rules of Hooks)
   const statsComps = useMemo(() => 
@@ -291,6 +295,15 @@ export default function DashboardPage() {
           const token = localStorage.getItem('expoPushToken')
           if (token) {
             syncPushToken(session.user.id, session.user.full_name, 'login')
+          }
+
+          // Load season state for contract features
+          try {
+            const seasonState = await getSeasonState()
+            setIsPreseason(seasonState.isPreseason)
+            setTransferWindowOpen(seasonState.transferWindowOpen)
+          } catch (e) {
+            console.warn('Error loading season state:', e)
           }
         }
       }
@@ -499,6 +512,9 @@ export default function DashboardPage() {
           {/* ======== TAB: HOME ======== */}
           {activeTab === 'home' && (
             <div className="flex-1 overflow-y-auto px-4 py-5 space-y-6" key="tab-home">
+
+              {/* Player Inbox (Correos de Jugadores) */}
+              {club && <PlayerInbox clubId={club.id} />}
               
               {/* Titulares Principales (Noticias) */}
               {topNews.length > 0 && (
@@ -1462,6 +1478,25 @@ export default function DashboardPage() {
                  </div>
               </div>
 
+              {/* Pay All Salaries (Preseason Only) */}
+              {isPreseason && players.some(p => !p.salary_paid_this_season && p.contract_status === 'active' && !p.wants_to_leave) && (
+                <button
+                  onClick={async () => {
+                    if (!club) return
+                    const result = await payAllSalaries(club.id)
+                    if (result.success) {
+                      toast.success(`${result.paid} salarios pagados${result.failed > 0 ? `. ${result.failed} no pudieron pagarse (presupuesto insuficiente).` : '.'}`)
+                      window.location.reload()
+                    } else {
+                      toast.error(result.error || 'Error al pagar salarios')
+                    }
+                  }}
+                  className="w-full py-3 rounded-xl bg-[#00FF85]/10 border border-[#00FF85]/20 text-[#00FF85] hover:bg-[#00FF85] hover:text-[#0A0A0A] text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+                >
+                  💰 Pagar Todos los Salarios ({players.filter(p => !p.salary_paid_this_season && p.contract_status === 'active' && !p.wants_to_leave).length} pendientes)
+                </button>
+              )}
+
               {/* Squad Sub-Tabs */}
               <div className="flex bg-[#0A0A0A] p-1 rounded-xl border border-[#202020]">
                 <button
@@ -1537,6 +1572,8 @@ export default function DashboardPage() {
                                   player={player}
                                   stats={playerSeasonMap.get(player.id)}
                                   onClick={() => setSelectedManagePlayer(player)}
+                                  showContractInfo={true}
+                                  isPreseason={isPreseason}
                                 />
                               )
                             })}
@@ -1595,6 +1632,8 @@ export default function DashboardPage() {
           // Optimization: could just refetch players instead of entire page
           window.location.reload()
         }}
+        isPreseason={isPreseason}
+        clubBudget={club?.budget ?? 0}
       />
 
       {/* Bottom Navigation */}

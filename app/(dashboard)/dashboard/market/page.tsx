@@ -3,11 +3,12 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Player, Club, MarketOffer, MarketHistory } from '@/lib/types'
-import { ShoppingCart, History, Search, Filter, DollarSign, ArrowRight, User as UserIcon, Shield } from 'lucide-react'
+import { ShoppingCart, History, Search, Filter, DollarSign, ArrowRight, User as UserIcon, Shield, Lock, UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { UltimateCard } from '@/components/pifa/ultimate-card'
 import { createOffer, handleOfferResponse, buyPlayerDirectly } from '@/lib/market-engine'
+import { isTransferWindowOpen, signFreeAgent } from '@/lib/contract-engine'
 import { toast } from 'sonner'
 import { 
   AlertDialog,
@@ -21,8 +22,10 @@ import {
 } from "@/components/ui/alert-dialog"
 
 export default function MarketPage() {
-  const [activeTab, setActiveTab] = useState<'buy' | 'history' | 'my-offers' | 'clubs'>('buy')
+  const [activeTab, setActiveTab] = useState<'buy' | 'history' | 'my-offers' | 'clubs' | 'free-agents'>('buy')
   const [playersOnSale, setPlayersOnSale] = useState<Player[]>([])
+  const [freeAgents, setFreeAgents] = useState<Player[]>([])
+  const [transferWindowStatus, setTransferWindowStatus] = useState<boolean | null>(null)
   const [allClubs, setAllClubs] = useState<Club[]>([])
   const [selectedClubPlayers, setSelectedClubPlayers] = useState<Player[]>([])
   const [globalSearchResults, setGlobalSearchResults] = useState<Player[]>([])
@@ -70,6 +73,22 @@ export default function MarketPage() {
       if (clbsRes.data) setAllClubs(clbsRes.data)
       if (histRes.data) setHistory(histRes.data)
       if (offersRes.data) setMyOffers(offersRes.data)
+
+      // Fetch transfer window status
+      try {
+        const windowOpen = await isTransferWindowOpen()
+        setTransferWindowStatus(windowOpen)
+      } catch (e) {
+        setTransferWindowStatus(false)
+      }
+
+      // Fetch free agents
+      const { data: freeAgentData } = await supabase
+        .from('players')
+        .select('*, club:clubs(*)')
+        .eq('contract_status', 'free_agent')
+        .order('name', { ascending: true })
+      if (freeAgentData) setFreeAgents(freeAgentData)
 
     } catch (err) {
       console.error('Error fetching market data:', err)
@@ -120,6 +139,11 @@ export default function MarketPage() {
 
   async function handleBuyDirectly() {
     if (!playerToBuy || !currentUserClub) return
+    if (!transferWindowStatus) {
+      toast.error('La ventana de fichajes está cerrada')
+      setPlayerToBuy(null)
+      return
+    }
     setIsBuying(true)
     
     try {
@@ -136,6 +160,11 @@ export default function MarketPage() {
 
   async function makeOffer() {
     if (!selectedPlayer || !currentUserClub) return
+    if (!transferWindowStatus) {
+      toast.error('La ventana de fichajes está cerrada')
+      setSelectedPlayer(null)
+      return
+    }
     if (!offerAmount || isNaN(Number(offerAmount)) || Number(offerAmount) <= 0) {
       toast.error('Ingresa un monto válido')
       return
@@ -215,6 +244,15 @@ export default function MarketPage() {
             Clubes
           </button>
           <button
+            onClick={() => setActiveTab('free-agents')}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+              activeTab === 'free-agents' ? 'bg-[#00FF85] text-[#0A0A0A] shadow-[0_0_20px_rgba(0,255,133,0.2)]' : 'text-[#6A6C6E] hover:text-white'
+            }`}
+          >
+            <UserPlus className="w-3.5 h-3.5" />
+            Libres
+          </button>
+          <button
             onClick={() => setActiveTab('history')}
             className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
               activeTab === 'history' ? 'bg-[#00FF85] text-[#0A0A0A] shadow-[0_0_20px_rgba(0,255,133,0.2)]' : 'text-[#6A6C6E] hover:text-white'
@@ -225,6 +263,19 @@ export default function MarketPage() {
           </button>
         </div>
       </div>
+
+      {/* Transfer Window Closed Warning */}
+      {transferWindowStatus === false && activeTab !== 'free-agents' && activeTab !== 'history' && (
+        <div className="px-6 mb-6">
+          <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-6 text-center">
+            <Lock className="w-8 h-8 text-red-400 mx-auto mb-3" />
+            <h3 className="text-sm font-black text-red-400 uppercase tracking-wider mb-1">Mercado Cerrado</h3>
+            <p className="text-[10px] text-red-400/60 font-bold uppercase tracking-widest">
+              La ventana de fichajes está cerrada. No se pueden realizar ofertas ni compras.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="px-6">
         <div>
@@ -265,14 +316,14 @@ export default function MarketPage() {
                             <button
                               key={p.id}
                               onClick={() => {
-                                if (!myActiveOffer) {
+                                if (!myActiveOffer && transferWindowStatus) {
                                   setSelectedPlayer(p)
                                   setGlobalSearch('')
                                 }
                               }}
-                              disabled={!!myActiveOffer}
+                              disabled={!!myActiveOffer || !transferWindowStatus}
                               className={`w-full flex items-center justify-between p-3 rounded-xl text-left transition-all group ${
-                                myActiveOffer ? 'opacity-60 cursor-not-allowed bg-white/5' : 'hover:bg-white/5'
+                                (myActiveOffer || !transferWindowStatus) ? 'opacity-60 cursor-not-allowed bg-white/5' : 'hover:bg-white/5'
                               }`}
                             >
                               <div className="flex items-center gap-3">
@@ -287,11 +338,16 @@ export default function MarketPage() {
                                         En Negociación
                                       </span>
                                     )}
+                                    {!transferWindowStatus && !myActiveOffer && (
+                                      <span className="text-[7px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded-md font-black uppercase tracking-widest">
+                                        Mercado Cerrado
+                                      </span>
+                                    )}
                                   </div>
                                   <p className="text-[9px] text-[#6A6C6E] font-bold uppercase">{p.club?.name || 'Agente Libre'}</p>
                                 </div>
                               </div>
-                              {!myActiveOffer && <ArrowRight className="w-3.5 h-3.5 text-[#00FF85] opacity-0 group-hover:opacity-100 transition-opacity" />}
+                              {!myActiveOffer && transferWindowStatus && <ArrowRight className="w-3.5 h-3.5 text-[#00FF85] opacity-0 group-hover:opacity-100 transition-opacity" />}
                             </button>
                           )
                         })
@@ -343,19 +399,25 @@ export default function MarketPage() {
                               </Button>
                             ) : (
                               <div className="flex flex-col gap-2">
-                                <Button 
-                                  className="w-full bg-[#141414] border border-[#202020] hover:bg-[#00FF85] hover:text-[#0A0A0A] hover:border-[#00FF85] text-[#00FF85] text-[10px] font-black uppercase tracking-widest h-10 transition-all duration-300 rounded-2xl"
-                                  onClick={() => setSelectedPlayer(player)}
-                                >
-                                  Hacer Oferta
-                                </Button>
-                                {player.is_on_sale && player.sale_price && (
-                                  <Button 
-                                    className="w-full bg-[#00FF85] text-[#0A0A0A] text-[10px] font-black uppercase tracking-widest h-10 transition-all duration-300 rounded-2xl shadow-[0_5px_15px_rgba(0,255,133,0.2)]"
-                                    onClick={() => setPlayerToBuy(player)}
-                                  >
-                                    Compra Directa
-                                  </Button>
+                                {transferWindowStatus ? (
+                                  <>
+                                    <Button 
+                                      className="w-full bg-[#141414] border border-[#202020] hover:bg-[#00FF85] hover:text-[#0A0A0A] hover:border-[#00FF85] text-[#00FF85] text-[10px] font-black uppercase tracking-widest h-10 transition-all duration-300 rounded-2xl"
+                                      onClick={() => setSelectedPlayer(player)}
+                                    >
+                                      Hacer Oferta
+                                    </Button>
+                                    {player.is_on_sale && player.sale_price && (
+                                      <Button 
+                                        className="w-full bg-[#00FF85] text-[#0A0A0A] text-[10px] font-black uppercase tracking-widest h-10 transition-all duration-300 rounded-2xl shadow-[0_5px_15px_rgba(0,255,133,0.2)]"
+                                        onClick={() => setPlayerToBuy(player)}
+                                      >
+                                        Compra Directa
+                                      </Button>
+                                    )}
+                                  </>
+                                ) : (
+                                  <p className="text-[8px] font-bold text-red-400/60 text-center uppercase tracking-widest py-2">🔒 Mercado cerrado</p>
                                 )}
                               </div>
                             )
@@ -520,13 +582,15 @@ export default function MarketPage() {
                                       >
                                         Anular Oferta
                                       </Button>
-                                    ) : (
+                                    ) : transferWindowStatus ? (
                                       <Button 
                                         className="w-full bg-[#141414]/80 backdrop-blur-md border border-white/5 hover:bg-[#00FF85] hover:text-[#0A0A0A] text-[#00FF85] text-[8px] font-black uppercase tracking-widest h-8 transition-all duration-300 rounded-xl"
                                         onClick={() => setSelectedPlayer(player)}
                                       >
                                         Ofertar
                                       </Button>
+                                    ) : (
+                                      <p className="text-[7px] font-bold text-red-400/50 text-center uppercase tracking-widest py-1">🔒 Cerrado</p>
                                     )}
                                   </div>
                                 </div>
@@ -563,6 +627,66 @@ export default function MarketPage() {
                       )
                     })()}
                   </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* FREE AGENTS TAB */}
+          {activeTab === 'free-agents' && (
+            <div className="space-y-6">
+              <div className="text-center py-2">
+                <p className="text-[10px] text-[#6A6C6E] font-bold uppercase tracking-widest">
+                  Jugadores sin contrato disponibles para fichar gratis
+                </p>
+              </div>
+
+              {freeAgents.length === 0 ? (
+                <div className="py-20 text-center bg-[#141414] rounded-3xl border border-[#202020] border-dashed">
+                  <UserPlus className="w-12 h-12 text-[#2D2D2D] mx-auto mb-4" />
+                  <p className="text-[#6A6C6E] text-xs font-bold uppercase tracking-widest">No hay agentes libres</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-4">
+                  {freeAgents.map(player => (
+                    <div key={player.id} className="space-y-2">
+                      <UltimateCard
+                        player={player}
+                        showContractInfo={true}
+                      />
+                      {transferWindowStatus && currentUserClub && player.club_id !== currentUserClub.id && (
+                        <button
+                          onClick={async () => {
+                            try {
+                              const result = await signFreeAgent(
+                                player.id,
+                                currentUserClub.id,
+                                25000,
+                                3,
+                                'rotation'
+                              )
+                              if (result.success) {
+                                toast.success(`${player.name} fichado como agente libre`)
+                                fetchInitialData()
+                              } else {
+                                toast.error(result.error || 'Error al fichar')
+                              }
+                            } catch (err: any) {
+                              toast.error(err.message || 'Error al fichar agente libre')
+                            }
+                          }}
+                          className="w-full py-2 rounded-xl bg-[#00FF85]/10 border border-[#00FF85]/20 text-[#00FF85] hover:bg-[#00FF85] hover:text-[#0A0A0A] text-[8px] font-black uppercase tracking-widest transition-all"
+                        >
+                          Fichar (Gratis)
+                        </button>
+                      )}
+                      {!transferWindowStatus && (
+                        <p className="text-[7px] font-bold text-red-400/60 text-center uppercase tracking-widest">
+                          Mercado cerrado
+                        </p>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

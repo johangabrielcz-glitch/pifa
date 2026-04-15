@@ -1,6 +1,7 @@
 import { supabaseAdmin as supabase } from './supabase'
 import { MarketOffer, Notification, Player, Club } from './types'
 import { sendPushToClub } from './push-notifications'
+import { isTransferWindowOpen } from './contract-engine'
 
 export async function createOffer(
   player: Player,
@@ -8,6 +9,10 @@ export async function createOffer(
   amount: number,
   previousOfferId: string | null = null
 ) {
+  // 0. Guard: Check transfer window
+  const windowOpen = await isTransferWindowOpen()
+  if (!windowOpen) throw new Error('La ventana de fichajes está cerrada. No se pueden hacer ofertas.')
+
   // 1. Create the offer
   const { data: offer, error: offerError } = await supabase
     .from('market_offers')
@@ -160,6 +165,10 @@ export async function handleOfferResponse(
 }
 
 export async function buyPlayerDirectly(player: Player, buyerClubId: string) {
+  // 0. Guard: Check transfer window
+  const windowOpen = await isTransferWindowOpen()
+  if (!windowOpen) throw new Error('La ventana de fichajes está cerrada. No se pueden realizar compras.')
+
   if (!player.is_on_sale || !player.sale_price) {
     throw new Error('Este jugador no está a la venta directa.')
   }
@@ -181,11 +190,20 @@ export async function buyPlayerDirectly(player: Player, buyerClubId: string) {
   // B. Add to seller
   await supabase.from('clubs').update({ budget: (latestSeller?.budget || 0) + amount }).eq('id', player.club_id)
 
-  // C. Move player
+  // C. Move player with new default contract
   await supabase.from('players').update({ 
     club_id: buyerClubId, 
     is_on_sale: false, 
-    sale_price: null 
+    sale_price: null,
+    // Reset contract for new club
+    contract_seasons_left: 3,
+    salary: 25000,
+    squad_role: 'rotation',
+    salary_paid_this_season: false,
+    morale: 75,
+    wants_to_leave: false,
+    contract_status: 'active',
+    updated_at: new Date().toISOString()
   }).eq('id', player.id)
 
   // D. Invalidate all pending offers
@@ -266,11 +284,20 @@ async function executeTransfer(offer: any) {
   const { data: latestSeller } = await supabase.from('clubs').select('budget').eq('id', offer.seller_club_id).single()
   await supabase.from('clubs').update({ budget: (latestSeller?.budget || 0) + amount }).eq('id', offer.seller_club_id)
 
-  // C. Move player
+  // C. Move player with new default contract
   await supabase.from('players').update({ 
     club_id: offer.buyer_club_id, 
     is_on_sale: false, 
-    sale_price: null 
+    sale_price: null,
+    // Reset contract for new club
+    contract_seasons_left: 3,
+    salary: 25000,
+    squad_role: 'rotation',
+    salary_paid_this_season: false,
+    morale: 75,
+    wants_to_leave: false,
+    contract_status: 'active',
+    updated_at: new Date().toISOString()
   }).eq('id', offer.player_id)
 
   // D. Update offer status

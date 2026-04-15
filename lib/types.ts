@@ -164,6 +164,10 @@ export type PlayerPosition =
   | 'ST' 
   | 'CF'
 
+export type SquadRole = 'essential' | 'important' | 'rotation'
+export type ContractStatus = 'active' | 'free_agent' | 'renewal_pending'
+export type PlayerEmailType = 'complaint' | 'apology' | 'demand' | 'farewell' | 'general' | 'promotion_demand' | 'plea'
+
 export interface Player {
   id: string
   club_id: string
@@ -180,8 +184,18 @@ export interface Player {
   injury_reason: string | null
   red_card_matches_left: number
   red_card_reason: string | null
+  // Contract & Salary
+  contract_seasons_left: number
+  salary: number
+  squad_role: SquadRole | null
+  morale: number
+  salary_paid_this_season: boolean
+  wants_to_leave: boolean
+  contract_status: ContractStatus
   created_at: string
   updated_at: string
+  // Relations
+  club?: Club
 }
 
 export interface PlayerInsert {
@@ -200,6 +214,13 @@ export interface PlayerInsert {
   injury_reason?: string | null
   red_card_matches_left?: number
   red_card_reason?: string | null
+  contract_seasons_left?: number
+  salary?: number
+  squad_role?: SquadRole | null
+  morale?: number
+  salary_paid_this_season?: boolean
+  wants_to_leave?: boolean
+  contract_status?: ContractStatus
   created_at?: string
   updated_at?: string
 }
@@ -220,6 +241,13 @@ export interface PlayerUpdate {
   injury_reason?: string | null
   red_card_matches_left?: number
   red_card_reason?: string | null
+  contract_seasons_left?: number
+  salary?: number
+  squad_role?: SquadRole | null
+  morale?: number
+  salary_paid_this_season?: boolean
+  wants_to_leave?: boolean
+  contract_status?: ContractStatus
   updated_at?: string
 }
 
@@ -238,6 +266,10 @@ export type NotificationType =
   | 'offer_cancelled'
   | 'injury'
   | 'red_card'
+  | 'player_email'
+  | 'contract_expired'
+  | 'player_unhappy'
+  | 'player_seeking_transfer'
 
 export interface MarketOffer {
   id: string
@@ -328,6 +360,8 @@ export interface Season {
   start_date: string | null
   end_date: string | null
   activated_at: string | null
+  transfer_window_open: boolean
+  contracts_decremented: boolean
   created_at: string
   updated_at: string
 }
@@ -338,6 +372,7 @@ export interface SeasonInsert {
   status?: SeasonStatus
   start_date?: string | null
   end_date?: string | null
+  transfer_window_open?: boolean
 }
 
 export interface SeasonUpdate {
@@ -346,6 +381,8 @@ export interface SeasonUpdate {
   start_date?: string | null
   end_date?: string | null
   activated_at?: string | null
+  transfer_window_open?: boolean
+  contracts_decremented?: boolean
   updated_at?: string
 }
 
@@ -634,4 +671,35 @@ export interface UserPushTokenUpdate {
   user_id?: string
   expo_push_token?: string
   device_info?: any | null
+}
+
+// =============================================
+// PLAYER EMAIL / BRAIN TYPES
+// =============================================
+
+export interface PlayerEmail {
+  id: string
+  player_id: string
+  club_id: string
+  subject: string
+  body: string
+  email_type: PlayerEmailType
+  is_read: boolean
+  action_data: { requested_role?: string; requested_salary?: number } | null
+  action_taken: boolean
+  created_at: string
+  // Relations
+  player?: Player
+}
+
+export interface PlayerEmailInsert {
+  id?: string
+  player_id: string
+  club_id: string
+  subject: string
+  body: string
+  email_type?: PlayerEmailType
+  is_read?: boolean
+  action_data?: { requested_role?: string; requested_salary?: number } | null
+  action_taken?: boolean
 }

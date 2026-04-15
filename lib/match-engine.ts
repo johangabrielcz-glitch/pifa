@@ -11,6 +11,7 @@ import type {
   SubstitutionEntry,
 } from './types'
 import { sendPushToClub } from './push-notifications'
+import { processEndOfMatchMorale } from './morale-engine'
 import {
   decrementSuspensionsAndInjuries,
   processMatchFatigue,
@@ -86,8 +87,7 @@ export async function calculateMatchDeadlines(seasonId: string): Promise<void> {
 
   for (let slotIndex = 0; slotIndex < matchdaySlots.length; slotIndex++) {
     const slot = matchdaySlots[slotIndex]
-    // TODO: Cambiar a 24 * 60 * 60 * 1000 para produccion (24 horas)
-    const deadlineMs = activatedAt.getTime() + (slotIndex + 1) * 2 * 60 * 1000 // 2 minutos para pruebas
+    const deadlineMs = activatedAt.getTime() + (slotIndex + 1) * 24 * 60 * 60 * 1000 // 24 horas por jornada
     const deadline = new Date(deadlineMs).toISOString()
 
     // Find all matches in this specific slot (competition + matchday + leg)
@@ -430,6 +430,32 @@ async function finalizeMatch(matchId: string): Promise<void> {
     await processRedCards(matchId)
   } catch (injuryError) {
     console.warn('[finalizeMatch] Injury engine error (non-blocking):', injuryError)
+  }
+
+  // ====== MORALE ENGINE: Post-match moral processing ======
+  try {
+    const homeAnnotation_ = (annotations as any[]).find((a: MatchAnnotation) => a.club_id === (match as any).home_club_id)
+    const awayAnnotation_ = (annotations as any[]).find((a: MatchAnnotation) => a.club_id === (match as any).away_club_id)
+    const isHomeDraw = homeScore === awayScore
+    
+    await processEndOfMatchMorale(
+      matchId,
+      (match as any).home_club_id,
+      homeScore > awayScore,
+      isHomeDraw,
+      homeScore < awayScore,
+      homeAnnotation_ || null
+    )
+    await processEndOfMatchMorale(
+      matchId,
+      (match as any).away_club_id,
+      awayScore > homeScore,
+      isHomeDraw,
+      awayScore < homeScore,
+      awayAnnotation_ || null
+    )
+  } catch (moraleError) {
+    console.warn('[finalizeMatch] Morale engine error (non-blocking):', moraleError)
   }
 }
 
@@ -1227,6 +1253,18 @@ export async function checkAndAutoResolveExpired(): Promise<number> {
         await processRedCards(match.id)
       } catch (injuryError) {
         console.warn('[autoResolve] Injury engine error (non-blocking):', injuryError)
+      }
+
+      // ====== MORALE ENGINE: Post-match moral processing ======
+      try {
+        const homeAnn = finalAnnotations?.find((a: any) => a.club_id === match.home_club_id) || null
+        const awayAnn = finalAnnotations?.find((a: any) => a.club_id === match.away_club_id) || null
+        const isDraw = homeScore === awayScore
+
+        await processEndOfMatchMorale(match.id, match.home_club_id, homeScore > awayScore, isDraw, homeScore < awayScore, homeAnn as any)
+        await processEndOfMatchMorale(match.id, match.away_club_id, awayScore > homeScore, isDraw, awayScore < homeScore, awayAnn as any)
+      } catch (moraleError) {
+        console.warn('[autoResolve] Morale engine error (non-blocking):', moraleError)
       }
 
       resolved++

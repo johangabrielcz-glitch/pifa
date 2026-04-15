@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Plus, Calendar, Trophy, Loader2, ChevronRight, Play, CheckCircle, Pencil, Trash2, Clock, Zap, Archive, ChevronLeft } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { calculateMatchDeadlines } from '@/lib/match-engine'
+import { revertContractDecrement, resetSalaryPayments, decrementContracts, toggleTransferWindow } from '@/lib/contract-engine'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -79,6 +80,11 @@ export default function SeasonsPage() {
   const handleDelete = async () => {
     if (!deletingSeason) return
     try {
+      // Revert contract decrement if this season had already decremented contracts
+      await revertContractDecrement(deletingSeason.id)
+      // Reset salary payments for all players
+      await resetSalaryPayments()
+
       const { error } = await supabase.from('seasons').delete().eq('id', deletingSeason.id)
       if (error) throw error
 
@@ -96,7 +102,7 @@ export default function SeasonsPage() {
         red_card_check_counter: 0
       }).gte('red_card_check_counter', 0)
 
-      toast.success('Ciclo purgado y estatus de jugadores reseteado'); loadSeasons()
+      toast.success('Ciclo purgado, contratos revertidos y estatus reseteado'); loadSeasons()
     } catch (error) { 
       toast.error('Fallo en la purga del ciclo') 
     } finally { 
@@ -235,6 +241,41 @@ export default function SeasonsPage() {
                       >
                         <Play className="w-3 h-3 fill-current" />
                         Ejecutar Protocolo
+                      </button>
+                    )}
+                    {(season.status === 'active' || season.status === 'draft') && (
+                      <button 
+                        onClick={async () => {
+                          const isOpen = season.transfer_window_open ?? false
+                          await toggleTransferWindow(season.id, !isOpen)
+                          toast.success(isOpen ? 'Ventana de fichajes CERRADA' : 'Ventana de fichajes ABIERTA')
+                          loadSeasons()
+                        }}
+                        className={`flex-1 h-9.5 border rounded-xl font-black uppercase tracking-widest text-[8px] transition-all flex items-center justify-center gap-2 ${
+                          season.transfer_window_open
+                            ? 'bg-emerald-500/5 hover:bg-red-500 text-emerald-500 hover:text-white border-emerald-500/10'
+                            : 'bg-amber-500/5 hover:bg-emerald-500 text-amber-500 hover:text-white border-amber-500/10'
+                        }`}
+                      >
+                        {season.transfer_window_open ? '🔴 Cerrar Mercado' : '🟢 Abrir Mercado'}
+                      </button>
+                    )}
+                    {season.status === 'active' && (
+                      <button 
+                        onClick={async () => {
+                          try {
+                            const result = await decrementContracts(season.id)
+                            await supabase.from('seasons').update({ status: 'finished', updated_at: new Date().toISOString() }).eq('id', season.id)
+                            toast.success(`Temporada finalizada. ${result.expired} contratos expirados.`)
+                            loadSeasons()
+                          } catch (err) {
+                            toast.error('Error al finalizar temporada')
+                          }
+                        }}
+                        className="flex-1 h-9.5 bg-emerald-500/5 hover:bg-emerald-500 text-emerald-500 hover:text-white border border-emerald-500/10 rounded-xl font-black uppercase tracking-widest text-[8px] transition-all flex items-center justify-center gap-2"
+                      >
+                        <CheckCircle className="w-3 h-3" />
+                        Finalizar Ciclo
                       </button>
                     )}
                     <button 

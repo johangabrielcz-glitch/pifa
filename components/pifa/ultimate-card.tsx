@@ -19,6 +19,14 @@ interface UltimateCardProps {
     injury_reason?: string | null
     red_card_matches_left?: number
     red_card_reason?: string | null
+    // Contract fields
+    contract_seasons_left?: number
+    salary?: number
+    squad_role?: string | null
+    morale?: number
+    salary_paid_this_season?: boolean
+    wants_to_leave?: boolean
+    contract_status?: string
   }
   stats?: {
     goals: number
@@ -29,14 +37,23 @@ interface UltimateCardProps {
   onClick?: () => void
   color?: string
   hideStats?: boolean
+  showContractInfo?: boolean
+  isPreseason?: boolean
 }
 
-export function UltimateCard({ player, stats, showPrice = false, onClick, color = '#00FF85', hideStats = false }: UltimateCardProps) {
+export function UltimateCard({ player, stats, showPrice = false, onClick, color = '#00FF85', hideStats = false, showContractInfo = false, isPreseason = false }: UltimateCardProps) {
   const isInjured = (player.injury_matches_left ?? 0) > 0
   const isSuspended = (player.red_card_matches_left ?? 0) > 0
-  const isUnavailable = isInjured || isSuspended
+  const wantsToLeave = player.wants_to_leave ?? false
+  const isFreeAgent = player.contract_status === 'free_agent'
+  const isUnavailable = isInjured || isSuspended || wantsToLeave || isFreeAgent
   const stamina = player.stamina ?? 100
   const staminaColor = stamina > 60 ? '#00FF85' : stamina > 30 ? '#FFB800' : '#FF3333'
+  const morale = player.morale ?? 75
+  const moraleColor = morale > 70 ? '#00FF85' : morale > 55 ? '#FFB800' : morale > 30 ? '#FF8C00' : '#FF3333'
+  const salaryPaid = player.salary_paid_this_season ?? false
+  const contractSeasons = player.contract_seasons_left ?? 0
+  const roleLabel = player.squad_role === 'essential' ? 'ESE' : player.squad_role === 'important' ? 'IMP' : player.squad_role === 'rotation' ? 'ROT' : null
 
   return (
     <div 
@@ -75,9 +92,43 @@ export function UltimateCard({ player, stats, showPrice = false, onClick, color 
             {player.position}
           </span>
           {player.nationality && (
-            <span className="text-[8px] font-bold text-white/40 mt-1 uppercase tracking-tighter">
+            <span className="text-[8px] font-bold text-white/40 uppercase tracking-tighter">
               {player.nationality}
             </span>
+          )}
+          {/* Morale indicator (below position) */}
+          {showContractInfo && !isUnavailable && (
+            <div className="flex items-center gap-1 mt-0.5">
+              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: moraleColor }} />
+              <span className="text-[7px] font-black" style={{ color: moraleColor }}>{morale}%</span>
+              {roleLabel && (
+                <span className={`text-[6px] font-black uppercase tracking-wider px-1 py-0.5 rounded ml-0.5 ${
+                  player.squad_role === 'essential' ? 'bg-amber-500/20 text-amber-400' :
+                  player.squad_role === 'important' ? 'bg-blue-500/20 text-blue-400' :
+                  'bg-white/10 text-white/40'
+                }`}>
+                  {roleLabel}
+                </span>
+              )}
+            </div>
+          )}
+          {/* Salary status (below morale) */}
+          {showContractInfo && isPreseason && !wantsToLeave && !isFreeAgent && !isUnavailable && (
+            <div className={`mt-0.5 px-1.5 py-0.5 rounded text-[6px] font-black uppercase tracking-wider ${
+              salaryPaid 
+                ? 'bg-emerald-500/20 text-emerald-400' 
+                : 'bg-red-500/20 text-red-400 animate-pulse'
+            }`}>
+              {salaryPaid ? '✓ PAGO' : '$ IMPAGO'}
+            </div>
+          )}
+          {/* Contract duration (below salary) */}
+          {showContractInfo && !isUnavailable && (
+            <div className={`mt-0.5 px-1.5 py-0.5 rounded text-[6px] font-black uppercase tracking-wider ${
+              contractSeasons <= 1 ? 'bg-red-500/20 text-red-400' : 'bg-white/10 text-white/50'
+            }`}>
+              {contractSeasons}T restantes
+            </div>
           )}
         </div>
 
@@ -132,18 +183,20 @@ export function UltimateCard({ player, stats, showPrice = false, onClick, color 
           </div>
         </div>
 
-        {/* Injury/Suspension Overlay */}
+        {/* Injury/Suspension/Contract Overlay */}
         {isUnavailable && (
           <div className="absolute inset-0 bg-black/60 z-30 flex flex-col items-center justify-center" style={{ clipPath: 'polygon(50% 0%, 100% 15%, 100% 85%, 50% 100%, 0% 85%, 0% 15%)' }}>
-            <span className="text-2xl mb-1">{isInjured ? '🏥' : '🟥'}</span>
+            <span className="text-2xl mb-1">{wantsToLeave ? '🚪' : isFreeAgent ? '📋' : isInjured ? '🏥' : '🟥'}</span>
             <span className="text-[9px] font-black text-red-400 uppercase tracking-wider">
-              {isInjured ? `Lesionado` : `Suspendido`}
+              {wantsToLeave ? 'En busca de equipo' : isFreeAgent ? 'Agente Libre' : isInjured ? 'Lesionado' : 'Suspendido'}
             </span>
             <span className="text-[8px] font-bold text-red-400/70 uppercase">
-              {isInjured ? `${player.injury_matches_left}P restantes` : `${player.red_card_matches_left}P restantes`}
+              {wantsToLeave ? 'No disponible' : isFreeAgent ? 'Sin contrato' : isInjured ? `${player.injury_matches_left}P restantes` : `${player.red_card_matches_left}P restantes`}
             </span>
           </div>
         )}
+
+
       </div>
 
       {/* Rarity Glow Background (Hidden until hover) */}

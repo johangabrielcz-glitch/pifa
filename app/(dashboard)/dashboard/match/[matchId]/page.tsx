@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import type { Match, Club, Player, Competition, AuthSession, GoalEntry, AssistEntry, MatchAnnotation, SubstitutionEntry } from '@/lib/types'
 import { normalizeSubstitutions } from '@/lib/injury-engine'
+import { canUsePlayer } from '@/lib/contract-engine'
 
 interface MatchFull extends Match {
   home_club: Club
@@ -128,7 +129,7 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
       const availableInitial11 = initial11.filter(id => {
         const p = (players as Player[])?.find(player => player.id === id)
         if (!p) return false
-        const isUnavailable = (p.injury_matches_left ?? 0) > 0 || (p.red_card_matches_left ?? 0) > 0
+        const isUnavailable = (p.injury_matches_left ?? 0) > 0 || (p.red_card_matches_left ?? 0) > 0 || !canUsePlayer(p).available
         return !isUnavailable
       })
       
@@ -441,7 +442,9 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
                         const isSelected = startingXi.includes(player.id)
                         const isInjured = (player.injury_matches_left ?? 0) > 0
                         const isSuspended = (player.red_card_matches_left ?? 0) > 0
-                        const isUnavailable = isInjured || isSuspended
+                        const contractCheck = canUsePlayer(player as Player)
+                        const isUnavailable = isInjured || isSuspended || !contractCheck.available
+                        const unavailableReason = isInjured ? `🏥 ${player.injury_matches_left}P` : isSuspended ? `🟥 ${player.red_card_matches_left}P` : contractCheck.reason || ''
                         const stamina = player.stamina ?? 100
                         const staminaColor = stamina > 60 ? '#00FF85' : stamina > 30 ? '#FFB800' : '#FF3333'
                         return (
@@ -484,6 +487,9 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
                                   </span>
                                   {isInjured && <span className="text-[8px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 font-black">🏥 {player.injury_matches_left}P</span>}
                                   {isSuspended && <span className="text-[8px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 font-black">🟥 {player.red_card_matches_left}P</span>}
+                                  {!isInjured && !isSuspended && !contractCheck.available && (
+                                    <span className="text-[8px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-black">{contractCheck.reason}</span>
+                                  )}
                                 </div>
                                 <div className="flex items-center gap-2 mt-0.5">
                                   <span className="text-[9px] font-black text-[#505050] uppercase tracking-tighter">
@@ -563,7 +569,8 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
                           const isSubIn = substitutesIn.some(s => s.player_in === player.id)
                           const isInjured = (player.injury_matches_left ?? 0) > 0
                           const isSuspended = (player.red_card_matches_left ?? 0) > 0
-                          const isUnavailable = isInjured || isSuspended
+                          const contractCheck2 = canUsePlayer(player as Player)
+                          const isUnavailable = isInjured || isSuspended || !contractCheck2.available
                           return (
                             <button
                               key={player.id}
@@ -591,6 +598,7 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
                                 <span className="text-[10px] font-black uppercase truncate">{player.name.split(' ').pop()}</span>
                                 {isInjured && <span className="text-[7px] text-[#FF3333] font-bold">🏥 {player.injury_matches_left}P</span>}
                                 {isSuspended && <span className="text-[7px] text-[#FF3333] font-bold">🟥 {player.red_card_matches_left}P</span>}
+                                {!isInjured && !isSuspended && !contractCheck2.available && <span className="text-[7px] text-amber-400 font-bold">{contractCheck2.reason}</span>}
                               </div>
                             </button>
                           )

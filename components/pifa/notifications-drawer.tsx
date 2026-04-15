@@ -99,6 +99,11 @@ export function NotificationsDrawer({ clubId, isOpen, onClose, onActionComplete 
       case 'offer_rejected': return { icon: <XCircle className="w-4 h-4" />, color: 'text-red-400', bg: 'bg-red-400/10' }
       case 'injury': return { icon: <Activity className="w-4 h-4" />, color: 'text-red-500', bg: 'bg-red-500/10' }
       case 'red_card': return { icon: <AlertTriangle className="w-4 h-4" />, color: 'text-red-600', bg: 'bg-red-600/10' }
+      case 'transfer_window': return { icon: <ShieldCheck className="w-4 h-4" />, color: 'text-emerald-400', bg: 'bg-emerald-400/10' }
+      case 'contract_expired': return { icon: <AlertTriangle className="w-4 h-4" />, color: 'text-amber-400', bg: 'bg-amber-400/10' }
+      case 'player_email': return { icon: <Bell className="w-4 h-4" />, color: 'text-rose-400', bg: 'bg-rose-400/10' }
+      case 'player_seeking_transfer': return { icon: <AlertTriangle className="w-4 h-4" />, color: 'text-orange-400', bg: 'bg-orange-400/10' }
+      case 'player_unhappy': return { icon: <Activity className="w-4 h-4" />, color: 'text-amber-500', bg: 'bg-amber-500/10' }
       default: return { icon: <Bell className="w-4 h-4" />, color: 'text-white/60', bg: 'bg-white/5' }
     }
   }
