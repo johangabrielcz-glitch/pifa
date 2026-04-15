@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { 
   Home, Trophy, BarChart3, Calendar, Users, 
-  ShoppingCart, Newspaper, MessageCircle, MoreHorizontal, Megaphone 
+  ShoppingCart, Newspaper, MessageCircle, MoreHorizontal, Megaphone, Award 
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -34,6 +34,7 @@ const moreTabs: { id: DtTab; label: string; icon: any }[] = [
   { id: 'calendar', label: 'Calen.', icon: Calendar },
   { id: 'news', label: 'Noticias', icon: Newspaper },
   { id: 'announcements', label: 'Comunicados', icon: Megaphone },
+  { id: 'hall_of_fame', label: 'Palmarés', icon: Award },
 ]
 
 const TabButton = ({ 

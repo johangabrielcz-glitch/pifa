@@ -34,6 +34,7 @@ import { GlobalChat } from '@/components/pifa/global-chat'
 import { PlayerInbox } from '@/components/pifa/player-inbox'
 import { LatestAnnouncement } from '@/components/pifa/latest-announcement'
 import { AnnouncementsList } from '@/components/pifa/announcements-list'
+import { HallOfFame } from '@/components/pifa/hall-of-fame'
 import { getSeasonState, payAllSalaries } from '@/lib/contract-engine'
 import type { User, Club, Player, AuthSession, Competition, Match, Standing, PlayerCompetitionStats, MatchAnnotation, Season, Notification } from '@/lib/types'
 
@@ -1621,6 +1622,23 @@ export default function DashboardPage() {
               </div>
 
               <AnnouncementsList />
+            </div>
+          )}
+
+          {/* ======== TAB: HALL OF FAME ======== */}
+          {activeTab === 'hall_of_fame' && (
+            <div className="flex-1 overflow-y-auto px-4 py-5 space-y-6" key="tab-hall-of-fame">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center border border-amber-500/20">
+                  <Award className="w-5 h-5 text-amber-500" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-black text-white uppercase tracking-tight">Palmarés Histórico</h2>
+                  <p className="text-[8px] font-black text-[#6A6C6E] uppercase tracking-widest">Salón de la Fama PIFA</p>
+                </div>
+              </div>
+
+              <HallOfFame />
             </div>
           )}
 

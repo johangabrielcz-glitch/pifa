@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Users, Shield, UserCog, Calendar, Megaphone } from 'lucide-react'
+import { Home, Users, Shield, UserCog, Calendar, Megaphone, Award } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface NavItem {
@@ -23,6 +23,7 @@ const userNavItems: NavItem[] = [
 const adminNavItems: NavItem[] = [
   { href: '/admin', label: 'Inicio', icon: <Home className="w-5 h-5" /> },
   { href: '/admin/broadcasting', label: 'Difusión', icon: <Megaphone className="w-5 h-5" /> },
+  { href: '/admin/trophies', label: 'Palmarés', icon: <Award className="w-5 h-5" /> },
   { href: '/admin/seasons', label: 'Temporadas', icon: <Calendar className="w-5 h-5" /> },
   { href: '/admin/clubs', label: 'Clubes', icon: <Shield className="w-5 h-5" /> },
   { href: '/admin/players', label: 'Jugadores', icon: <UserCog className="w-5 h-5" /> },

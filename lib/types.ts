@@ -166,7 +166,7 @@ export type PlayerPosition =
 
 export type SquadRole = 'essential' | 'important' | 'rotation'
 export type ContractStatus = 'active' | 'free_agent' | 'renewal_pending'
-export type DtTab = 'home' | 'competitions' | 'stats' | 'calendar' | 'squad' | 'market' | 'news' | 'chat' | 'announcements'
+export type DtTab = 'home' | 'competitions' | 'stats' | 'calendar' | 'squad' | 'market' | 'news' | 'chat' | 'announcements' | 'hall_of_fame'
 export type PlayerEmailType = 'complaint' | 'apology' | 'demand' | 'farewell' | 'general' | 'promotion_demand' | 'plea'
 
 export interface Player {
@@ -718,4 +718,21 @@ export interface DiffusionInsert {
   title: string
   content: string
   image_url?: string | null
+}
+export interface Trophy {
+  id: string
+  name: string
+  image_url: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ClubTrophy {
+  id: string
+  club_id: string
+  trophy_id: string
+  quantity: number
+  created_at: string
+  updated_at: string
+  trophies?: Trophy
 }
