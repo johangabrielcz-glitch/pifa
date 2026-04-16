@@ -40,7 +40,7 @@ export async function sendExpoPush(tokens: string[], title: string, body: string
       title: isSilent ? undefined : title,
       body: isSilent ? undefined : body,
       data: finalData,
-      categoryId: categoryId || undefined,
+      categoryIdentifier: categoryId || undefined, // Corregido a categoryIdentifier
       mutableContent: mutableContent ? true : undefined,
       priority: 'high',
       channelId: 'default',
