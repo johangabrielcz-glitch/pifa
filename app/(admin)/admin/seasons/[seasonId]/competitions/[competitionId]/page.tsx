@@ -78,7 +78,7 @@ function generateGroupsMatches(clubs: CompetitionClub[], config: GroupsKnockoutC
   const matches: Partial<Match>[] = []
   const groups: Record<string, CompetitionClub[]> = {}
   clubs.forEach(c => { const g = c.group_name || 'A'; if (!groups[g]) groups[g] = []; groups[g].push(c) })
-  let matchdayOffset = 0
+  let maxGroupRounds = 0
   Object.entries(groups).forEach(([groupName, groupClubs]) => {
     const n = groupClubs.length; if (n < 2) return
     const teams = n % 2 === 0 ? [...groupClubs] : [...groupClubs, null]; const totalTeams = teams.length
@@ -87,19 +87,20 @@ function generateGroupsMatches(clubs: CompetitionClub[], config: GroupsKnockoutC
         const home = teams[i]; const away = teams[totalTeams - 1 - i]
         if (home && away) { 
           matches.push({ 
-            home_club_id: home.club_id, away_club_id: away.club_id, matchday: round + 1 + matchdayOffset, 
+            home_club_id: home.club_id, away_club_id: away.club_id, matchday: round + 1, 
             round_name: `Grupo ${groupName} - J${round + 1}`, group_name: groupName, leg: 1, status: 'scheduled' 
           }) 
         }
       }
       const last = teams.pop()!; teams.splice(1, 0, last)
     }
-    matchdayOffset += totalTeams - 1
+    const roundsForThisGroup = totalTeams - 1
+    if (roundsForThisGroup > maxGroupRounds) maxGroupRounds = roundsForThisGroup
   })
   const totalGroups = Object.keys(groups).length; const teamsPerGroup = config.qualify_per_group || 2; const totalAdvancing = totalGroups * teamsPerGroup
   const bracketSize = nextPowerOf2(totalAdvancing)
   const roundNames: Record<number, string> = { 2: 'Final', 4: 'Semifinales', 8: 'Cuartos de Final', 16: 'Octavos de Final', 32: 'Dieciseisavos de Final' }
-  let currentTeams = bracketSize; let koMatchday = matchdayOffset + 1
+  let currentTeams = bracketSize; let koMatchday = maxGroupRounds + 1
   while (currentTeams >= 2) {
     const roundName = roundNames[currentTeams] || `Ronda de ${currentTeams}`; const matchesInRound = Math.floor(currentTeams / 2)
     for (let i = 0; i < matchesInRound; i++) {

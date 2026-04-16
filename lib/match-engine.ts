@@ -55,50 +55,47 @@ export async function calculateMatchDeadlines(seasonId: string): Promise<void> {
 
   if (matchesError || !allMatches || allMatches.length === 0) return
 
-  // Build deadline map: for each competition, each matchday+leg gets an incremental 24h slot
-  // We use the GLOBAL order across all competitions so they share the timeline
-  const matchdaySlots: { compId: string; matchday: number; leg: number; firstOrder: number }[] = []
+  // Parallel Deadline Assignment: Each competition runs its schedule concurrently.
+  const updates: { id: string; deadline: string }[] = []
 
-  // Collect all unique combinations of (competition_id, matchday, leg)
+  // Group match slots by competition
+  const compsMap = new Map<string, { md: number; leg: number; firstOrder: number }[]>()
+
   for (const match of (allMatches as any[])) {
     const md = match.matchday ?? 1
     const leg = match.leg ?? 1
     const compId = match.competition_id
 
-    const exists = matchdaySlots.find(
-      s => s.compId === compId && s.matchday === md && s.leg === leg
-    )
-
+    if (!compsMap.has(compId)) {
+      compsMap.set(compId, [])
+    }
+    const compSlots = compsMap.get(compId)!
+    const exists = compSlots.find(s => s.md === md && s.leg === leg)
     if (!exists) {
-      matchdaySlots.push({
-        compId,
-        matchday: md,
-        leg,
-        firstOrder: match.match_order ?? 0,
-      })
+      compSlots.push({ md, leg, firstOrder: match.match_order ?? 0 })
     }
   }
 
-  // Sort by first match_order so the global calendar sequence is respected
-  matchdaySlots.sort((a, b) => a.firstOrder - b.firstOrder)
+  // Assign deadlines per competition so they play parallel to each other
+  for (const [compId, compSlots] of compsMap.entries()) {
+    // Sort slots by firstOrder to respect the user's sequence for this competition
+    compSlots.sort((a, b) => a.firstOrder - b.firstOrder)
 
-  // Assign deadlines: each slot gets its own 24h window
-  const updates: { id: string; deadline: string }[] = []
+    for (let currentTick = 0; currentTick < compSlots.length; currentTick++) {
+      const slot = compSlots[currentTick]
+      const deadlineMs = activatedAt.getTime() + (currentTick + 1) * 24 * 60 * 60 * 1000 // 24 horas por jornada paralela
+      const deadline = new Date(deadlineMs).toISOString()
 
-  for (let slotIndex = 0; slotIndex < matchdaySlots.length; slotIndex++) {
-    const slot = matchdaySlots[slotIndex]
-    const deadlineMs = activatedAt.getTime() + (slotIndex + 1) * 24 * 60 * 60 * 1000 // 24 horas por jornada
-    const deadline = new Date(deadlineMs).toISOString()
+      // Find all matches in this specific slot for this competition
+      const matchesInSlot = (allMatches as any[]).filter(
+        m => m.competition_id === compId && 
+             (m.matchday ?? 1) === slot.md &&
+             (m.leg ?? 1) === slot.leg
+      )
 
-    // Find all matches in this specific slot (competition + matchday + leg)
-    const matchesInSlot = (allMatches as any[]).filter(
-      m => m.competition_id === slot.compId && 
-           (m.matchday ?? 1) === slot.matchday &&
-           (m.leg ?? 1) === slot.leg
-    )
-
-    for (const match of matchesInSlot) {
-      updates.push({ id: match.id, deadline })
+      for (const match of matchesInSlot) {
+        updates.push({ id: match.id, deadline })
+      }
     }
   }
 
