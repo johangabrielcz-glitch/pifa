@@ -1129,7 +1129,7 @@ export function GlobalChat({ user, club, onBack }: { user: User; club: Club | nu
     sendPushToAll(
       `🖼️ ${club?.name || user.full_name}`,
       type === 'sticker' ? 'Envió un sticker' : `Envió una ${type === 'image' ? 'imagen' : 'video'}`,
-      { type: 'chat_media' },
+      { type: 'chat_media', messageId: newMsg.id, categoryId: 'chat_mensajes', mutableContent: true, mediaUrl: url },
       [user.id, ...onlineUsers.map(u => u.user_id)]
     )
   }
@@ -1412,17 +1412,17 @@ export function GlobalChat({ user, club, onBack }: { user: User; club: Club | nu
           const mentionedClubs = allDTs.filter(dt => dt.club?.name && text.trim().toLowerCase().includes(`@${dt.club.name.toLowerCase()}`))
 
             if (hasEveryone) {
-              sendPushToAll(`📢 @TODOS: Mensaje de ${club?.name || user.full_name}`, pushBody, { type: 'chat_mention_all' }, [user.id, ...onlineUsers.map(u => u.user_id)])
+              sendPushToAll(`📢 @TODOS: Mensaje de ${club?.name || user.full_name}`, pushBody, { type: 'chat_mention_all', messageId: newMsg.id, categoryId: 'chat_mensajes' }, [user.id, ...onlineUsers.map(u => u.user_id)])
             } else if (mentionedClubs.length > 0) {
               const onlineIds = onlineUsers.map(u => u.user_id)
               mentionedClubs.forEach(dt => {
                 if (dt.club_id && dt.club_id !== club?.id && !onlineIds.includes(dt.id)) {
-                  sendPushToClub(dt.club_id, `🔔 ¡Has sido etiquetado!`, `${club?.name || user.full_name}: ${pushBody}`, { type: 'chat_mention_direct' })
+                  sendPushToClub(dt.club_id, `🔔 ¡Has sido etiquetado!`, `${club?.name || user.full_name}: ${pushBody}`, { type: 'chat_mention_direct', messageId: newMsg.id, categoryId: 'chat_mensajes' })
                 }
               })
-              sendPushToAll(pushTitle, pushBody, { type: 'chat_message' }, [user.id, ...onlineIds])
+              sendPushToAll(pushTitle, pushBody, { type: 'chat_message', messageId: newMsg.id, categoryId: 'chat_mensajes' }, [user.id, ...onlineIds])
             } else {
-              sendPushToAll(pushTitle, pushBody, { type: 'chat_message' }, [user.id, ...onlineUsers.map(u => u.user_id)])
+              sendPushToAll(pushTitle, pushBody, { type: 'chat_message', messageId: newMsg.id, categoryId: 'chat_mensajes' }, [user.id, ...onlineUsers.map(u => u.user_id)])
             }
           }}
           onUploadMedia={handleFileUpload}
