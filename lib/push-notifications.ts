@@ -29,23 +29,15 @@ export async function sendExpoPush(tokens: string[], title: string, body: string
   }
 
   // SI ES SERVIDOR (API Routes o Motores) - Llamada directa a Expo
-  const messages = uniqueTokens.map(token => {
-    const { categoryId, mutableContent, ...restData } = data || {}
-    const isSilent = categoryId === 'chat_mensajes' || restData.type?.startsWith('chat')
-    const finalData = isSilent ? { ...restData, title, body } : restData
-
-    return {
-      to: token,
-      sound: isSilent ? undefined : 'default',
-      title: isSilent ? undefined : title,
-      body: isSilent ? undefined : body,
-      data: finalData,
-      categoryIdentifier: categoryId || undefined, // Corregido a categoryIdentifier
-      mutableContent: mutableContent ? true : undefined,
-      priority: 'high',
-      channelId: 'default',
-    }
-  })
+  const messages = uniqueTokens.map(token => ({
+    to: token,
+    sound: 'default',
+    title,
+    body,
+    data,
+    priority: 'high',
+    channelId: 'default',
+  }))
 
   try {
     const response = await fetch('https://exp.host/--/api/v2/push/send', {
