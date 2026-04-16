@@ -31,12 +31,19 @@ export async function sendExpoPush(tokens: string[], title: string, body: string
   // SI ES SERVIDOR (API Routes o Motores) - Llamada directa a Expo
   const messages = uniqueTokens.map(token => {
     const { categoryId, mutableContent, ...restData } = data || {}
+    
+    // Si la notificación es del chat, la convertimos en un Push Silencioso (Data-only)
+    // para que Notifee la intercepte y la dibuje localmente sin duplicarse.
+    const isSilent = categoryId === 'chat_mensajes' || restData.type?.startsWith('chat')
+    const finalData = isSilent ? { ...restData, title, body } : restData
+
     return {
       to: token,
-      sound: 'default',
-      title,
-      body,
-      data: restData,
+      sound: isSilent ? undefined : 'default',
+      title: isSilent ? undefined : title,
+      body: isSilent ? undefined : body,
+      data: finalData,
+      // Aunque sea silenciosa, mandamos estas flags de Expo por si acaso
       categoryId: categoryId || undefined,
       mutableContent: mutableContent ? true : undefined,
       priority: 'high',
