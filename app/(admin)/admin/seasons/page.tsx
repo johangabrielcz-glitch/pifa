@@ -7,6 +7,7 @@ import { Plus, Calendar, Trophy, Loader2, ChevronRight, Play, CheckCircle, Penci
 import { supabase } from '@/lib/supabase'
 import { calculateMatchDeadlines } from '@/lib/match-engine'
 import { revertContractDecrement, resetSalaryPayments, decrementContracts, toggleTransferWindow } from '@/lib/contract-engine'
+import { sendPushToAll } from '@/lib/push-notifications'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -126,7 +127,33 @@ export default function SeasonsPage() {
       if (compsError) throw compsError
       
       await calculateMatchDeadlines(season.id)
-      toast.success('PROTOCOLO DE ACTIVACIÁN COMPLETADO — DEADLINES ASIGNADOS'); 
+      
+      // 3. Global Notifications
+      try {
+        // Find all clubs to send internal notifications
+        const { data: clubs } = await supabase.from('clubs').select('id')
+        if (clubs && clubs.length > 0) {
+          const internalNotifs = clubs.map(c => ({
+            club_id: c.id,
+            title: '🏆 Nueva Temporada',
+            message: `¡El ciclo ${season.name} ha sido activado! Prepárate para la gloria.`,
+            type: 'season_active',
+            is_read: false
+          }))
+          await supabase.from('notifications').insert(internalNotifs)
+        }
+
+        // Send Push to everyone registered in Expo
+        await sendPushToAll(
+          '🏆 Temporada Activada',
+          `El ciclo ${season.name} está en marcha. ¡Consulta tu calendario y prepara tu táctica!`
+        )
+      } catch (notifErr) {
+        console.error('Error sending start notifications:', notifErr)
+        // We don't throw here to avoid stopping the whole process if notifications fail
+      }
+
+      toast.success('PROTOCOLO DE ACTIVACIÓN COMPLETADO — NOTIFICACIONES ENVIADAS'); 
       loadSeasons()
     } catch (error) { 
       toast.error('Error en la activación del protocolo') 

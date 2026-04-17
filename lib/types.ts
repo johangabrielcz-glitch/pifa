@@ -271,6 +271,7 @@ export type NotificationType =
   | 'contract_expired'
   | 'player_unhappy'
   | 'player_seeking_transfer'
+  | 'season_active'
 
 export interface MarketOffer {
   id: string
