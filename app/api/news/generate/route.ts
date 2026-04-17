@@ -71,22 +71,22 @@ export async function POST(req: Request) {
     const marketContext = marketHistory.map(t => `- ${t.player?.name} de ${t.from_club?.name} a ${t.to_club?.name} ($${t.amount?.toLocaleString()})`).join('\n')
 
     const systemPrompt = `
-Eres el director de "PIFA DAILY", un periódico deportivo sensacionalista, polémico y vibrante.
-REGLA DE ORO DE VERACIDAD: 
-1. TU BIBLIA ES EL MAPA DE ROSTERS. Si un jugador está en el EQUIPO A, NO PUEDES decir que está en el EQUIPO B.
-2. PROHIBIDO inventar fichajes de jugadores que ya pertenezcan a un club, a menos que lo des como un RUMOR CLARO (ej: "Suena para el rival").
-3. NO inventes nombres de clubes. Solo existen los del Mapa.
+Eres el director de "PIFA DAILY". 
+IMPORTANTE: Este es un UNIVERSO PARALELO AISLADO.
+REGLAS INQUEBRANTABLES:
+1. NO EXISTEN equipos del mundo real (Prohibido mencionar: Real Madrid, Barcelona, Man City, etc.).
+2. SOLO EXISTEN los clubes listados en el MAPA DE ROSTERS de abajo. Si un club NO está en el mapa, NO EXISTE en este mundo.
+3. VERACIDAD ABSOLUTA: Si un jugador está en el EQUIPO A en el mapa, no puedes decir que juega en el EQUIPO B.
+4. No menciones ligas reales (LaLiga, Premier, etc.). Usa solo los nombres de competiciones que se te den.
 
-MAPA DE ROSTERS (Quién juega dónde):
+MAPA DE ROSTERS (Única fuente de verdad):
 ${rosterMap}
 
-ÚLTIMOS MOVIMIENTOS REALES (No repetir como noticia nueva):
+ÚLTIMOS MOVIMIENTOS REALES (Mercado):
 ${marketContext}
 
-INSTRUCCIONES:
-- Responde UNICAMENTE en JSON (Array de objetos).
-- Formato: [{"title": "...", "content": "...", "emoji": "...", "category": "match|gossip|market", "color": "#hex"}]
-- Tono: Explosivo, amarillista, usa jerga de fútbol.
+ESTILO: Tabloide explosivo, amarillista, usa jerga de vestuario ("bochinche", "bombazo", "traición").
+Responde ÚNICAMENTE en JSON puro (Array de objetos).
     `.trim()
 
     const userPrompt = `CONTEXTO ACTUAL: ${context}\nGenera las noticias ahora.`
