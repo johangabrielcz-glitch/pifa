@@ -208,10 +208,33 @@ export default function CompetitionDetailPage({ params }: { params: Promise<{ se
 
       if (newMatches.length === 0) { toast.error('Fallo en el cálculo de enfrentamientos'); return }
 
+      // 1. Get all matches for this season to find the current max match_order
+      const { data: seasonComps } = await supabase
+        .from('competitions')
+        .select('id')
+        .eq('season_id', seasonId)
+      
+      const compIds = (seasonComps || []).map(c => c.id)
+      
+      const { data: existingMatches } = await supabase
+        .from('matches')
+        .select('match_order')
+        .in('competition_id', compIds)
+        .order('match_order', { ascending: false })
+        .limit(1)
+
+      const maxOrder = existingMatches && existingMatches.length > 0 ? existingMatches[0].match_order : 0
+
+      // 2. Assign order: If it's a cup or groups_knockout, we append to the end
+      // For leagues, we keep 1..N to allow interleaving if desired, or also append?
+      // Based on user feedback, they want tourneys at the end.
+      const isTourney = competition.type !== 'league'
+      const startOrder = isTourney ? maxOrder : 0
+
       const matchesWithOrder = newMatches.map((m, i) => ({ 
         ...m, 
         competition_id: competitionId, 
-        match_order: i + 1 
+        match_order: startOrder + i + 1 
       }))
       const { error } = await supabase.from('matches').insert(matchesWithOrder)
       if (error) throw error
