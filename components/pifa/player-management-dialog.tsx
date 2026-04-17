@@ -15,7 +15,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
-import { DollarSign, Tag, XCircle, CheckCircle2, User as UserIcon, Camera, Loader2, FileText, Heart, Star, ChevronRight } from 'lucide-react'
+import { DollarSign, Tag, XCircle, CheckCircle2, User as UserIcon, Camera, Loader2, FileText, Heart, Star, ChevronRight, MessageCircle } from 'lucide-react'
+import { PlayerChatDrawer } from './player-chat-drawer'
 
 interface PlayerManagementDialogProps {
   player: Player | null
@@ -32,6 +33,7 @@ export function PlayerManagementDialog({ player, isOpen, onClose, onUpdate, isPr
   const [salePrice, setSalePrice] = useState<string>(player?.sale_price?.toString() || '')
   const [payingsalary, setPayingsalary] = useState(false)
   const [showContractSection, setShowContractSection] = useState(true)
+  const [isChatOpen, setIsChatOpen] = useState(false)
   
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -166,7 +168,11 @@ export function PlayerManagementDialog({ player, isOpen, onClose, onUpdate, isPr
   ]
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <>
+      <Dialog open={isOpen} onOpenChange={(open) => {
+        if (!open) setIsChatOpen(false)
+        onClose()
+      }}>
       <DialogContent className="bg-[#0A0A0A] border-white/[0.08] text-white rounded-[24px] sm:max-w-[380px] overflow-hidden p-0 gap-0 shadow-2xl fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 max-h-[90vh] overflow-y-auto">
         <div className="p-6 pb-2">
           <DialogHeader className="mb-4">
@@ -415,9 +421,17 @@ export function PlayerManagementDialog({ player, isOpen, onClose, onUpdate, isPr
         </div>
 
         {!wantsToLeave && contractStatus === 'active' && (
-          <DialogFooter className="bg-[#0A0A0A]/50 border-t border-white/[0.04] p-5 sm:p-5 sm:justify-center">
+          <div className="px-6 pb-6 space-y-3">
             <Button
-              className={`w-full h-10 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all duration-300 shadow-xl flex items-center gap-2 ${
+              onClick={() => setIsChatOpen(true)}
+              className="w-full h-11 rounded-xl bg-white/5 border border-white/10 text-white hover:bg-white/10 text-[9px] font-black uppercase tracking-widest transition-all gap-2"
+            >
+              <MessageCircle className="w-4 h-4 text-[#00FF85]" />
+              Hablar con Jugador
+            </Button>
+
+            <Button
+              className={`w-full h-11 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all duration-300 shadow-xl flex items-center gap-2 ${
                 player.is_on_sale 
                   ? 'bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20' 
                   : 'bg-[#FF3131] text-white hover:bg-[#D32F2F] shadow-[0_0_15px_rgba(255,49,49,0.2)]'
@@ -437,9 +451,17 @@ export function PlayerManagementDialog({ player, isOpen, onClose, onUpdate, isPr
                 </>
               )}
             </Button>
-          </DialogFooter>
+          </div>
         )}
       </DialogContent>
     </Dialog>
+
+    <PlayerChatDrawer 
+        player={player}
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        clubId={player.club_id}
+      />
+    </>
   )
 }
