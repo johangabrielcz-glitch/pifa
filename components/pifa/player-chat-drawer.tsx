@@ -104,14 +104,15 @@ export function PlayerChatDrawer({ player, isOpen, onClose, clubId }: PlayerChat
           })
         })
 
-        // Si el servidor está saturado (429 o 503)
-        if (response.status === 429 || response.status === 503 || !response.ok) {
+        // Si el servidor está saturado (429 o 503) y nos quedan intentos
+        if ((response.status === 429 || response.status === 503 || !response.ok) && attempt < 3) {
           setRetryCount(attempt)
-          // Espera inteligente: cada vez esperamos un poco más, hasta un máximo de 10 segundos entre intentos
-          const waitTime = Math.min(attempt * 2000, 10000) 
+          const waitTime = Math.min(attempt * 2000, 5000) 
           await new Promise(resolve => setTimeout(resolve, waitTime))
           return sendWithPersistence(attempt + 1)
         }
+
+        if (!response.ok) throw new Error('Error al conectar')
 
         const data = await response.json()
         if (data.text) {
@@ -119,15 +120,18 @@ export function PlayerChatDrawer({ player, isOpen, onClose, clubId }: PlayerChat
           setLoading(false)
           setRetryCount(0)
         } else if (data.error) {
-          // Si hay un error de lógica, esperamos y reintentamos también
+          throw new Error(data.error)
+        }
+      } catch (err) {
+        if (attempt < 3) {
           setRetryCount(attempt)
           await new Promise(resolve => setTimeout(resolve, 3000))
           return sendWithPersistence(attempt + 1)
         }
-      } catch (err) {
-        setRetryCount(attempt)
-        await new Promise(resolve => setTimeout(resolve, 3000))
-        return sendWithPersistence(attempt + 1)
+        console.error('Chat error after retries:', err)
+        setError('El jugador no responde. El servidor podría estar saturado. Intenta de nuevo más tarde.')
+        setLoading(false)
+        setRetryCount(0)
       }
     }
 

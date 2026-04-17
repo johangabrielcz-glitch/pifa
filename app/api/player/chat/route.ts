@@ -44,8 +44,8 @@ export async function POST(req: Request) {
 
     if (!player || !club) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
-    // Limitar historial a los últimos 5 mensajes (Eficiencia máxima)
-    const recentMessages = messages.slice(-5)
+    // Limitar historial a los últimos 7 mensajes (Equilibrio entre memoria y eficiencia)
+    const recentMessages = messages.slice(-7)
 
     if (messages.length === 0) {
       return NextResponse.json({ text: null, history: storedHistory })
