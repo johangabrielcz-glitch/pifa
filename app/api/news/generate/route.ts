@@ -12,7 +12,7 @@ const MODELS_HIERARCHY = [
 ]
 
 /**
- * Endpoint de generación de noticias con MAPA DE ROSTERS (Anti-Alucinación).
+ * Endpoint de generación de noticias con MAPA DE ROSTERS y FILTRO DE PARTICIPACIÓN.
  */
 export async function POST(req: Request) {
   try {
@@ -21,9 +21,9 @@ export async function POST(req: Request) {
     const apiKey = process.env.GROQ_API_KEY
     if (!apiKey) return NextResponse.json({ error: 'IA no configurada' }, { status: 500 })
 
-    // 1. OBTENER MAPA MAESTRO DE LA LIGA (PARA EVITAR ALUCINACIONES)
+    // 1. OBTENER INFORMACIÓN BASE DE LA LIGA
     const [playersRes, clubsRes, marketRes] = await Promise.all([
-      supabase.from('players').select('name, club_id'),
+      supabase.from('players').select('id, name, club_id'),
       supabase.from('clubs').select('id, name'),
       supabase.from('market_history').select('*, player:players(name), from_club:clubs!market_history_from_club_id_fkey(name), to_club:clubs!market_history_to_club_id_fkey(name)').order('created_at', { ascending: false }).limit(6)
     ])
@@ -38,9 +38,9 @@ export async function POST(req: Request) {
     }).join(' | ')
 
     let context = ""
-    let participants: string[] = []
+    let participantsIds = new Set<string>()
 
-    // CASO A: Partido
+    // CASO A: Partido (CON FILTRO DE PARTICIPANTES REALES)
     if (isMatchTrigger && matchId) {
       const { data: m } = await supabase
         .from('matches')
@@ -48,14 +48,38 @@ export async function POST(req: Request) {
         .eq('id', matchId)
         .single()
       
-      const { data: ann } = await supabase.from('match_annotations').select('*, player:players(name)').eq('match_id', matchId)
+      const { data: annData } = await supabase.from('match_annotations').select('*').eq('match_id', matchId)
+      
+      // Recopilar IDs de todos los que pisaron el campo
+      if (annData) {
+        annData.forEach(row => {
+          if (row.starting_xi) row.starting_xi.forEach((id: string) => participantsIds.add(id))
+          if (row.substitutes_in) {
+            row.substitutes_in.forEach((s: any) => {
+              const sid = typeof s === 'string' ? s : s.player_in
+              if (sid) participantsIds.add(sid)
+            })
+          }
+          // Asegurar goleadores/asistentes
+          if (row.goals) row.goals.forEach((g: any) => participantsIds.add(g.player_id))
+          if (row.assists) row.assists.forEach((a: any) => participantsIds.add(a.player_id))
+        })
+      }
 
-      participants = [m?.home_club_id, m?.away_club_id].filter(Boolean) as string[]
+      const participantNames = Array.from(participantsIds)
+        .map(id => allPlayers.find(p => p.id === id)?.name)
+        .filter(Boolean)
+        .join(', ')
+
       context = `
         EVENTO: FINAL DE PARTIDO
         LIGA/COPA: ${m?.competition?.name}
         RESULTADO: ${m?.home_club?.name} ${m?.home_score} - ${m?.away_score} ${m?.away_club?.name}
-        GOLES/HITOS: ${ann?.map(a => `${a.player?.name} (${a.club_id === m?.home_club_id ? m?.home_club?.name : m?.away_club?.name})`).join(', ')}
+        JUGADORES QUE PARTICIPARON (ÚNICA LISTA DE CRÓNICA): ${participantNames}
+        HITOS (Goles/MVP): ${annData?.map(row => {
+          const goalsDesc = row.goals?.map((g: any) => `${allPlayers.find(p => p.id === g.player_id)?.name} (GOL)`).join(', ')
+          return goalsDesc || ''
+        }).filter(Boolean).join(' | ')}
       `
     } 
     // CASO B: Mercado
@@ -71,21 +95,20 @@ export async function POST(req: Request) {
     const marketContext = marketHistory.map(t => `- ${t.player?.name} de ${t.from_club?.name} a ${t.to_club?.name} ($${t.amount?.toLocaleString()})`).join('\n')
 
     const systemPrompt = `
-Eres el director de "PIFA DAILY". 
-IMPORTANTE: Este es un UNIVERSO PARALELO AISLADO.
-REGLAS INQUEBRANTABLES:
-1. NO EXISTEN equipos del mundo real (Prohibido mencionar: Real Madrid, Barcelona, Man City, etc.).
-2. SOLO EXISTEN los clubes listados en el MAPA DE ROSTERS de abajo. Si un club NO está en el mapa, NO EXISTE en este mundo.
-3. VERACIDAD ABSOLUTA: Si un jugador está en el EQUIPO A en el mapa, no puedes decir que juega en el EQUIPO B.
-4. No menciones ligas reales (LaLiga, Premier, etc.). Usa solo los nombres de competiciones que se te den.
+ERES EL DIRECTOR DE "PIFA DAILY". ESTE ES UN UNIVERSO PARALELO AISLADO.
+REGLAS INQUEBRANTABLES (CUMPLIMIENTO AL 100%):
+1. **FILTRO DE PARTIDO (CRÍTICO)**: En crónicas de partidos, SOLO puedes nombrar a jugadores que aparezcan en la lista "JUGADORES QUE PARTICIPARON". Si un jugador está en el Mapa de Rosters pero NO jugó el partido, tienes PROHIBIDO mencionarlo. No inventes que una estrella jugó si no está en la lista de participantes.
+2. **PROHIBIDO INVENTAR FICHAJES**: Solo reporta fichajes si se dan en el "CONTEXTO ACTUAL" o "BOMBAZO". NUNCA imagines traspasos.
+3. **MAPA DE ROSTERS ES EL LÍMITE**: Solo existen los jugadores y clubes listados. No menciones nombres externos (Real Madrid, Messi, etc.).
+4. **MERCADO PASADO**: La lista de "MOVIMIENTOS REALES" es solo informativa, no los reportes como nuevos.
 
-MAPA DE ROSTERS (Única fuente de verdad):
+MAPA DE ROSTERS:
 ${rosterMap}
 
-ÚLTIMOS MOVIMIENTOS REALES (Mercado):
+ÚLTIMOS MOVIMIENTOS REALES (PARA TU INFORMACIÓN):
 ${marketContext}
 
-ESTILO: Tabloide explosivo, amarillista, usa jerga de vestuario ("bochinche", "bombazo", "traición").
+ESTILO: Sensacionalista, amarillista, usa "BOMBAZO", "ESCÁNDALO". Máximo 1 párrafo por noticia.
 Responde ÚNICAMENTE en JSON puro (Array de objetos).
     `.trim()
 
@@ -127,7 +150,7 @@ Responde ÚNICAMENTE en JSON puro (Array de objetos).
 
     // GUARDAR
     const toInsert = newsItems.slice(0, 3).map((item: any) => ({
-      club_id: isMatchTrigger ? null : clubId, // Global o Club
+      club_id: isMatchTrigger ? null : clubId, 
       title: item.title,
       content: item.content,
       emoji: item.emoji || '🗞️',
