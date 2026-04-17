@@ -92,7 +92,7 @@ export function PlayerChatDrawer({ player, isOpen, onClose, clubId }: PlayerChat
     setLoading(true)
     setRetryCount(0)
 
-    const sendRequest = async (retriesLeft: number): Promise<void> => {
+    const sendWithPersistence = async (attempt: number): Promise<void> => {
       try {
         const response = await fetch('/api/player/chat', {
           method: 'POST',
@@ -104,36 +104,34 @@ export function PlayerChatDrawer({ player, isOpen, onClose, clubId }: PlayerChat
           })
         })
 
-        if (response.status === 429 || response.status === 503) {
-          if (retriesLeft > 0) {
-            setRetryCount(3 - retriesLeft + 1)
-            await new Promise(resolve => setTimeout(resolve, 2000 * (4 - retriesLeft))) // Espera exponencial
-            return sendRequest(retriesLeft - 1)
-          }
+        // Si el servidor está saturado (429 o 503)
+        if (response.status === 429 || response.status === 503 || !response.ok) {
+          setRetryCount(attempt)
+          // Espera inteligente: cada vez esperamos un poco más, hasta un máximo de 10 segundos entre intentos
+          const waitTime = Math.min(attempt * 2000, 10000) 
+          await new Promise(resolve => setTimeout(resolve, waitTime))
+          return sendWithPersistence(attempt + 1)
         }
-
-        if (!response.ok) throw new Error('Error al conectar')
 
         const data = await response.json()
         if (data.text) {
           setMessages(prev => [...prev, { role: 'assistant', content: data.text }])
+          setLoading(false)
+          setRetryCount(0)
         } else if (data.error) {
-          throw new Error(data.error)
+          // Si hay un error de lógica, esperamos y reintentamos también
+          setRetryCount(attempt)
+          await new Promise(resolve => setTimeout(resolve, 3000))
+          return sendWithPersistence(attempt + 1)
         }
       } catch (err) {
-        if (retriesLeft > 0) {
-          setRetryCount(3 - retriesLeft + 1)
-          await new Promise(resolve => setTimeout(resolve, 2000))
-          return sendRequest(retriesLeft - 1)
-        }
-        console.error('Chat error after retries:', err)
-        setError('El servidor está muy ocupado. Por favor, espera un momento e intenta de nuevo.')
+        setRetryCount(attempt)
+        await new Promise(resolve => setTimeout(resolve, 3000))
+        return sendWithPersistence(attempt + 1)
       }
     }
 
-    await sendRequest(3)
-    setLoading(false)
-    setRetryCount(0)
+    sendWithPersistence(1)
     setTimeout(() => inputRef.current?.focus(), 50)
   }
 
