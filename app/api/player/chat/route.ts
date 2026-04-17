@@ -23,7 +23,8 @@ export async function POST(req: Request) {
       allClubsRes,
       trophiesRes,
       emailsRes,
-      chatHistoryRes
+      chatHistoryRes,
+      allPlayersRes
     ] = await Promise.all([
       supabase.from('players').select('*').eq('id', playerId).single(),
       supabase.from('clubs').select('*').eq('id', clubId).single(),
@@ -31,7 +32,8 @@ export async function POST(req: Request) {
       supabase.from('clubs').select('id, name'),
       supabase.from('club_trophies').select('*, trophies(*)'),
       supabase.from('player_emails').select('*').eq('player_id', playerId).order('created_at', { ascending: false }).limit(5),
-      supabase.from('player_chats').select('messages').eq('player_id', playerId).eq('club_id', clubId).single()
+      supabase.from('player_chats').select('messages').eq('player_id', playerId).eq('club_id', clubId).single(),
+      supabase.from('players').select('id, name, position, club_id')
     ])
 
     const player = playerRes.data
@@ -41,8 +43,26 @@ export async function POST(req: Request) {
     const allTrophies = trophiesRes.data || []
     const pastEmails = emailsRes.data || []
     const storedHistory = chatHistoryRes.data?.messages || []
+    const allPlayersInLeague = allPlayersRes.data || []
 
     if (!player || !club) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
+
+    // Agrupar compañeros y rivales
+    const teammates = allPlayersInLeague
+      .filter(p => p.club_id === clubId && p.id !== playerId)
+      .map(p => `${p.name} (${p.position})`)
+      .join(', ')
+
+    const rivalsByClub = allClubs
+      .filter(c => c.id !== clubId)
+      .map(c => {
+        const clubPlayers = allPlayersInLeague
+          .filter(p => p.club_id === c.id)
+          .map(p => `${p.name} (${p.position})`)
+          .join(', ')
+        return `- ${c.name}: ${clubPlayers || 'Sin jugadores registrados'}`
+      })
+      .join('\n')
 
     // Si el usuario envía mensajes vacíos, solo quiere cargar el historial
     if (messages.length === 0) {
@@ -84,6 +104,12 @@ TU IDENTIDAD Y CONTRATO:
 - Rol: ${player.squad_role === 'essential' ? 'Jugador Esencial' : player.squad_role === 'important' ? 'Importante' : 'Rotación'}
 - Estatus: ${player.salary_paid_this_season ? 'Salario al día' : 'Pendiente de pago'}
 
+TU VESTUARIO (COMPAÑEROS):
+${teammates || 'No tienes compañeros registrados todavía.'}
+
+TU MAPA DE LA LIGA (RIVALES POR CLUB):
+${rivalsByClub}
+
 TU MEMORIA DE CORREOS ENVIADOS AL DT:
 ${pastEmails.length > 0 ? pastEmails.map(e => {
   const date = new Date(e.created_at).toLocaleDateString('es-ES');
@@ -100,8 +126,9 @@ ${activeComps?.map(comp => {
   const myStanding = compStandings.find(s => s.club_id === clubId);
   const myPos = compStandings.indexOf(myStanding!) + 1;
   const hasPlayed = compStandings.some(s => s.played > 0);
+  const rivals = compStandings.map(s => s.club?.name).join(', ');
   
-  return `- ${comp.name}: Posición ${myPos}/${compStandings.length}. ${hasPlayed ? 'Ya hay partidos jugados.' : 'Aún no se han jugado partidos en esta competencia.'}`;
+  return `- ${comp.name}: Posición ${myPos}/${compStandings.length}. Equipos participantes: ${rivals}. ${hasPlayed ? 'Ya hay partidos jugados.' : 'Aún no se han jugado partidos.'}`;
 }).join('\n')}
 
 ESTADÍSTICAS LÍDERES:
@@ -131,7 +158,8 @@ REGLAS DE ACTUACIÓN (CRÍTICAS):
 4. Independencia de Historial: Ignora si antes fuiste sumiso. Hoy eres firme.
 5. Tono Realista: 
    - Si eres "Soberbio": Sé arrogante y dile al DT que deje de perder el tiempo aquí si quiere hablar de dinero.
-   - Si eres "Humilde": Sé firme pero educado, insistiendo en que tu contrato es sagrado.
+   - Si eres "Humilde": Sé firme pero educado, proyectando lealtad a tus compañeros.
+6. Conocimiento Social: Conoces a tus compañeros de equipo y a los jugadores de otros clubes. Si el DT te pregunta por alguien, responde con propiedad.
 
 CONTEXTO ACTUAL DEL JUGADOR:
 ${contextString}
@@ -153,7 +181,7 @@ ${contextString}
           ...messages
         ],
         temperature: 0.8,
-        max_tokens: 600
+        max_tokens: 800
       })
     })
 
