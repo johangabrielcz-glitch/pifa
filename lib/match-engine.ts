@@ -38,10 +38,10 @@ import {
 export async function calculateMatchDeadlines(seasonId: string): Promise<void> {
   const activatedAt = new Date()
 
-  // Get all competitions in this season with their types
+  // Get all competitions in this season
   const { data: competitions } = await supabase
     .from('competitions')
-    .select('id, type')
+    .select('id')
     .eq('season_id', seasonId)
 
   if (!competitions || competitions.length === 0) return
@@ -55,64 +55,36 @@ export async function calculateMatchDeadlines(seasonId: string): Promise<void> {
 
   if (matchesError || !allMatches || allMatches.length === 0) return
 
-  // Parallel Deadline Assignment: Each competition runs its schedule concurrently.
+  // Visual Flow Deadline Assignment: 
+  // This logic ensures that the global clock advances based on the sequence of matches,
+  // respecting visual gaps while still allowing parallelism for interleaved league matches.
   const updates: { id: string; deadline: string }[] = []
-
-  // Group match slots by competition
-  const compsMap = new Map<string, { md: number; leg: number; firstOrder: number }[]>()
+  
+  let lastGlobalDay = 0; // The current progress of the global clock
+  const compCurrentDay = new Map<string, number>() // Tracks the last day assigned to each competition
+  const slotDay = new Map<string, number>() // Stores the day for each unique slot (compId, md, leg)
 
   for (const match of (allMatches as any[])) {
-    const md = match.matchday ?? 1
-    const leg = match.leg ?? 1
     const compId = match.competition_id
+    const slotKey = `${compId}-${match.matchday || 1}-${match.leg || 1}`
 
-    if (!compsMap.has(compId)) {
-      compsMap.set(compId, [])
+    if (!slotDay.has(slotKey)) {
+      // The day for this slot is the maximum between the global current progress 
+      // and the next logical day for this specific competition.
+      const prevCompDay = compCurrentDay.get(compId) || 0
+      const targetDay = Math.max(lastGlobalDay, prevCompDay + 1)
+      
+      slotDay.set(slotKey, targetDay)
+      compCurrentDay.set(compId, targetDay)
     }
-    const compSlots = compsMap.get(compId)!
-    const exists = compSlots.find(s => s.md === md && s.leg === leg)
-    if (!exists) {
-      compSlots.push({ md, leg, firstOrder: match.match_order ?? 0 })
-    }
-  }
 
-  // Map competition IDs to their types
-  const compTypeMap = new Map<string, string>()
-  competitions.forEach((c: any) => compTypeMap.set(c.id, c.type))
-
-  // Calculate the maximum number of matchdays across all LEAGUES
-  let maxLeagueTicks = 0
-  for (const [compId, compSlots] of compsMap.entries()) {
-    if (compTypeMap.get(compId) === 'league') {
-      maxLeagueTicks = Math.max(maxLeagueTicks, compSlots.length)
-    }
-  }
-
-  // Assign deadlines per competition
-  for (const [compId, compSlots] of compsMap.entries()) {
-    // Sort slots by firstOrder to respect the user's sequence for this competition
-    compSlots.sort((a, b) => a.firstOrder - b.firstOrder)
-
-    const isTourney = compTypeMap.get(compId) !== 'league'
-    // If it's a cup or groups_knockout, start it after the leagues finish
-    const startOffset = isTourney ? maxLeagueTicks : 0
-
-    for (let currentTick = 0; currentTick < compSlots.length; currentTick++) {
-      const slot = compSlots[currentTick]
-      const deadlineMs = activatedAt.getTime() + (startOffset + currentTick + 1) * 24 * 60 * 60 * 1000 
-      const deadline = new Date(deadlineMs).toISOString()
-
-      // Find all matches in this specific slot for this competition
-      const matchesInSlot = (allMatches as any[]).filter(
-        m => m.competition_id === compId && 
-             (m.matchday ?? 1) === slot.md &&
-             (m.leg ?? 1) === slot.leg
-      )
-
-      for (const match of matchesInSlot) {
-        updates.push({ id: match.id, deadline })
-      }
-    }
+    const assignedDay = slotDay.get(slotKey)!
+    const deadlineMs = activatedAt.getTime() + assignedDay * 24 * 60 * 60 * 1000 
+    
+    updates.push({ id: match.id, deadline: new Date(deadlineMs).toISOString() })
+    
+    // The global clock advances only as far as the current match's assigned day
+    lastGlobalDay = Math.max(lastGlobalDay, assignedDay)
   }
 
   // Batch update deadlines

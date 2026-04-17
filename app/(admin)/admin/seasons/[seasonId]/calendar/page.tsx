@@ -42,7 +42,11 @@ export default function SeasonCalendarPage({ params }: { params: Promise<{ seaso
           .select(`*, home_club:clubs!matches_home_club_id_fkey(*), away_club:clubs!matches_away_club_id_fkey(*), competition:competitions!inner(*)`)
           .in('competition_id', compsData.map(c => c.id))
           .order('match_order', { ascending: true })
-        if (matchesData) setMatches(matchesData as MatchWithDetails[])
+        if (matchesData) {
+          // Normalize orders to be 1..N unique immediately to avoid "stuck" bugs
+          const normalized = (matchesData as MatchWithDetails[]).map((m, i) => ({ ...m, match_order: i + 1 }))
+          setMatches(normalized)
+        }
       }
     }
     setIsLoading(false)
@@ -56,19 +60,24 @@ export default function SeasonCalendarPage({ params }: { params: Promise<{ seaso
     const newIndex = direction === 'up' ? index - 1 : index + 1
     if (newIndex < 0 || newIndex >= filteredMatches.length) return
     
-    const newMatches = [...matches]
-    const filteredMatch = filteredMatches[index]
-    const swapMatch = filteredMatches[newIndex]
+    // To move in the full list when filtered, we find the absolute goal position
+    const targetMatch = filteredMatches[newIndex]
+    moveToPosition(filteredMatches[index].id, targetMatch.match_order)
+  }
+
+  const moveToPosition = (matchId: string, newRequestedPosition: number) => {
+    if (!isEditable) return
+    const pos = Math.max(1, Math.min(newRequestedPosition, matches.length))
+    const list = [...matches]
+    const index = list.findIndex(m => m.id === matchId)
+    if (index === -1) return
     
-    const actualIndex = matches.findIndex(m => m.id === filteredMatch.id)
-    const actualSwapIndex = matches.findIndex(m => m.id === swapMatch.id)
+    const [movedMatch] = list.splice(index, 1)
+    list.splice(pos - 1, 0, movedMatch)
     
-    const tempOrder = newMatches[actualIndex].match_order
-    newMatches[actualIndex].match_order = newMatches[actualSwapIndex].match_order
-    newMatches[actualSwapIndex].match_order = tempOrder
-    
-    newMatches.sort((a, b) => a.match_order - b.match_order)
-    setMatches(newMatches)
+    // Critical: Re-index everything to maintain 1..N uniqueness
+    const normalized = list.map((m, i) => ({ ...m, match_order: i + 1 }))
+    setMatches(normalized)
     setHasChanges(true)
   }
 
@@ -181,9 +190,19 @@ export default function SeasonCalendarPage({ params }: { params: Promise<{ seaso
                   className={`group relative flex items-center gap-4 animate-fade-in-up ${isTBD ? 'opacity-40 grayscale' : ''}`}
                   style={{ animationDelay: `${index * 20}ms` }}
                 >
-                  {/* Sequence Number */}
-                  <div className="relative z-10 w-10 flex-shrink-0 text-center">
-                    <p className="text-[10px] font-black text-[#2D2D2D] group-hover:text-[#FF3131] transition-colors">{match.match_order}</p>
+                  {/* Sequence Number & Quick Move */}
+                  <div className="relative z-10 w-12 flex-shrink-0 text-center flex flex-col items-center gap-1">
+                    {isEditable ? (
+                      <input 
+                        type="number"
+                        className="w-10 h-7 bg-black border border-[#202020] rounded-lg text-[10px] font-black text-[#FF3131] text-center focus:border-[#FF3131] outline-none transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        value={match.match_order}
+                        onChange={(e) => moveToPosition(match.id, parseInt(e.target.value) || match.match_order)}
+                      />
+                    ) : (
+                      <p className="text-[10px] font-black text-[#2D2D2D] group-hover:text-[#FF3131] transition-colors">{match.match_order}</p>
+                    )}
+                    <span className="text-[6px] text-[#2D2D2D] font-black uppercase">ORDEN</span>
                   </div>
                   
                   {/* Match Card */}

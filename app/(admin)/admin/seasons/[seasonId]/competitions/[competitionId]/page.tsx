@@ -66,8 +66,10 @@ function generateCupMatches(clubs: Club[], config: CupConfig): Partial<Match>[] 
     const matchesInRound = Math.floor(teamsInNextRound / 2)
     const roundName = roundNames[teamsInNextRound] || `Ronda de ${teamsInNextRound}`
     for (let i = 0; i < matchesInRound; i++) {
-      matches.push({ home_club_id: null, away_club_id: null, matchday, round_name: config.legs === 2 ? `${roundName} - Ida` : roundName, leg: 1, status: 'scheduled' })
-      if (config.legs === 2) { matches.push({ home_club_id: null, away_club_id: null, matchday, round_name: `${roundName} - Vuelta`, leg: 2, status: 'scheduled' }) }
+      const isFinal = teamsInNextRound === 2
+      const useTwoLegs = config.legs === 2 && !isFinal
+      matches.push({ home_club_id: null, away_club_id: null, matchday, round_name: useTwoLegs ? `${roundName} - Ida` : roundName, leg: 1, status: 'scheduled' })
+      if (useTwoLegs) { matches.push({ home_club_id: null, away_club_id: null, matchday, round_name: `${roundName} - Vuelta`, leg: 2, status: 'scheduled' }) }
     }
     teamsInNextRound = matchesInRound + (teamsInNextRound % 2); matchday++
   }
@@ -104,8 +106,10 @@ function generateGroupsMatches(clubs: CompetitionClub[], config: GroupsKnockoutC
   while (currentTeams >= 2) {
     const roundName = roundNames[currentTeams] || `Ronda de ${currentTeams}`; const matchesInRound = Math.floor(currentTeams / 2)
     for (let i = 0; i < matchesInRound; i++) {
-      matches.push({ home_club_id: null, away_club_id: null, matchday: koMatchday, round_name: config.knockout_legs === 2 ? `${roundName} - Ida` : roundName, group_name: null, leg: 1, status: 'scheduled' })
-      if (config.knockout_legs === 2) { matches.push({ home_club_id: null, away_club_id: null, matchday: koMatchday, round_name: `${roundName} - Vuelta`, group_name: null, leg: 2, status: 'scheduled' }) }
+      const isFinal = currentTeams === 2
+      const useTwoLegs = config.knockout_legs === 2 && !isFinal
+      matches.push({ home_club_id: null, away_club_id: null, matchday: koMatchday, round_name: useTwoLegs ? `${roundName} - Ida` : roundName, group_name: null, leg: 1, status: 'scheduled' })
+      if (useTwoLegs) { matches.push({ home_club_id: null, away_club_id: null, matchday: koMatchday, round_name: `${roundName} - Vuelta`, group_name: null, leg: 2, status: 'scheduled' }) }
     }
     currentTeams = Math.floor(currentTeams / 2); koMatchday++
   }
