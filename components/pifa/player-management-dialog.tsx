@@ -31,7 +31,6 @@ export function PlayerManagementDialog({ player, isOpen, onClose, onUpdate, isPr
   const [photoLoading, setPhotoLoading] = useState(false)
   const [salePrice, setSalePrice] = useState<string>(player?.sale_price?.toString() || '')
   const [payingsalary, setPayingsalary] = useState(false)
-  const [selectedRole, setSelectedRole] = useState<SquadRole | null>(player?.squad_role ?? null)
   const [showContractSection, setShowContractSection] = useState(true)
   
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -126,22 +125,6 @@ export function PlayerManagementDialog({ player, isOpen, onClose, onUpdate, isPr
       toast.error('Error al pagar salario')
     } finally {
       setPayingsalary(false)
-    }
-  }
-
-  async function handleRoleChange(role: SquadRole) {
-    setSelectedRole(role)
-    try {
-      const { error } = await supabase
-        .from('players')
-        .update({ squad_role: role, updated_at: new Date().toISOString() })
-        .eq('id', player!.id)
-
-      if (error) throw error
-      toast.success(`Rol actualizado: ${role === 'essential' ? 'Esencial' : role === 'important' ? 'Importante' : 'Rotación'}`)
-      if (onUpdate) onUpdate()
-    } catch (err: any) {
-      toast.error('Error al actualizar rol')
     }
   }
 
@@ -278,29 +261,22 @@ export function PlayerManagementDialog({ player, isOpen, onClose, onUpdate, isPr
                     <span className="text-[7px] font-black text-[#6A6C6E] uppercase tracking-[0.2em] ml-1">Rol en plantilla</span>
                     <div className="grid grid-cols-3 gap-1.5">
                       {roleButtons.map(role => (
-                        <button
+                        <div
                           key={role.value}
-                          onClick={() => isPreseason ? handleRoleChange(role.value) : null}
-                          disabled={!isPreseason}
-                          className={`py-2 px-1 rounded-xl text-[8px] font-black uppercase tracking-wider transition-all border ${
-                            (selectedRole || player.squad_role) === role.value
+                          className={`py-2 px-1 rounded-xl text-[8px] font-black uppercase tracking-wider transition-all border text-center ${
+                            player.squad_role === role.value
                               ? role.value === 'essential' 
                                 ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
                                 : role.value === 'important'
                                 ? 'bg-blue-500/20 text-blue-400 border-blue-500/30'
                                 : 'bg-white/10 text-white/60 border-white/20'
-                              : 'bg-[#141414] text-[#2D2D2D] border-[#202020] hover:border-white/20'
-                          } ${!isPreseason ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              : 'bg-[#141414] text-[#2D2D2D] border-[#202020]'
+                          }`}
                         >
                           {role.emoji} {role.label}
-                        </button>
+                        </div>
                       ))}
                     </div>
-                    {!isPreseason && (
-                      <p className="text-[7px] font-bold text-[#2D2D2D] uppercase tracking-widest text-center mt-1">
-                        Solo modificable en pretemporada
-                      </p>
-                    )}
                   </div>
 
                   {/* Morale Bar */}
