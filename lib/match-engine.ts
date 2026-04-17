@@ -38,10 +38,10 @@ import {
 export async function calculateMatchDeadlines(seasonId: string): Promise<void> {
   const activatedAt = new Date()
 
-  // Get all competitions in this season
+  // Get all competitions in this season with their types
   const { data: competitions } = await supabase
     .from('competitions')
-    .select('id')
+    .select('id, type')
     .eq('season_id', seasonId)
 
   if (!competitions || competitions.length === 0) return
@@ -76,14 +76,30 @@ export async function calculateMatchDeadlines(seasonId: string): Promise<void> {
     }
   }
 
-  // Assign deadlines per competition so they play parallel to each other
+  // Map competition IDs to their types
+  const compTypeMap = new Map<string, string>()
+  competitions.forEach((c: any) => compTypeMap.set(c.id, c.type))
+
+  // Calculate the maximum number of matchdays across all LEAGUES
+  let maxLeagueTicks = 0
+  for (const [compId, compSlots] of compsMap.entries()) {
+    if (compTypeMap.get(compId) === 'league') {
+      maxLeagueTicks = Math.max(maxLeagueTicks, compSlots.length)
+    }
+  }
+
+  // Assign deadlines per competition
   for (const [compId, compSlots] of compsMap.entries()) {
     // Sort slots by firstOrder to respect the user's sequence for this competition
     compSlots.sort((a, b) => a.firstOrder - b.firstOrder)
 
+    const isTourney = compTypeMap.get(compId) !== 'league'
+    // If it's a cup or groups_knockout, start it after the leagues finish
+    const startOffset = isTourney ? maxLeagueTicks : 0
+
     for (let currentTick = 0; currentTick < compSlots.length; currentTick++) {
       const slot = compSlots[currentTick]
-      const deadlineMs = activatedAt.getTime() + (currentTick + 1) * 24 * 60 * 60 * 1000 // 24 horas por jornada paralela
+      const deadlineMs = activatedAt.getTime() + (startOffset + currentTick + 1) * 24 * 60 * 60 * 1000 
       const deadline = new Date(deadlineMs).toISOString()
 
       // Find all matches in this specific slot for this competition
