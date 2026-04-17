@@ -77,36 +77,64 @@ export function PlayerChatDrawer({ player, isOpen, onClose, clubId }: PlayerChat
     }
   }, [messages, loading])
 
+  const [error, setError] = useState<string | null>(null)
+
+  const [retryCount, setRetryCount] = useState(0)
+
   const handleSend = async () => {
     if (!input.trim() || !player || loading) return
 
+    setError(null)
     const userMsg: Message = { role: 'user', content: input }
     const updatedMessages = [...messages, userMsg]
     setMessages(updatedMessages)
     setInput('')
     setLoading(true)
+    setRetryCount(0)
 
-    try {
-      const response = await fetch('/api/player/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          playerId: player.id,
-          clubId,
-          messages: updatedMessages
+    const sendRequest = async (retriesLeft: number): Promise<void> => {
+      try {
+        const response = await fetch('/api/player/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            playerId: player.id,
+            clubId,
+            messages: updatedMessages
+          })
         })
-      })
 
-      const data = await response.json()
-      if (data.text) {
-        setMessages(prev => [...prev, { role: 'assistant', content: data.text }])
+        if (response.status === 429 || response.status === 503) {
+          if (retriesLeft > 0) {
+            setRetryCount(3 - retriesLeft + 1)
+            await new Promise(resolve => setTimeout(resolve, 2000 * (4 - retriesLeft))) // Espera exponencial
+            return sendRequest(retriesLeft - 1)
+          }
+        }
+
+        if (!response.ok) throw new Error('Error al conectar')
+
+        const data = await response.json()
+        if (data.text) {
+          setMessages(prev => [...prev, { role: 'assistant', content: data.text }])
+        } else if (data.error) {
+          throw new Error(data.error)
+        }
+      } catch (err) {
+        if (retriesLeft > 0) {
+          setRetryCount(3 - retriesLeft + 1)
+          await new Promise(resolve => setTimeout(resolve, 2000))
+          return sendRequest(retriesLeft - 1)
+        }
+        console.error('Chat error after retries:', err)
+        setError('El servidor está muy ocupado. Por favor, espera un momento e intenta de nuevo.')
       }
-    } catch (err) {
-      console.error('Chat error:', err)
-    } finally {
-      setLoading(false)
-      setTimeout(() => inputRef.current?.focus(), 50)
     }
+
+    await sendRequest(3)
+    setLoading(false)
+    setRetryCount(0)
+    setTimeout(() => inputRef.current?.focus(), 50)
   }
 
   if (!player) return null
@@ -204,9 +232,23 @@ export function PlayerChatDrawer({ player, isOpen, onClose, clubId }: PlayerChat
                     <motion.div animate={{ scale: [1, 1.5, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-1.5 h-1.5 rounded-full bg-[#00FF85]/40" />
                     <motion.div animate={{ scale: [1, 1.5, 1] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} className="w-1.5 h-1.5 rounded-full bg-[#00FF85]/40" />
                   </div>
-                  <span className="text-[9px] font-black uppercase tracking-[0.2em] italic">Procesando...</span>
+                  <span className="text-[9px] font-black uppercase tracking-[0.2em] italic">
+                    {retryCount > 0 ? `Reintentando (${retryCount}/3)...` : 'Procesando...'}
+                  </span>
                 </div>
               </div>
+            )}
+
+            {error && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex justify-center"
+              >
+                <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] font-bold px-4 py-2 rounded-full uppercase tracking-tight">
+                  {error}
+                </div>
+              </motion.div>
             )}
           </div>
 
