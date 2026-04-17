@@ -214,10 +214,12 @@ export default function DashboardPage() {
         // Removido auto-news generation por cliente (causaba spam por múltiples usuarios logueados simultáneamente)
 
         // OPTIMIZACIÓN: Lanzar todas las consultas base en paralelo
-        const [clubRes, playersRes, enrolledRes, nextMatchRes, allMatchesRes, unreadRes, newsRes] = await Promise.all([
+        // Ahora obtenemos TODAS las competencias de temporadas activas para la vista global
+        const [clubRes, playersRes, allActiveCompsRes, enrolledRes, nextMatchRes, allMatchesRes, unreadRes, newsRes] = await Promise.all([
           supabase.from('clubs').select('*').eq('id', clubId).single(),
           supabase.from('players').select('*').eq('club_id', clubId).order('position', { ascending: true }).order('number', { ascending: true }),
-          supabase.from('competition_clubs').select('competition:competitions!inner(*, season:seasons!inner(*))').eq('club_id', clubId),
+          supabase.from('competitions').select('*, season:seasons!inner(*)').eq('season.status', 'active'),
+          supabase.from('competition_clubs').select('competition_id').eq('club_id', clubId),
           getNextMatchForClub(clubId),
           supabase.from('matches').select('*, home_club:clubs!matches_home_club_id_fkey(*), away_club:clubs!matches_away_club_id_fkey(*), competition:competitions!inner(*, season:seasons!inner(*))').or(`home_club_id.eq.${clubId},away_club_id.eq.${clubId}`).order('match_order', { ascending: true }),
           supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('club_id', clubId).eq('is_read', false),
@@ -237,9 +239,15 @@ export default function DashboardPage() {
             setUpcomingMatches(allMatchData.filter(m => m.competition?.season?.status === 'active'))
           }
 
-          const enrolledCompsData = enrolledRes.data
-          if (enrolledCompsData && enrolledCompsData.length > 0) {
-            const compIds = enrolledCompsData.map((ec: any) => ec.competition.id)
+          // Identificar en qué competencias está realmente el club
+          const myCompIds = new Set((enrolledRes.data || []).map((ec: any) => ec.competition_id))
+          
+          // Todas las competencias a cargar (activas actuales + las que el club tenga históricamente)
+          // Para simplificar y cumplir el pedido, cargamos todas las activas
+          const compsToLoad = (allActiveCompsRes.data || []) as Competition[]
+          
+          if (compsToLoad.length > 0) {
+            const compIds = compsToLoad.map((c: any) => c.id)
 
             // OPTIMIZACIÓN: Cargar todo el sub-detalle de las competencias en 3 queries globales
             const [standingsRes, statsRes, compMatchesRes] = await Promise.all([
@@ -251,8 +259,7 @@ export default function DashboardPage() {
             const activeComps: CompetitionFull[] = []
             const allTimeComps: CompetitionFull[] = []
 
-            for (const ec of enrolledCompsData as any[]) {
-              const comp = ec.competition
+            for (const comp of compsToLoad as any[]) {
               const compStandings = (standingsRes.data || []).filter((s: any) => s.competition_id === comp.id)
               const compStats = (statsRes.data || []).filter((s: any) => s.competition_id === comp.id)
               const compMatches = (compMatchesRes.data || []).filter((m: any) => m.competition_id === comp.id)
@@ -263,8 +270,9 @@ export default function DashboardPage() {
                 return b.goals_for - a.goals_for
               })
 
-              const myStandingIndex = sortedStandings.findIndex((s: any) => s.club_id === clubId)
-              const myStanding = sortedStandings[myStandingIndex]
+              const isParticipant = myCompIds.has(comp.id)
+              const myStandingIndex = isParticipant ? sortedStandings.findIndex((s: any) => s.club_id === clubId) : -1
+              const myStanding = myStandingIndex >= 0 ? sortedStandings[myStandingIndex] : null
 
               const compFull: CompetitionFull = {
                 ...comp,
@@ -272,18 +280,26 @@ export default function DashboardPage() {
                 playerStats: compStats,
                 matches: compMatches as any[],
                 myPosition: myStandingIndex >= 0 ? myStandingIndex + 1 : undefined,
-                myPoints: (myStanding as any)?.points,
+                myPoints: myStanding ? (myStanding as any).points : undefined,
               }
 
               if (comp.season?.status === 'active') activeComps.push(compFull)
               allTimeComps.push(compFull)
             }
 
+            // Ordenar para que mis competencias aparezcan arriba
+            activeComps.sort((a, b) => {
+              const aMine = myCompIds.has(a.id) ? 1 : 0
+              const bMine = myCompIds.has(b.id) ? 1 : 0
+              return bMine - aMine
+            })
+
             setCompetitions(activeComps)
             setAllTimeComps(allTimeComps)
             
             if (activeComps.length > 0 && expandedCompetitions.size === 0) {
-              setExpandedCompetitions(new Set([activeComps[0].id]))
+              const firstMine = activeComps.find(c => myCompIds.has(c.id))
+              setExpandedCompetitions(new Set([firstMine?.id || activeComps[0].id]))
             }
           }
 

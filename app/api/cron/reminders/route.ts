@@ -1,17 +1,19 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabaseAdmin as supabase } from '@/lib/supabase'
 import { sendPushToClub } from '@/lib/push-notifications'
+
+export const runtime = 'edge'
 
 /**
  * Endpoint de Cron para enviar recordatorios de jornada.
- * Se recomienda disparar esto cada 2 horas vía Supabase Cron o Vercel Cron.
+ * Ejecutado por Vercel Cron (0 */2 * * *)
  */
 export async function GET(req: Request) {
   try {
-    // 1. Verificación de Seguridad (Opcional pero recomendada)
-    // El header 'Authorization' debe coincidir con tu secret si lo configuras
+    // 1. Verificación de Seguridad
     const authHeader = req.headers.get('authorization')
     if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+      console.error('[CRON] Unauthorized attempt to trigger reminders.')
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
 

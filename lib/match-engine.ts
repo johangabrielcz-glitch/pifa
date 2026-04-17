@@ -49,42 +49,45 @@ export async function calculateMatchDeadlines(seasonId: string): Promise<void> {
   // Get all matches for these competitions ordered by match_order
   const { data: allMatches, error: matchesError } = await supabase
     .from('matches')
-    .select('id, competition_id, matchday, match_order, leg')
+    .select(`
+      id, 
+      competition_id, 
+      matchday, 
+      match_order, 
+      leg,
+      competition:competitions(type)
+    `)
     .in('competition_id', (competitions as any[]).map(c => c.id))
     .order('match_order', { ascending: true })
 
   if (matchesError || !allMatches || allMatches.length === 0) return
 
-  // Visual Flow Deadline Assignment: 
-  // This logic ensures that the global clock advances based on the sequence of matches,
-  // respecting visual gaps while still allowing parallelism for interleaved league matches.
+  // Sequential Category Deadline Assignment:
+  // Maps matches to slots based on (Category + Matchday + Leg).
+  // Category is either 'league' or 'cup'.
+  // Parallel leagues or parallel cups share the same slot.
+  // Different categories or matchdays get sequential days.
   const updates: { id: string; deadline: string }[] = []
   
-  let lastGlobalDay = 0; // The current progress of the global clock
-  const compCurrentDay = new Map<string, number>() // Tracks the last day assigned to each competition
-  const slotDay = new Map<string, number>() // Stores the day for each unique slot (compId, md, leg)
+  let currentGlobalDay = 0; 
+  const slotDayMap = new Map<string, number>()
 
   for (const match of (allMatches as any[])) {
-    const compId = match.competition_id
-    const slotKey = `${compId}-${match.matchday || 1}-${match.leg || 1}`
+    const rawType = (match.competition as any)?.type || 'league'
+    // Normalize type: 'league' stays 'league', others ('cup', 'groups_knockout') become 'cup'
+    const category = rawType === 'league' ? 'league' : 'cup'
+    
+    const slotKey = `${category}-${match.matchday || 1}-${match.leg || 1}`
 
-    if (!slotDay.has(slotKey)) {
-      // The day for this slot is the maximum between the global current progress 
-      // and the next logical day for this specific competition.
-      const prevCompDay = compCurrentDay.get(compId) || 0
-      const targetDay = Math.max(lastGlobalDay, prevCompDay + 1)
-      
-      slotDay.set(slotKey, targetDay)
-      compCurrentDay.set(compId, targetDay)
+    if (!slotDayMap.has(slotKey)) {
+      currentGlobalDay++
+      slotDayMap.set(slotKey, currentGlobalDay)
     }
 
-    const assignedDay = slotDay.get(slotKey)!
+    const assignedDay = slotDayMap.get(slotKey)!
     const deadlineMs = activatedAt.getTime() + assignedDay * 24 * 60 * 60 * 1000 
     
     updates.push({ id: match.id, deadline: new Date(deadlineMs).toISOString() })
-    
-    // The global clock advances only as far as the current match's assigned day
-    lastGlobalDay = Math.max(lastGlobalDay, assignedDay)
   }
 
   // Batch update deadlines
@@ -1325,39 +1328,32 @@ export async function getNextMatchForClub(
   }
   const now = new Date()
 
-  // --- MATCHDAY WAIT LOGIC ---
-  // Check if there are finished matches in ANY of the club's competitions
-  // whose deadline hasn't passed yet. If so, the club should wait.
-  const { data: recentFinished } = await supabase
-    .from('matches')
-    .select('id, deadline, competition_id, matchday, match_order')
-    .or(`home_club_id.eq.${clubId},away_club_id.eq.${clubId}`)
-    .eq('status', 'finished')
-    .not('deadline', 'is', null)
-    .order('match_order', { ascending: false })
-    .limit(10)
+  // --- GLOBAL VISUAL FLOW WAIT LOGIC ---
+  // If the club is "resting" or has already played its match in the current 
+  // global slot, we must ensure they don't jump to the next slot prematurely.
+  
+  const seasonId = (nextMatch.competition as any)?.season_id
+  if (seasonId) {
+    // Check if there are ANY matches in this season that are still PENDING 
+    // and have a deadline EARLIER than our next match's deadline.
+    const { data: globalPending } = await supabase
+      .from('matches')
+      .select('deadline')
+      .eq('status', 'scheduled')
+      .not('home_club_id', 'is', null)
+      .not('away_club_id', 'is', null)
+      .not('deadline', 'is', null)
+      .lt('deadline', nextMatch.deadline as string)
+      .order('deadline', { ascending: true })
+      .limit(1)
 
-  if (recentFinished && recentFinished.length > 0) {
-    // Find the most recent finished match whose deadline is still in the future
-    // This means the current matchday hasn't expired yet
-    const typedFinished = recentFinished as unknown as { id: string; deadline: string; competition_id: string; matchday: number; match_order: number }[]
-    const stillActiveDeadline = typedFinished.find((m) => {
-      return new Date(m.deadline) > now
-    })
-
-    if (stillActiveDeadline) {
-      // The next match belongs to a future matchday, but the current matchday
-      // deadline hasn't passed yet — wait until it does
-      const nextMatchDeadline = nextMatch.deadline as string | null
-      const currentDeadline = stillActiveDeadline.deadline
-
-      // Only block if the next match has a DIFFERENT (later) deadline than the active one
-      if (nextMatchDeadline && nextMatchDeadline !== currentDeadline) {
-        return {
-          match: null,
-          waiting: true,
-          waiting_until: currentDeadline,
-        }
+    if (globalPending && globalPending.length > 0) {
+      // There is an active global slot that hasn't finished yet. 
+      // The club should wait until that slot expires.
+      return {
+        match: null,
+        waiting: true,
+        waiting_until: globalPending[0].deadline,
       }
     }
   }
