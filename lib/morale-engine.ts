@@ -225,7 +225,7 @@ export async function processEndOfMatchMorale(
  * Genera un correo de jugador directamente (server-side, sin proxy).
  * Llama a Groq para generar el contenido.
  */
-async function generatePlayerEmailDirect(
+export async function generatePlayerEmailDirect(
   playerId: string,
   clubId: string,
   triggerType: string,
@@ -252,14 +252,22 @@ async function generatePlayerEmailDirect(
       general: 'MENSAJE GENERAL'
     }
 
-    const systemPrompt = `Eres el futbolista profesional ${playerName} que juega en ${clubName}. 
-Debes escribir un correo electrónico al Director Técnico (DT).
-REGLAS ESTRICTAS:
-1. Escribe SIEMPRE en un ÚNICO PÁRRAFO continuo.
-2. PROHIBIDO usar saltos de línea, listas o viñetas.
-3. PROHIBIDO usar saludos o despedidas en líneas aparte (ej: "Míster," o "Saludos,"). Todo debe estar en el mismo bloque.
-4. Usa un tono REALISTA de vestuario. Ve directo al grano.
-5. Si mencionas a alguien de la liga, hazlo de forma natural en el flujo del texto.
+    const { data: teammatesData } = await supabase
+      .from('players')
+      .select('name, position')
+      .eq('club_id', clubId)
+      .neq('id', playerId)
+
+    const teammatesList = teammatesData?.map(p => `${p.name} (${p.position})`).join(', ') || 'Cargando...'
+
+    const systemPrompt = `Eres el futbolista profesional ${playerName}. 
+Responde SIEMPRE en ESPAÑOL de España/Latinoamérica.
+Este es un mensaje PRIVADO y DIRECTO para tu Director Técnico (DT).
+REGLAS DE ORO:
+1. BREVEDAD EXTREMA: Escribe máximo 2 o 3 oraciones cortas. Ve al grano.
+2. NATURALIDAD: La lista de compañeros [${teammatesList}] es solo referencia mental. NO menciones nombres si no es estrictamente necesario.
+3. FORMATO: SIEMPRE en un ÚNICO PÁRRAFO continuo. Sin saltos de línea ni formalidades.
+4. TONO: De vestuario, privado, respetuoso pero directo.
 Responde ÚNICAMENTE en este JSON: {"subject": "...", "body": "..."}`
 
     const userPrompt = `TIPO DE CORREO: ${emailTypeMap[triggerType] || triggerType}

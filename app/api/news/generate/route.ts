@@ -109,6 +109,7 @@ ${rosterMap}
 ${marketContext}
 
 ESTILO: Sensacionalista, amarillista, usa "BOMBAZO", "ESCÁNDALO". Máximo 1 párrafo por noticia.
+IDIOMA: Responde SIEMPRE en ESPAÑOL.
 Responde ÚNICAMENTE en JSON puro (Array de objetos).
     `.trim()
 
