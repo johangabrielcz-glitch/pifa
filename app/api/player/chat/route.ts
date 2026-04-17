@@ -3,9 +3,17 @@ import { supabaseAdmin as supabase } from '@/lib/supabase'
 
 export const runtime = 'edge'
 
+const MODELS_HIERARCHY = [
+  'openai/gpt-oss-120b',
+  'openai/gpt-oss-20b',
+  'meta-llama/llama-4-scout-17b-16e-instruct',
+  'llama-3.3-70b-versatile',
+  'qwen/qwen3-32b'
+]
+
 /**
  * Endpoint para manejar el chat individual con jugadores.
- * Versión de ALTA EFICIENCIA (Low Token Overhead) para evitar límites diarios.
+ * Implementa una "Cascada de Inteligencia" para failover automático entre modelos.
  */
 export async function POST(req: Request) {
   try {
@@ -44,7 +52,7 @@ export async function POST(req: Request) {
 
     if (!player || !club) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
-    // Limitar historial a los últimos 7 mensajes (Equilibrio entre memoria y eficiencia)
+    // Limitar historial a los últimos 7 mensajes
     const recentMessages = messages.slice(-7)
 
     if (messages.length === 0) {
@@ -73,7 +81,7 @@ export async function POST(req: Request) {
 
     const activeClubIds = Array.from(new Set(standings.map(s => s.club_id)))
 
-    // ENCICLOPEDIA EFICIENTE: Máximo 5 jugadores por club rival
+    // ENCICLOPEDIA EFICIENTE
     const teammates = allPlayersInLeague
       .filter(p => p.club_id === clubId && p.id !== playerId)
       .map(p => `${p.name} (${p.position})`)
@@ -84,7 +92,7 @@ export async function POST(req: Request) {
       .map(c => {
         const clubPlayers = allPlayersInLeague
           .filter(p => p.club_id === c.id)
-          .slice(0, 5) // LIMITAMOS A 5 JUGADORES TOP/TITULARES
+          .slice(0, 12) // PROFUNDIDAD: 12 JUGADORES TOP POR CLUB
           .map(p => `${p.name} (${p.position})`)
           .join(', ')
         return `- ${c.name}: ${clubPlayers}...`
@@ -95,7 +103,7 @@ export async function POST(req: Request) {
     const idHash = playerId.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0)
     const personality = idHash % 2 === 0 ? 'Humilde' : 'Soberbio'
 
-    // 4. ENSAMBLAR PROMPT COMPACTO
+    // 4. ENSAMBLAR PROMPT
     const contextString = `
 IDENTIDAD: ${player.name} (${player.position}) | Club: ${club.name} | Moral: ${player.morale}% | Personalidad: ${personality}
 CONTRATO: ${player.contract_seasons_left} temp. Salario: $${player.salary.toLocaleString()}
@@ -106,7 +114,7 @@ MAPA LIGA (RIVALES TOP):
 ${rivalsByClub}
 
 ÚLTIMOS RESULTADOS:
-${allMatches.filter(m => m.home_club_id === clubId || m.away_club_id === clubId).slice(-2).map(m => 
+${allMatches.filter(m => m.home_club_id === clubId || m.away_club_id === clubId).slice(-4).map(m => 
   `- ${m.home_club?.name} ${m.home_score}-${m.away_score} ${m.away_club?.name}`
 ).join('\n')}
 
@@ -134,43 +142,76 @@ ${contextString}
     const apiKey = process.env.GROQ_API_KEY
     if (!apiKey) return NextResponse.json({ error: 'Config IA' }, { status: 500 })
 
-    const aiResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...recentMessages
-        ],
-        temperature: 0.8,
-        max_tokens: 400
-      })
-    })
+    // 5. CASCADA DE INTELIGENCIA (Failover de Modelos)
+    let text = ''
+    let usedModel = ''
+    let lastError: any = null
 
-    if (!aiResponse.ok) {
-      const errorData = await aiResponse.json().catch(() => ({}));
-      console.error('Groq API Error Detail:', errorData);
-      return NextResponse.json({ error: `Groq Error: ${aiResponse.status}`, detail: errorData }, { status: aiResponse.status });
+    for (const model of MODELS_HIERARCHY) {
+      try {
+        console.log(`[Chat API] Intentando con modelo: ${model}`)
+        
+        const aiResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              ...recentMessages
+            ],
+            temperature: 0.8,
+            max_tokens: 500
+          })
+        })
+
+        if (aiResponse.ok) {
+          const result = await aiResponse.json()
+          text = result.choices?.[0]?.message?.content
+          if (text) {
+            usedModel = model
+            console.log(`[Chat API] Éxito con modelo: ${model}`)
+            break // Salimos del bucle si tenemos éxito
+          }
+        } else {
+          const errorData = await aiResponse.json().catch(() => ({}));
+          console.warn(`[Chat API] Modelo ${model} falló con status ${aiResponse.status}`, errorData)
+          lastError = { status: aiResponse.status, detail: errorData }
+          // Continuamos al siguiente modelo
+        }
+      } catch (err) {
+        console.error(`[Chat API] Error crítico llamando a ${model}:`, err)
+        lastError = err
+        continue
+      }
     }
 
-    const result = await aiResponse.json()
-    const text = result.choices?.[0]?.message?.content
+    // Si fallaron todos los modelos
+    if (!text) {
+      return NextResponse.json({ 
+        error: 'Saturación total en todos los procesadores de IA', 
+        last_error: lastError 
+      }, { status: 429 })
+    }
 
+    // 6. GUARDAR HISTORIAL
     if (text) {
       const finalHistory = [...messages, { role: 'assistant', content: text }]
       await supabase.from('player_chats').upsert({
-        player_id: playerId, club_id: clubId, messages: finalHistory, updated_at: new Date().toISOString()
+        player_id: playerId, 
+        club_id: clubId, 
+        messages: finalHistory, 
+        updated_at: new Date().toISOString()
       }, { onConflict: 'player_id,club_id' })
     }
 
-    return NextResponse.json({ text, personality })
+    return NextResponse.json({ text, personality, model: usedModel })
 
   } catch (err: any) {
-    console.error('Chat API Error:', err)
-    return NextResponse.json({ error: 'Saturación en el vestuario' }, { status: 500 })
+    console.error('Chat API Fatal Error:', err)
+    return NextResponse.json({ error: 'Error interno absoluto' }, { status: 500 })
   }
 }

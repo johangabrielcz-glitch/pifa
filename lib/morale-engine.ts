@@ -266,31 +266,56 @@ NO incluyas saludos formales tipo "Estimado". Ve directo al grano como lo haría
 SITUACIÓN: ${context}
 Genera el correo ahora.`
 
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        temperature: 0.85,
-        max_tokens: 500,
-        response_format: { type: 'json_object' }
-      })
-    })
+    const MODELS_HIERARCHY = [
+      'openai/gpt-oss-120b',
+      'openai/gpt-oss-20b',
+      'meta-llama/llama-4-scout-17b-16e-instruct',
+      'llama-3.3-70b-versatile',
+      'qwen/qwen3-32b'
+    ]
 
-    if (!response.ok) {
-      console.error('Groq API error for player email:', response.status)
-      return
+    let content = ''
+    let usedModel = ''
+
+    for (const model of MODELS_HIERARCHY) {
+      try {
+        console.log(`[Email Engine] Intentando con ${model}`)
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt }
+            ],
+            temperature: 0.85,
+            max_tokens: 500,
+            response_format: { type: 'json_object' }
+          })
+        })
+
+        if (response.ok) {
+          const result = await response.json()
+          content = result.choices?.[0]?.message?.content
+          if (content) {
+            usedModel = model
+            console.log(`[Email Engine] Éxito con ${model}`)
+            break
+          }
+        }
+      } catch (e) {
+        console.warn(`[Email Engine] Falló modelo ${model}`, e)
+      }
     }
 
-    const result = await response.json()
-    const content = result.choices?.[0]?.message?.content
+    if (!content) {
+      console.error('Fallo total en cascada de correos de jugadores')
+      return
+    }
 
     if (!content) return
 
