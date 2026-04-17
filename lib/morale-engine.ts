@@ -45,7 +45,7 @@ export async function processEndOfMatchMorale(
     const subsIn = Array.isArray(annotation?.substitutes_in)
       ? (annotation!.substitutes_in as any[]).map((s: any) => typeof s === 'string' ? s : s.player_in).filter(Boolean)
       : []
-    
+
     const goalsArray = annotation?.goals || []
     const mvpId = annotation?.mvp_player_id
 
@@ -120,7 +120,7 @@ export async function processEndOfMatchMorale(
           const annSubs = Array.isArray(ann.substitutes_in)
             ? (ann.substitutes_in as any[]).map((s: any) => typeof s === 'string' ? s : s.player_in).filter(Boolean)
             : []
-          
+
           if (!annStarting.includes(player.id) && !annSubs.includes(player.id)) {
             benchStreak++
           } else {
@@ -130,7 +130,7 @@ export async function processEndOfMatchMorale(
 
         if (benchStreak >= BENCH_STREAK_TRIGGER) {
           moraleDelta -= 10
-          
+
           // Verificar incumplimiento de rol
           if (player.squad_role === 'essential') {
             moraleDelta -= 15 // Esto es grave — rol esencial en banca
@@ -178,7 +178,7 @@ export async function processEndOfMatchMorale(
 
       // 4. Aplicar cambio de moral
       const newMorale = clampMorale((player.morale ?? 75) + moraleDelta)
-      
+
       if (newMorale !== player.morale) {
         await supabase.from('players').update({
           morale: newMorale,
@@ -252,15 +252,15 @@ async function generatePlayerEmailDirect(
       general: 'MENSAJE GENERAL'
     }
 
-    const systemPrompt = `Eres el jugador de fútbol ${playerName} que juega en ${clubName}. 
-Debes escribir un correo electrónico breve al Director Técnico (DT) de tu club.
-El tono debe ser REALISTA, como un futbolista real hablaría — directo, emocional, con carácter.
-NO uses lenguaje corporativo ni formal. Usa expresiones de vestuario.
-El correo debe tener un ASUNTO (subject line) y un CUERPO (body).
-Responde ÚNICAMENTE en este formato JSON exacto:
-{"subject": "...", "body": "..."}
-El cuerpo no debe superar las 150 palabras.
-NO incluyas saludos formales tipo "Estimado". Ve directo al grano como lo haría un futbolista.`
+    const systemPrompt = `Eres el futbolista profesional ${playerName} que juega en ${clubName}. 
+Debes escribir un correo electrónico al Director Técnico (DT).
+REGLAS ESTRICTAS:
+1. Escribe SIEMPRE en un ÚNICO PÁRRAFO continuo.
+2. PROHIBIDO usar saltos de línea, listas o viñetas.
+3. PROHIBIDO usar saludos o despedidas en líneas aparte (ej: "Míster," o "Saludos,"). Todo debe estar en el mismo bloque.
+4. Usa un tono REALISTA de vestuario. Ve directo al grano.
+5. Si mencionas a alguien de la liga, hazlo de forma natural en el flujo del texto.
+Responde ÚNICAMENTE en este JSON: {"subject": "...", "body": "..."}`
 
     const userPrompt = `TIPO DE CORREO: ${emailTypeMap[triggerType] || triggerType}
 SITUACIÓN: ${context}
