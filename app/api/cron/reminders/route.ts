@@ -6,7 +6,7 @@ export const runtime = 'edge'
 
 /**
  * Endpoint de Cron para enviar recordatorios de jornada.
- * Ejecutado por Vercel Cron (0 */2 * * *)
+ * Ejecutado por Vercel Cron — Horario: 0 [barra] 2 * * *
  */
 export async function GET(req: Request) {
   try {
