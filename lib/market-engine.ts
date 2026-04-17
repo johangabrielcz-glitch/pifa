@@ -200,7 +200,7 @@ export async function buyPlayerDirectly(player: Player, buyerClubId: string) {
     salary: 25000,
     squad_role: 'rotation',
     salary_paid_this_season: false,
-    morale: 75,
+    morale: 100,
     wants_to_leave: false,
     contract_status: 'active',
     updated_at: new Date().toISOString()
@@ -294,7 +294,7 @@ async function executeTransfer(offer: any) {
     salary: 25000,
     squad_role: 'rotation',
     salary_paid_this_season: false,
-    morale: 75,
+    morale: 100,
     wants_to_leave: false,
     contract_status: 'active',
     updated_at: new Date().toISOString()

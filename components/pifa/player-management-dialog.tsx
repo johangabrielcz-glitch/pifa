@@ -298,8 +298,8 @@ export function PlayerManagementDialog({ player, isOpen, onClose, onUpdate, isPr
                     </div>
                   </div>
 
-                  {/* Pay Salary Button (only in preseason) */}
-                  {isPreseason && !salaryPaid && !wantsToLeave && contractStatus !== 'free_agent' && (
+                  {/* Pay Salary Button */}
+                  {!salaryPaid && !wantsToLeave && contractStatus !== 'free_agent' && (
                     <button
                       onClick={handlePaySalary}
                       disabled={payingsalary || clubBudget < salary}
@@ -316,13 +316,13 @@ export function PlayerManagementDialog({ player, isOpen, onClose, onUpdate, isPr
                     </button>
                   )}
 
-                  {isPreseason && salaryPaid && (
+                  {salaryPaid && (
                     <div className="text-center py-2 bg-emerald-500/5 rounded-xl border border-emerald-500/20">
                       <span className="text-[8px] font-black text-emerald-400 uppercase tracking-widest">✓ Salario pagado esta temporada</span>
                     </div>
                   )}
 
-                  {clubBudget < salary && isPreseason && !salaryPaid && (
+                  {clubBudget < salary && !salaryPaid && (
                     <p className="text-[7px] font-black text-red-400/70 uppercase tracking-widest text-center">
                       Presupuesto insuficiente — Necesitas ${salary.toLocaleString()}
                     </p>

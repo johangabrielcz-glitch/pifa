@@ -147,7 +147,10 @@ export default function AdminPlayersPage() {
         if (error) throw error
         toast.success('Atleta actualizado correctamente')
       } else {
-        const { error } = await supabase.from('players').insert(dataToSave)
+        const { error } = await supabase.from('players').insert({
+          ...dataToSave,
+          morale: 100
+        })
         if (error) throw error
         toast.success('Atleta registrado en el sistema')
       }

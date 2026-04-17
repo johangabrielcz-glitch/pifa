@@ -473,7 +473,7 @@ export async function signFreeAgent(
       contract_status: 'active',
       wants_to_leave: false,
       salary_paid_this_season: false,
-      morale: 75, // Reset moral al fichar
+      morale: 100, // Reset moral al fichar
       is_on_sale: false,
       sale_price: null,
       updated_at: new Date().toISOString()
