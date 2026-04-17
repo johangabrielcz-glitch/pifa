@@ -12,7 +12,7 @@ const MODELS_HIERARCHY = [
 ]
 
 /**
- * Endpoint de generación de noticias robusto: MAPA DE ROSTERS + CLASIFICACIÓN + LÓGICA ANTI-ALUCINACIÓN.
+ * Endpoint de generación de noticias modular: Especializa el prompt según el gatillo.
  */
 export async function POST(req: Request) {
   try {
@@ -21,11 +21,11 @@ export async function POST(req: Request) {
     const apiKey = process.env.GROQ_API_KEY
     if (!apiKey) return NextResponse.json({ error: 'IA no configurada' }, { status: 500 })
 
-    // 1. OBTENER INFORMACIÓN DE VERDAD ABSOLUTA (Rosters, Clubes, Mercado, Clasificación)
+    // 1. OBTENER INFORMACIÓN DE VERDAD ABSOLUTA
     const [playersRes, clubsRes, marketRes, standingsRes] = await Promise.all([
       supabase.from('players').select('id, name, club_id'),
       supabase.from('clubs').select('id, name'),
-      supabase.from('market_history').select('*, player:players(name), from_club:clubs!market_history_from_club_id_fkey(name), to_club:clubs!market_history_to_club_id_fkey(name)').order('created_at', { ascending: false }).limit(6),
+      supabase.from('market_history').select('*, player:players(name), from_club:clubs!market_history_from_club_id_fkey(name), to_club:clubs!market_history_to_club_id_fkey(name)').order('created_at', { ascending: false }).limit(5),
       supabase.from('standings').select('*, club:clubs(name)').order('points', { ascending: false })
     ])
 
@@ -39,13 +39,15 @@ export async function POST(req: Request) {
       return `${c.name}: [${pNames || 'Sin jugadores'}]`
     }).join(' | ')
 
-    const standingsTable = standings.map((s, i) => `${i + 1}. ${s.club?.name}: ${s.points}pts (PJ:${s.played})`).join(' / ')
+    const standingsTable = standings.map((s, i) => `${i + 1}. ${s.club?.name} (${s.points}pts)`).join(' / ')
 
     let context = ""
     let participantsIds = new Set<string>()
+    let mode: 'match' | 'market' | 'general' = 'general'
 
-    // CASO A: Partido (CON FILTRO DE PARTICIPANTES REALES)
+    // CASO A: Partido
     if (isMatchTrigger && matchId) {
+      mode = 'match'
       const { data: m } = await supabase
         .from('matches')
         .select('*, home_club:clubs!matches_home_club_id_fkey(name), away_club:clubs!matches_away_club_id_fkey(name), competition:competitions(name)')
@@ -64,7 +66,6 @@ export async function POST(req: Request) {
             })
           }
           if (row.goals) row.goals.forEach((g: any) => participantsIds.add(g.player_id))
-          if (row.assists) row.assists.forEach((a: any) => participantsIds.add(a.player_id))
         })
       }
 
@@ -73,51 +74,54 @@ export async function POST(req: Request) {
         .filter(Boolean)
         .join(', ')
 
-      context = `
-        EVENTO: FINAL DE PARTIDO
-        INFRAESTRUCTURA: ${m?.competition?.name}
-        MARCADOR: ${m?.home_club?.name} ${m?.home_score} - ${m?.away_score} ${m?.away_club?.name}
-        JUGADORES QUE REALMENTE ESTUVIERON EN EL CAMPO (ÚNICOS PERMITIDOS): ${participantNames}
-        HITOS REALES: ${annData?.map(row => {
-          const goalsDesc = row.goals?.map((g: any) => `${allPlayers.find(p => p.id === g.player_id)?.name} (GOL)`).join(', ')
-          return goalsDesc || ''
-        }).filter(Boolean).join(' | ')}
-      `
+      context = `PARTIDO: ${m?.home_club?.name} ${m?.home_score} - ${m?.away_score} ${m?.away_club?.name}. PARTICIPANTES PERMITIDOS: ${participantNames}. GOLES: ${annData?.map(row => row.goals?.map((g: any) => allPlayers.find(p => p.id === g.player_id)?.name).join(', ')).filter(Boolean).join(' | ')}`
     } 
+    // CASO B: Mercado
     else if (isMarketTrigger) {
-      context = `BOMBAZO DE MERCADO: ${textData}`
+      mode = 'market'
+      context = `EVENTO MERCADO: ${textData}`
     }
+    // CASO C: General
     else {
+      mode = 'general'
       const { data: club } = await supabase.from('clubs').select('name').eq('id', clubId).single()
-      context = `NOTICIA GENERAL: Enfoque en ${club?.name || 'la liga'}`
+      context = `ENFOQUE: ${club?.name || 'La Liga'}`
     }
 
-    const marketContext = marketHistory.map(t => `- ${t.player?.name} de ${t.from_club?.name} a ${t.to_club?.name}`).join('\n')
+    const marketContext = marketHistory.map(t => `- ${t.player?.name} (${t.from_club?.name} -> ${t.to_club?.name})`).join('\n')
 
-    const systemPrompt = `
-ERES EL DIRECTOR DE "PIFA DAILY". ERES UN PERIODISTA DE DATOS, NO UN ESCRITOR DE FICCIÓN.
-REGLAS ABSOLUTAS (CUMPLIMIENTO AL 1000%):
-1. **FILTRO DE IDENTIDAD**: SOLO puedes hablar de los jugadores listados en el Mapa de Rosters.
-2. **FILTRO DE PARTIDO (CRUCIAL)**: En crónicas de partidos, SOLO nombra a los jugadores de la lista "JUGADORES QUE REALMENTE ESTUVIERON EN EL CAMPO". Está TERMINANTEMENTE PROHIBIDO mencionar a una estrella si no jugó. 
-3. **TABLA DE POSICIONES**: Usa la clasificación actual para dar contexto. No inventes crisis en los líderes ni gloria en los colistas.
-4. **PROHIBIDO INVENTAR EVENTOS**: No inventes lesiones, despidos, peleas internas ni fichajes si no vienen en el "CONTEXTO ACTUAL".
-5. **IDIOMA**: Responde SIEMPRE en ESPAÑOL.
-6. **ESQUEMA JSON**: Usa estas llaves exactas: "title", "content", "emoji", "category", "color".
+    // 2. DEFINICIÓN DE PROMPTS MODULARES
+    const COMMON_RULES = `REGLAS DE ORO:
+1. IDIOMA: SIEMPRE ESPAÑOL.
+2. VERACIDAD: Si un jugador no está en el MAPA DE ROSTERS, no existe. 
+3. JSON: Responde solo JSON con llaves [title, content, emoji, category, color].
+4. LONGITUD: Máximo 1 párrafo por noticia.`
 
-CLASIFICACIÓN ACTUAL:
-${standingsTable}
+    const MODE_RULES = {
+      match: `MODO CRONISTA DEPORTIVO: 
+- Céntrate solo en el resultado y los participantes del partido. 
+- PROHIBIDO mencionar a jugadores que no estén en la lista de PARTICIPANTES PERMITIDOS del partido.
+- Usa la clasificación para decir si el equipo sube o baja.`,
+      market: `MODO INSIDER DE MERCADO:
+- Céntrate en la bomba del fichaje o movimiento. 
+- Analiza el impacto deportivo de este cambio de equipo. 
+- No hables de resultados de partidos.`,
+      general: `MODO REPORTE DE LIGA:
+- Analiza el estado de los clubes según su posición en la clasificación.
+- Crea ambiente sobre la competición actual.`
+    }
 
-MAPA DE ROSTERS (TODOS LOS JUGADORES EXISTENTES):
-${rosterMap}
+    const systemPrompt = `ERES EL DIRECTOR DE "PIFA DAILY".
+${COMMON_RULES}
 
-ÚLTIMOS MOVIMIENTOS REALES:
-${marketContext}
+${MODE_RULES[mode]}
 
-ESTILO: Sensacionalista pero basado 100% en los datos de arriba. Máximo 1 párrafo por noticia.
-Responde ÚNICAMENTE en JSON puro (Array de objetos).
-    `.trim()
+CLASIFICACIÓN ACTUAL: ${standingsTable}
+MAPA DE ROSTERS: ${rosterMap}
+HISTORIAL RECIENTE: ${marketContext}
+`.trim()
 
-    const userPrompt = `CONTEXTO REAL DE ESTE MOMENTO: ${context}\nGenera 3 noticias breves y veraces ahora.`
+    const userPrompt = `DATOS ACTUALES: ${context}\nGenera 3 noticias veraces.`
 
     let newsItems: any[] = []
     let usedModel = ''
@@ -130,7 +134,7 @@ Responde ÚNICAMENTE en JSON puro (Array de objetos).
           body: JSON.stringify({
             model,
             messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
-            temperature: 0.6, // Temperatura reducida para mayor veracidad
+            temperature: 0.6,
             response_format: { type: 'json_object' }
           })
         })
@@ -142,20 +146,19 @@ Responde ÚNICAMENTE en JSON puro (Array de objetos).
           if (!Array.isArray(newsItems)) newsItems = [parsed]
           if (newsItems.length > 0) { usedModel = model; break }
         }
-      } catch (e) { console.warn(`Error en ${model}:`, e) }
+      } catch (e) {}
     }
 
-    if (newsItems.length === 0) return NextResponse.json({ error: 'IA no disponible' }, { status: 429 })
+    if (newsItems.length === 0) return NextResponse.json({ error: 'Fallo IA' }, { status: 429 })
 
     const toInsert = newsItems
       .map((item: any) => {
-        const title = item.title || item.titulo || item.headline || 'NOTICIA DE ÚLTIMA HORA'
-        const content = item.content || item.contenido || item.body || ''
-        if (!content || content.length < 10) return null
-
+        const title = (item.title || item.titulo || 'BOMBAZO').toString().toUpperCase().slice(0, 100)
+        const content = item.content || item.contenido || ''
+        if (content.length < 10) return null
         return {
           club_id: isMatchTrigger ? null : clubId, 
-          title: title.toString().toUpperCase().slice(0, 100),
+          title,
           content: content.toString(),
           emoji: item.emoji || '🗞️',
           category: item.category || 'gossip',
@@ -165,7 +168,7 @@ Responde ÚNICAMENTE en JSON puro (Array de objetos).
       .filter(Boolean)
       .slice(0, 3)
 
-    if (toInsert.length === 0) return NextResponse.json({ error: 'Error de validación de noticias' }, { status: 400 })
+    if (toInsert.length === 0) return NextResponse.json({ error: 'Data inválida' }, { status: 400 })
 
     const { data: inserted } = await supabase.from('news').insert(toInsert).select()
 
@@ -176,7 +179,6 @@ Responde ÚNICAMENTE en JSON puro (Array de objetos).
     return NextResponse.json({ inserted, model: usedModel })
 
   } catch (error: any) {
-    console.error('Fatal News Error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
