@@ -315,9 +315,9 @@ export async function processInjuries(matchId: string): Promise<void> {
     if (player.injury_matches_left > 0) continue
 
     const stamina = player.stamina ?? 100
-    // Base 0.7% chance at 100 stamina, scaling up as stamina decreases
-    // At 0 stamina: 0.7 + (100 * 0.12) = 12.7%
-    const injuryChance = 0.7 + (100 - stamina) * 0.12
+    // Base 0.5% chance at 100 stamina, scaling up as stamina decreases
+    // At 0 stamina: 0.5 + (100 * 0.08) = 8.5%
+    const injuryChance = 0.5 + (100 - stamina) * 0.08
 
     const roll = Math.random() * 100
     if (roll < injuryChance) {
@@ -359,14 +359,14 @@ export async function processInjuries(matchId: string): Promise<void> {
  */
 function getWeightedInjuryDuration(): number {
   const roll = Math.random()
-  if (roll < 0.50) {
-    // 1-3 matches (50% chance)
+  if (roll < 0.60) {
+    // 1-3 matches (60% chance)
     return 1 + Math.floor(Math.random() * 3)
-  } else if (roll < 0.80) {
+  } else if (roll < 0.90) {
     // 4-7 matches (30% chance)
     return 4 + Math.floor(Math.random() * 4)
   } else {
-    // 8-15 matches (20% chance)
+    // 8-15 matches (10% chance)
     return 8 + Math.floor(Math.random() * 8)
   }
 }
@@ -388,7 +388,7 @@ export async function processRedCards(matchId: string): Promise<void> {
   for (const ann of annotations as any[]) {
     const clubId = ann.club_id
 
-    // Check cooldown: only attempt red cards every 3 matches
+    // Check cooldown: only attempt red cards every 4 matches
     const { data: clubData } = await supabase
       .from('clubs')
       .select('red_card_check_counter')
@@ -420,7 +420,7 @@ export async function processRedCards(matchId: string): Promise<void> {
           if (player.red_card_matches_left > 0) continue
 
           const roll = Math.random() * 100
-          if (roll < 5) {
+          if (roll < 3) {
             // RED CARD!
             const duration = 1 + Math.floor(Math.random() * 5) // 1-5 matches
             const reason = RED_CARD_REASONS[Math.floor(Math.random() * RED_CARD_REASONS.length)]
@@ -455,11 +455,11 @@ export async function processRedCards(matchId: string): Promise<void> {
       }
     }
 
-    // Update cooldown counter: (counter + 1) % 3
+    // Update cooldown counter: (counter + 1) % 4
     // When counter=0 (check match) → becomes 1
-    // When counter=1 → becomes 2
-    // When counter=2 → becomes 0 (next match will be a check)
-    const newCounter = (counter + 1) % 3
+    // ...
+    // When counter=3 → becomes 0 (next match will be a check)
+    const newCounter = (counter + 1) % 4
     await (supabase.from('clubs') as any).update({
       red_card_check_counter: newCounter,
     }).eq('id', clubId)
