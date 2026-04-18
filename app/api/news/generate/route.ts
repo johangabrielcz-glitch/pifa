@@ -88,14 +88,16 @@ export async function POST(req: Request) {
       context = `ENFOQUE: ${club?.name || 'La Liga'}`
     }
 
-    const marketContext = marketHistory.map(t => `- ${t.player?.name} (${t.from_club?.name} -> ${t.to_club?.name})`).join('\n')
+    const marketContext = marketHistory.map(t => `- JUGADOR: ${t.player?.name} (DE: ${t.from_club?.name || 'Agente Libre'} -> A: ${t.to_club?.name})`).join('\n')
 
     // 2. DEFINICIÓN DE PROMPTS MODULARES
     const COMMON_RULES = `REGLAS DE ORO:
 1. IDIOMA: SIEMPRE ESPAÑOL.
 2. VERACIDAD: Si un jugador no está en el MAPA DE ROSTERS, no existe. 
-3. JSON: Responde solo JSON con llaves [title, content, emoji, category, color].
-4. LONGITUD: Máximo 1 párrafo por noticia.`
+3. PRIORIDAD: Los "DATOS ACTUALES" mandan sobre cualquier otra cosa. Si dicen que algo ocurrió, ocurrió, aunque el Mapa de Rosters parezca decir lo contrario (puede estar un segundo desactualizado).
+4. ROLES: Presta mucha atención a quién es el COMPRADOR y quién el VENDEDOR. No los inviertas.
+5. JSON: Responde solo JSON con llaves [title, content, emoji, category, color].
+6. LONGITUD: Máximo 1 párrafo por noticia.`
 
     const MODE_RULES = {
       match: `MODO CRONISTA DEPORTIVO: 
@@ -104,7 +106,9 @@ export async function POST(req: Request) {
 - Usa la clasificación para decir si el equipo sube o baja.`,
       market: `MODO INSIDER DE MERCADO:
 - Céntrate en la bomba del fichaje o movimiento. 
-- Analiza el impacto deportivo de este cambio de equipo. 
+- Si los datos dicen "INTERÉS" u "OFERTA", aclara que NO es oficial aún, es un rumor fuerte o negociación.
+- Si los datos dicen "OFICIAL" o "FICHAJE", trátalo como un hecho consumado.
+- Analiza el impacto deportivo de este movimiento para ambos clubes. 
 - No hables de resultados de partidos.`,
       general: `MODO REPORTE DE LIGA:
 - Analiza el estado de los clubes según su posición en la clasificación.

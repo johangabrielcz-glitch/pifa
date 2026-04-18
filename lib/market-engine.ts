@@ -71,10 +71,17 @@ export async function createOffer(
 
   // -- AUTO NEWS TRIGGER --
   try {
+    const { data: sellerClub } = await supabase.from('clubs').select('name').eq('id', player.club_id).single()
+    const sellerName = sellerClub?.name || 'su club actual'
+    
     fetch('/api/news/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ isMarketTrigger: true, marketEvent: 'offer', textData: `${buyerName} filtró su interés ofreciendo $${amount} por ${player.name} de manera encubierta.` })
+      body: JSON.stringify({ 
+        isMarketTrigger: true, 
+        marketEvent: 'offer', 
+        textData: `INTERÉS: El club ${buyerName} ha filtrado su interés y presentado una oferta de $${amount} por ${player.name}, actualmente jugador del ${sellerName}.` 
+      })
     }).catch(() => {})
   } catch (e) {}
 
@@ -259,7 +266,11 @@ export async function buyPlayerDirectly(player: Player, buyerClubId: string) {
     fetch('/api/news/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ isMarketTrigger: true, marketEvent: 'clausula', textData: `¡BOMBAZO! ${latestBuyer.name} ha robado a ${player.name} de las manos de ${latestSeller?.name} ejecutando su cláusula por $${amount}.` })
+      body: JSON.stringify({ 
+        isMarketTrigger: true, 
+        marketEvent: 'clausula', 
+        textData: `¡BOMBAZO! El club ${latestBuyer.name} (COMPRADOR) ha robado a la estrella ${player.name} de las manos del ${latestSeller?.name} (VENDEDOR) ejecutando su cláusula por $${amount}. El traspaso es OFICIAL.` 
+      })
     }).catch(() => {})
   } catch (e) {}
 
@@ -357,7 +368,11 @@ async function executeTransfer(offer: any) {
     fetch('/api/news/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ isMarketTrigger: true, marketEvent: 'transfer', textData: `OFICIAL: ${offer.buyer_club?.name} completó la compra de la estrella ${player.name} pagándole $${amount} a ${offer.seller_club?.name}.` })
+      body: JSON.stringify({ 
+        isMarketTrigger: true, 
+        marketEvent: 'transfer', 
+        textData: `OFICIAL: El club ${offer.buyer_club?.name} (COMPRADOR) completó la compra de la estrella ${player.name} pagándole $${amount} al ${offer.seller_club?.name} (VENDEDOR). El jugador ya viste su nueva camiseta.` 
+      })
     }).catch(() => {})
   } catch (e) {}
 

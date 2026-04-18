@@ -426,7 +426,7 @@ export async function markPlayerSeeking(playerId: string): Promise<{ success: bo
         body: JSON.stringify({
           isMarketTrigger: true,
           marketEvent: 'player_seeking',
-          textData: `BOMBAZO: ${p.name} de ${clubName} ha decidido IRSE del club. La moral del jugador ha llegado al límite. Busca un nuevo destino y estará disponible como agente libre en la próxima ventana de fichajes.`
+          textData: `BOMBAZO: La estrella ${p.name} del club ${clubName} (ACTUAL) ha decidido IRSE. Ha declarado públicamente que busca un nuevo destino y no jugará más para el ${clubName}. Su moral está rota y quiere forzar su salida como agente libre.`
         })
       }).catch(() => {})
     } catch (e) {}
@@ -512,13 +512,14 @@ export async function signFreeAgent(
 
     // Trigger news
     try {
+      const buyerName = (buyerClub as any)?.name || 'Un nuevo club'
       fetch('/api/news/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           isMarketTrigger: true,
           marketEvent: 'free_agent_signing',
-          textData: `${(buyerClub as any)?.name || 'Un club'} ha fichado al agente libre ${p.name} con un contrato de ${contractSeasons} temporadas y salario de $${salary.toLocaleString()}.`
+          textData: `FICHAJE: El club ${buyerName} (COMPRADOR) ha fichado al agente libre ${p.name} (ex-jugador sin equipo). Firma por ${contractSeasons} temporadas con un sueldo de $${salary.toLocaleString()}. Refuerzo a coste cero.`
         })
       }).catch(() => {})
     } catch (e) {}
