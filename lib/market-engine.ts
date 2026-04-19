@@ -587,35 +587,53 @@ export async function firePlayer(playerId: string, clubId: string): Promise<{ su
     }
 
     // 2. Ejecutar rescisión
-    // A. Cobrar al club
-    await supabase.from('clubs').update({ 
+    
+    // A. Primero intentar liberar al jugador (Este paso suele ser el que falla por RLS)
+    const { error: releaseError } = await supabase.from('players').update({
+      club_id: null,
+      contract_status: 'free_agent',
+      wants_to_leave: true, 
+      is_on_sale: false,
+      sale_price: null,
+      salary_paid_this_season: false,
+      morale: 20, 
+      updated_at: new Date().toISOString()
+    }).eq('id', playerId)
+
+    if (releaseError) {
+      console.error('Error releasing player:', releaseError)
+      if (releaseError.code === '42501') {
+        throw new Error('Permiso denegado por la base de datos (RLS). Debes aplicar el script de reparación de permisos SQL.')
+      }
+      throw new Error(`Error al liberar al jugador: ${releaseError.message}`)
+    }
+
+    // B. Si la liberación tuvo éxito, proceder a cobrar al club
+    const { error: budgetError } = await supabase.from('clubs').update({ 
       budget: player.club.budget - cost,
       updated_at: new Date().toISOString()
     }).eq('id', clubId)
 
-    // B. Liberar jugador
-    await supabase.from('players').update({
-      club_id: null,
-      contract_status: 'free_agent',
-      wants_to_leave: true, // Buscando equipo
-      is_on_sale: false,
-      sale_price: null,
-      salary_paid_this_season: false,
-      morale: 20, // Moral por el suelo por ser despedido
-      updated_at: new Date().toISOString()
-    }).eq('id', playerId)
+    if (budgetError) {
+      console.error('Error updating budget during release:', budgetError)
+      // Nota: En un mundo ideal esto sería una transacción. 
+      // Si falla aquí, el jugador queda libre pero el club no pagó.
+      throw new Error('El jugador fue liberado pero hubo un error al descontar el presupuesto.')
+    }
 
     // C. Limpiar historial de negociaciones activas
     await supabase.from('clause_negotiations').delete().eq('player_id', playerId)
 
     // D. Registrar en historial
-    await supabase.from('market_history').insert({
+    const { error: historyError } = await supabase.from('market_history').insert({
       player_id: playerId,
       from_club_id: clubId,
       to_club_id: null,
       amount: cost,
       type: 'release'
     })
+
+    if (historyError) console.warn('History log error:', historyError)
 
     // 3. Notificaciones y Difusión
     const title = `🚨 CONTRATO RESCINDIDO`
@@ -639,6 +657,6 @@ export async function firePlayer(playerId: string, clubId: string): Promise<{ su
     return { success: true }
   } catch (err: any) {
     console.error('Error firing player:', err)
-    return { success: false, error: err.message }
+    return { success: false, error: err.message || 'Error desconocido al despedir al jugador' }
   }
 }
