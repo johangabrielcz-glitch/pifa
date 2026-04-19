@@ -40,7 +40,7 @@ interface ReadStatus {
   }
 }
 
-const PAGE_SIZE = 40
+const PAGE_SIZE = 25
 
 // -- SUB-COMPONENTES OPTIMIZADOS --
 
@@ -750,10 +750,10 @@ export function GlobalChat({ user, club, onBack }: { user: User; club: Club | nu
     let query = supabase
       .from('global_chat_messages')
       .select(`
-        *,
-        user:users(full_name, username),
-        club:clubs(name, shield_url),
-        reply_to:reply_to_id(content, user:users(full_name))
+        id, user_id, club_id, content, created_at, reply_to_id, media_url, media_type,
+        user:user_id(full_name, username),
+        club:club_id(name, shield_url),
+        reply_to:reply_to_id(content, user:user_id(full_name))
       `)
       .order('created_at', { ascending: false })
       .limit(PAGE_SIZE)
@@ -763,7 +763,10 @@ export function GlobalChat({ user, club, onBack }: { user: User; club: Club | nu
     }
 
     const { data, error } = await query
-    if (error) console.error('Error fetching chat messages:', error)
+    if (error) {
+      console.error('❌ Error fetching chat messages:', error.message, error.details, error.hint)
+      toast.error('Error de conexión al chat')
+    }
     return (data || []).reverse()
   }, [])
 
@@ -774,16 +777,16 @@ export function GlobalChat({ user, club, onBack }: { user: User; club: Club | nu
     const { data: missedMsgs, error } = await supabase
       .from('global_chat_messages')
       .select(`
-        *,
-        user:users(full_name, username),
-        club:clubs(name, shield_url),
-        reply_to:reply_to_id(content, user:users(full_name))
+        id, user_id, club_id, content, created_at, reply_to_id, media_url, media_type,
+        user:user_id(full_name, username),
+        club:club_id(name, shield_url),
+        reply_to:reply_to_id(content, user:user_id(full_name))
       `)
       .gt('created_at', lastMsg.created_at)
       .order('created_at', { ascending: true })
 
     if (error) {
-      console.error('Error al recuperar mensajes perdidos:', error)
+      console.error('❌ Error al recuperar mensajes perdidos:', error.message, error.details)
       return
     }
 
@@ -811,17 +814,28 @@ export function GlobalChat({ user, club, onBack }: { user: User; club: Club | nu
     let isMounted = true
     const init = async () => {
       try {
-        const [initialMessages, { data: usersData }, { data: stickersData }] = await Promise.all([
-          fetchMessagesPaginated(),
-          supabase.from('users').select('*, club:clubs(name)').not('club_id', 'is', null),
-          supabase.from('user_stickers').select('*').eq('user_id', user.id)
-        ])
+        console.log('🏁 [Chat:Init] Iniciando carga de datos...')
+        
+        // Cargar mensajes con catch individual
+        const initialMessages = await fetchMessagesPaginated().catch(err => {
+          console.error('❌ [Chat:Init] Fallo crítico al cargar mensajes:', err)
+          return []
+        })
 
         if (!isMounted) return
         setMessages(initialMessages)
-        if (usersData) setAllDTs(usersData as User[])
-        if (stickersData) setMyStickers(stickersData)
         
+        // Cargar otros datos en paralelo pero sin bloquear el flujo principal si fallan
+        Promise.all([
+          supabase.from('users').select('*, club:clubs(name)').not('club_id', 'is', null),
+          supabase.from('user_stickers').select('*').eq('user_id', user.id)
+        ]).then(([{ data: usersData }, { data: stickersData }]) => {
+          if (!isMounted) return
+          if (usersData) setAllDTs(usersData as User[])
+          if (stickersData) setMyStickers(stickersData)
+          console.log('✅ [Chat:Init] Datos secundarios cargados')
+        }).catch(err => console.warn('⚠️ [Chat:Init] Error en datos secundarios:', err))
+
         await fetchReadStatuses()
         setLoading(false)
 
@@ -833,14 +847,14 @@ export function GlobalChat({ user, club, onBack }: { user: User; club: Club | nu
         
         setTimeout(() => scrollToBottom('auto'), 100)
       } catch (err) {
-        console.error('Error in init:', err)
+        console.error('❌ [Chat:Init] Error no controlado en init:', err)
         setLoading(false)
       }
     }
 
     init()
     return () => { isMounted = false }
-  }, [])
+  }, [user?.id, club?.id, fetchMessagesPaginated, fetchReadStatuses, updateMyReadStatus])
 
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -883,7 +897,7 @@ export function GlobalChat({ user, club, onBack }: { user: User; club: Club | nu
         console.log('✨ [Realtime] Nuevo mensaje detectado (INSERT):', payload.new.id)
         const { data: newMsg, error: newMsgError } = await supabase
           .from('global_chat_messages')
-          .select('*, user:users(full_name, username), club:clubs(name, shield_url), reply_to:reply_to_id(content, user:users(full_name))')
+          .select('id, user_id, club_id, content, created_at, reply_to_id, media_url, media_type, user:user_id(full_name, username), club:club_id(name, shield_url), reply_to:reply_to_id(content, user:user_id(full_name))')
           .eq('id', payload.new.id)
           .single()
 
@@ -930,7 +944,7 @@ export function GlobalChat({ user, club, onBack }: { user: User; club: Club | nu
         // Re-fetch como respaldo para garantizar metadatos completos (joins)
         const { data: updatedMsg } = await supabase
           .from('global_chat_messages')
-          .select('*, user:users(full_name, username), club:clubs(name, shield_url), reply_to:reply_to_id(content, user:users(full_name))')
+          .select('id, user_id, club_id, content, created_at, reply_to_id, media_url, media_type, user:user_id(full_name, username), club:club_id(name, shield_url), reply_to:reply_to_id(content, user:user_id(full_name))')
           .eq('id', payload.new.id)
           .single()
 
@@ -1272,6 +1286,23 @@ export function GlobalChat({ user, club, onBack }: { user: User; club: Club | nu
           </div>
         </div>
         <div className="flex items-center gap-1">
+          <button 
+            onClick={() => {
+              setLoading(true)
+              fetchMessagesPaginated().then(msgs => {
+                setMessages(msgs)
+                setLoading(false)
+                toast.success('Chat actualizado')
+              }).catch(() => {
+                setLoading(false)
+                toast.error('Error al actualizar')
+              })
+            }} 
+            className="p-2.5 text-[#6A6C6E] hover:text-[#00FF85] hover:bg-[#00FF85]/10 rounded-full transition-all active:scale-95 flex items-center justify-center group" 
+            title="Refrescar Chat"
+          >
+             <History className="w-5 h-5 group-hover:rotate-[-45deg] transition-transform" />
+          </button>
           {bgImage && (
             <button onClick={() => { setBgImage(null); localStorage.removeItem('pifa_chat_bg'); }} className="p-2 text-[#6A6C6E] hover:text-red-500 hover:bg-white/5 rounded-full transition-all active:scale-95 flex items-center justify-center group" title="Volver al fondo oscuro">
                <Trash2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
@@ -1391,7 +1422,7 @@ export function GlobalChat({ user, club, onBack }: { user: User; club: Club | nu
               media_url: pendingMedia?.url || null,
               media_type: pendingMedia?.type || null
             })
-            .select('*, user:users(full_name, username), club:clubs(name, shield_url), reply_to:reply_to_id(content, user:users(full_name))')
+            .select('id, user_id, club_id, content, created_at, reply_to_id, media_url, media_type, user:user_id(full_name, username), club:club_id(name, shield_url), reply_to:reply_to_id(content, user:user_id(full_name))')
             .single()
 
           if (newMsg) {

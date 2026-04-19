@@ -10,6 +10,7 @@ import { UltimateCard } from '@/components/pifa/ultimate-card'
 import { createOffer, handleOfferResponse, buyPlayerDirectly } from '@/lib/market-engine'
 import { isTransferWindowOpen, signFreeAgent } from '@/lib/contract-engine'
 import { toast } from 'sonner'
+import { ClauseChatDrawer } from '@/components/pifa/clause-chat-drawer'
 import { 
   AlertDialog,
   AlertDialogAction,
@@ -31,6 +32,8 @@ export default function MarketPage() {
   const [globalSearchResults, setGlobalSearchResults] = useState<Player[]>([])
   const [history, setHistory] = useState<MarketHistory[]>([])
   const [myOffers, setMyOffers] = useState<MarketOffer[]>([])
+  const [myNegotiations, setMyNegotiations] = useState<any[]>([])
+  const [myReleases, setMyReleases] = useState<string[]>([]) // Array of player IDs
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [globalSearch, setGlobalSearch] = useState('')
@@ -48,6 +51,14 @@ export default function MarketPage() {
   // Buy Modal State
   const [playerToBuy, setPlayerToBuy] = useState<Player | null>(null)
   const [isBuying, setIsBuying] = useState(false)
+  
+  // Clause Negotiation State
+  const [isClauseChatOpen, setIsClauseChatOpen] = useState(false)
+  const [playerForClause, setPlayerForClause] = useState<Player | null>(null)
+
+  // Free Agent States
+  const [freeAgentToSign, setFreeAgentToSign] = useState<Player | null>(null)
+  const [signingFreeAgent, setSigningFreeAgent] = useState(false)
 
   useEffect(() => {
     fetchInitialData()
@@ -62,17 +73,19 @@ export default function MarketPage() {
       if (authSession.club) setCurrentUserClub(authSession.club)
 
       // Lanzar todas las consultas iniciales en paralelo
-      const [psRes, clbsRes, histRes, offersRes] = await Promise.all([
+      const [psRes, clbsRes, histRes, offersRes, negRes] = await Promise.all([
         supabase.from('players').select('*, club:clubs(*)').eq('is_on_sale', true).order('sale_price', { ascending: true }),
         supabase.from('clubs').select('*, users(full_name)').order('name', { ascending: true }),
         supabase.from('market_history').select('*, player:players(*), from_club:clubs!from_club_fk(*), to_club:clubs!to_club_fk(*)').order('created_at', { ascending: false }).limit(20),
-        authSession.club ? supabase.from('market_offers').select('*, player:players(*), seller_club:clubs!seller_club_fk(*)').eq('buyer_club_id', authSession.club.id).order('created_at', { ascending: false }) : Promise.resolve({ data: [] })
+        authSession.club ? supabase.from('market_offers').select('*, player:players(*), seller_club:clubs!seller_club_fk(*)').eq('buyer_club_id', authSession.club.id).order('created_at', { ascending: false }) : Promise.resolve({ data: [] }),
+        authSession.club ? supabase.from('clause_negotiations').select('*').eq('buyer_club_id', authSession.club.id) : Promise.resolve({ data: [] })
       ])
 
       if (psRes.data) setPlayersOnSale(psRes.data)
       if (clbsRes.data) setAllClubs(clbsRes.data)
       if (histRes.data) setHistory(histRes.data)
       if (offersRes.data) setMyOffers(offersRes.data)
+      if (negRes.data) setMyNegotiations(negRes.data)
 
       // Fetch transfer window status
       try {
@@ -89,6 +102,21 @@ export default function MarketPage() {
         .eq('contract_status', 'free_agent')
         .order('name', { ascending: true })
       if (freeAgentData) setFreeAgents(freeAgentData)
+
+      // Fetch my recent releases (block re-signing)
+      if (authSession.club) {
+        const { data: season } = await supabase.from('seasons').select('created_at').eq('status', 'active').single()
+        if (season) {
+          const { data: releases } = await supabase
+            .from('market_history')
+            .select('player_id')
+            .eq('from_club_id', authSession.club.id)
+            .eq('type', 'release')
+            .gte('created_at', season.created_at)
+          
+          if (releases) setMyReleases(releases.map(r => r.player_id))
+        }
+      }
 
     } catch (err) {
       console.error('Error fetching market data:', err)
@@ -155,6 +183,32 @@ export default function MarketPage() {
       toast.error(err.message || 'Error en la compra')
     } finally {
       setIsBuying(false)
+    }
+  }
+
+  const handleSignFreeAgent = async () => {
+    if (!freeAgentToSign || !currentUserClub) return
+    setSigningFreeAgent(true)
+    try {
+      const result = await signFreeAgent(
+        freeAgentToSign.id,
+        currentUserClub.id,
+        freeAgentToSign.salary || 25000,
+        2, // 2 temporadas fijas
+        'rotation' // rol rotación fijo
+      )
+
+      if (result.success) {
+        toast.success(`¡Fichaje completado! ${freeAgentToSign.name} se ha unido al club. Se descontó el primer salario de tu presupuesto.`)
+        setFreeAgentToSign(null)
+        fetchInitialData()
+      } else {
+        toast.error(result.error || 'Error al fichar agente libre')
+      }
+    } catch (err: any) {
+      toast.error('Error de red al fichar')
+    } finally {
+      setSigningFreeAgent(false)
     }
   }
 
@@ -415,6 +469,28 @@ export default function MarketPage() {
                                         Compra Directa
                                       </Button>
                                     )}
+                                    {player.is_one_club_man ? (
+                                      <div className="w-full py-2 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-[8px] font-black text-amber-500 text-center uppercase tracking-[0.2em]">
+                                        🛡️ One Club Man (Innegociable)
+                                      </div>
+                                    ) : (
+                                      <Button 
+                                        className={`w-full text-[10px] font-black uppercase tracking-widest h-10 transition-all duration-300 rounded-2xl ${
+                                          myNegotiations.find(n => n.player_id === player.id && n.status === 'blocked')
+                                            ? 'bg-red-500/10 border border-red-500/20 text-red-500 cursor-not-allowed'
+                                            : 'bg-white/5 border border-white/10 hover:bg-white/10 text-white'
+                                        }`}
+                                        disabled={!!myNegotiations.find(n => n.player_id === player.id && n.status === 'blocked')}
+                                        onClick={() => {
+                                          setPlayerForClause(player)
+                                          setIsClauseChatOpen(true)
+                                        }}
+                                      >
+                                        {myNegotiations.find(n => n.player_id === player.id && n.status === 'blocked') 
+                                          ? '🚫 Negociación Bloqueada' 
+                                          : 'Pagar Cláusula'}
+                                      </Button>
+                                    )}
                                   </>
                                 ) : (
                                   <p className="text-[8px] font-bold text-red-400/60 text-center uppercase tracking-widest py-2">🔒 Mercado cerrado</p>
@@ -592,6 +668,28 @@ export default function MarketPage() {
                                     ) : (
                                       <p className="text-[7px] font-bold text-red-400/50 text-center uppercase tracking-widest py-1">🔒 Cerrado</p>
                                     )}
+                                    {player.is_one_club_man ? (
+                                      <div className="w-full mt-2 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-xl text-[7px] font-black text-amber-500 text-center uppercase tracking-[0.15em]">
+                                        🛡️ One Club Man
+                                      </div>
+                                    ) : (
+                                      <Button 
+                                        className={`w-full mt-2 text-[8px] font-black uppercase tracking-widest h-8 transition-all duration-300 rounded-xl ${
+                                          myNegotiations.find(n => n.player_id === player.id && n.status === 'blocked')
+                                            ? 'bg-red-500/10 border border-red-500/20 text-red-500 cursor-not-allowed'
+                                            : 'bg-white/5 border border-white/10 hover:bg-white/10 text-white'
+                                        }`}
+                                        disabled={!!myNegotiations.find(n => n.player_id === player.id && n.status === 'blocked')}
+                                        onClick={() => {
+                                          setPlayerForClause(player)
+                                          setIsClauseChatOpen(true)
+                                        }}
+                                      >
+                                        {myNegotiations.find(n => n.player_id === player.id && n.status === 'blocked') 
+                                          ? '🚫 Bloqueado' 
+                                          : 'Cláusula'}
+                                      </Button>
+                                    )}
                                   </div>
                                 </div>
                               )
@@ -655,30 +753,18 @@ export default function MarketPage() {
                         showContractInfo={true}
                       />
                       {transferWindowStatus && currentUserClub && player.club_id !== currentUserClub.id && (
-                        <button
-                          onClick={async () => {
-                            try {
-                              const result = await signFreeAgent(
-                                player.id,
-                                currentUserClub.id,
-                                25000,
-                                3,
-                                'rotation'
-                              )
-                              if (result.success) {
-                                toast.success(`${player.name} fichado como agente libre`)
-                                fetchInitialData()
-                              } else {
-                                toast.error(result.error || 'Error al fichar')
-                              }
-                            } catch (err: any) {
-                              toast.error(err.message || 'Error al fichar agente libre')
-                            }
-                          }}
-                          className="w-full py-2 rounded-xl bg-[#00FF85]/10 border border-[#00FF85]/20 text-[#00FF85] hover:bg-[#00FF85] hover:text-[#0A0A0A] text-[8px] font-black uppercase tracking-widest transition-all"
-                        >
-                          Fichar (Gratis)
-                        </button>
+                        myReleases.includes(player.id) ? (
+                          <div className="w-full py-2.5 bg-red-500/5 border border-red-500/10 rounded-xl text-red-500/40 text-[9px] font-black uppercase tracking-widest text-center">
+                            🚫 Bloqueado por Despido
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setFreeAgentToSign(player)}
+                            className="w-full py-2.5 bg-[#00FF85]/10 border border-[#00FF85]/30 rounded-xl text-[#00FF85] text-[10px] font-black uppercase tracking-widest hover:bg-[#00FF85] hover:text-[#0A0A0A] transition-all"
+                          >
+                            Fichar (Gratis*)
+                          </button>
+                        )
                       )}
                       {!transferWindowStatus && (
                         <p className="text-[7px] font-bold text-red-400/60 text-center uppercase tracking-widest">
@@ -883,6 +969,69 @@ export default function MarketPage() {
               className="h-14 rounded-2xl bg-[#00FF85] text-[#0A0A0A] hover:bg-[#00cc6a] font-black uppercase text-[10px] tracking-widest shadow-[0_10px_30px_rgba(0,255,133,0.3)]"
             >
               {isBuying ? 'Procesando...' : 'Confirmar Compra'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <ClauseChatDrawer 
+        player={playerForClause}
+        isOpen={isClauseChatOpen}
+        onClose={() => {
+          setIsClauseChatOpen(false)
+          setPlayerForClause(null)
+        }}
+        buyerClubId={currentUserClub?.id || ''}
+        onTransferComplete={() => {
+          fetchInitialData()
+        }}
+      />
+
+      {/* Free Agent Confirmation Dialog */}
+      <AlertDialog open={!!freeAgentToSign} onOpenChange={(open) => !open && setFreeAgentToSign(null)}>
+        <AlertDialogContent className="bg-[#0A0A0A] border-white/10 text-white rounded-[32px] sm:max-w-[400px]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-xl font-black uppercase tracking-tighter flex items-center gap-2">
+              <UserPlus className="w-5 h-5 text-[#00FF85]" />
+              Confirmar Fichaje
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-[#6A6C6E] text-[10px] font-bold uppercase tracking-wider leading-relaxed">
+              Estás a punto de fichar a <span className="text-white">{freeAgentToSign?.name}</span> como agente libre. No hay coste de traspaso, pero deberás aceptar las siguientes condiciones:
+              
+              <div className="mt-4 p-4 bg-white/5 rounded-2xl border border-white/5 space-y-3">
+                <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                  <span className="text-zinc-500">Salario Inicial:</span>
+                  <span className="text-[#00FF85] font-black italic">${(freeAgentToSign?.salary || 0).toLocaleString()} (Prepago)</span>
+                </div>
+                <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                  <span className="text-zinc-500">Contrato:</span>
+                  <span className="text-white font-black italic">2 Temporadas</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-zinc-500">Rol Inicial:</span>
+                  <span className="text-white font-black italic uppercase">Rotación</span>
+                </div>
+              </div>
+
+              <p className="mt-4 text-zinc-500 px-1 text-center">
+                * El primer salario se descontará de tu presupuesto de inmediato ($${(freeAgentToSign?.salary || 0).toLocaleString()}).
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-6 gap-2">
+            <AlertDialogCancel className="bg-transparent border-white/5 text-[#6A6C6E] hover:text-white hover:bg-white/5 rounded-2xl uppercase text-[10px] font-black h-12">
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={(e) => {
+                e.preventDefault()
+                handleSignFreeAgent()
+              }}
+              disabled={signingFreeAgent || (currentUserClub?.budget || 0) < (freeAgentToSign?.salary || 0)}
+              className={`flex-1 rounded-2xl uppercase text-[10px] font-black h-12 shadow-xl hover:scale-[1.02] transition-transform duration-300 ${(currentUserClub?.budget || 0) < (freeAgentToSign?.salary || 0) ? 'bg-red-500/20 text-red-500 grayscale' : 'bg-[#00FF85] text-black hover:bg-[#00CC6A]'}`}
+            >
+              {signingFreeAgent ? <Loader2 className="w-4 h-4 animate-spin" /> : 
+               (currentUserClub?.budget || 0) < (freeAgentToSign?.salary || 0) ? 'Presupuesto Insuficiente' : 'Firmar Contrato'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

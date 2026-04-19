@@ -463,8 +463,39 @@ export async function signFreeAgent(
     }
 
     const oldClubId = p.club_id
+    const { data: buyerClub } = await supabase.from('clubs').select('*').eq('id', buyerClubId).single()
+    if (!buyerClub) throw new Error('Club comprador no encontrado')
 
-    // Transferir jugador al nuevo club con contrato nuevo
+    // -- RESTRICCIÓN DE RE-FICHAJE TRAS DESPIDO --
+    // Verificar si el club comprador despidió a este jugador en la temporada actual
+    const { data: activeSeason } = await supabase.from('seasons').select('created_at').eq('status', 'active').single()
+    if (activeSeason) {
+      const { data: recentRelease } = await supabase
+        .from('market_history')
+        .select('id')
+        .eq('player_id', playerId)
+        .eq('from_club_id', buyerClubId)
+        .eq('type', 'release')
+        .gte('created_at', activeSeason.created_at) // Solo en esta temporada
+        .limit(1)
+      
+      if (recentRelease && recentRelease.length > 0) {
+        throw new Error('REGLAMENTO: No puedes volver a fichar a un jugador cuyo contrato rescindiste en la misma temporada.')
+      }
+    }
+
+    // Validar presupuesto para el primer salario
+    if (buyerClub.budget < salary) {
+      throw new Error(`Presupuesto insuficiente. Necesitas $${salary.toLocaleString()} para el primer salario.`)
+    }
+
+    // A. Cobrar salario al comprador
+    await supabase.from('clubs').update({ 
+      budget: buyerClub.budget - salary,
+      updated_at: new Date().toISOString()
+    }).eq('id', buyerClubId)
+
+    // B. Transferir jugador con contrato nuevo (marcado como pagado)
     await supabase.from('players').update({
       club_id: buyerClubId,
       contract_seasons_left: contractSeasons,
@@ -472,7 +503,7 @@ export async function signFreeAgent(
       squad_role: role,
       contract_status: 'active',
       wants_to_leave: false,
-      salary_paid_this_season: false,
+      salary_paid_this_season: true, // Se paga al entrar
       morale: 100, // Reset moral al fichar
       is_on_sale: false,
       sale_price: null,
@@ -489,8 +520,6 @@ export async function signFreeAgent(
     })
 
     // Notificar al nuevo club
-    const { data: buyerClub } = await supabase.from('clubs').select('name').eq('id', buyerClubId).single()
-    
     await supabase.from('notifications').insert({
       club_id: buyerClubId,
       title: '✅ Agente Libre Fichado',
@@ -510,10 +539,19 @@ export async function signFreeAgent(
       })
     }
 
-    // Trigger news
+    // Trigger news & Push
     try {
       const buyerName = (buyerClub as any)?.name || 'Un nuevo club'
-      fetch('/api/news/generate', {
+      
+      // Push a todos
+      sendPushToAll(
+        '🤝 NUEVO FICHAJE (LIBRE)', 
+        `${buyerName} ha firmado a ${p.name} como agente libre por ${contractSeasons} temporadas.`,
+        { type: 'market_alert' }
+      )
+
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || ''
+      fetch(`${baseUrl}/api/news/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

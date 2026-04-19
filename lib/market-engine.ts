@@ -1,6 +1,6 @@
 import { supabaseAdmin as supabase } from './supabase'
-import { MarketOffer, Notification, Player, Club } from './types'
-import { sendPushToClub } from './push-notifications'
+import { MarketOffer, Notification, Player, Club, ClauseNegotiation, SquadRole } from './types'
+import { sendPushToClub, sendPushToAll } from './push-notifications'
 import { isTransferWindowOpen } from './contract-engine'
 
 export async function createOffer(
@@ -377,4 +377,268 @@ async function executeTransfer(offer: any) {
   } catch (e) {}
 
   return true
+}
+
+/**
+ * Aumenta la cláusula de rescisión de un jugador descontando la diferencia del presupuesto del club.
+ */
+export async function updateReleaseClause(playerId: string, clubId: string, newAmount: number) {
+  const { data: player } = await supabase.from('players').select('*').eq('id', playerId).single()
+  const { data: club } = await supabase.from('clubs').select('*').eq('id', clubId).single()
+
+  if (!player || !club) throw new Error('Jugador o Club no encontrado')
+  if (newAmount <= (player.release_clause || 0)) throw new Error('El nuevo valor debe ser superior al actual')
+
+  const cost = newAmount - (player.release_clause || 0)
+
+  if (club.budget < cost) throw new Error('Presupuesto insuficiente para blindar al jugador')
+
+  await supabase.from('clubs').update({ budget: club.budget - cost }).eq('id', clubId)
+  await supabase.from('players').update({ 
+    release_clause: newAmount,
+    updated_at: new Date().toISOString()
+  }).eq('id', playerId)
+
+  return { success: true, cost }
+}
+
+/**
+ * Inicia o recupera una negociación de cláusula entre un club y un jugador.
+ */
+export async function startClauseNegotiation(playerId: string, buyerClubId: string) {
+  const windowOpen = await isTransferWindowOpen()
+  if (!windowOpen) throw new Error('Mercado cerrado')
+
+  const { data: player } = await supabase.from('players').select('is_one_club_man').eq('id', playerId).single()
+  if (player?.is_one_club_man) throw new Error('Este jugador es un One Club Man y ha jurado lealtad eterna a sus colores. Es innegociable.')
+
+  const { data: activeSeason } = await supabase.from('seasons').select('id').eq('status', 'active').single()
+  if (!activeSeason) throw new Error('No hay temporada activa')
+
+  // Verificar si ya existe una negociación bloqueada o aceptada
+  const { data: existing } = await supabase
+    .from('clause_negotiations')
+    .select('*')
+    .eq('player_id', playerId)
+    .eq('buyer_club_id', buyerClubId)
+    .eq('season_id', activeSeason.id)
+    .single()
+
+  if (existing) {
+    if (existing.status === 'blocked') throw new Error('El jugador ha rechazado negociar contigo esta temporada.')
+    return existing
+  }
+
+  // Crear nueva negociación
+  const { data: created, error } = await supabase
+    .from('clause_negotiations')
+    .insert({
+      player_id: playerId,
+      buyer_club_id: buyerClubId,
+      season_id: activeSeason.id,
+      status: 'active',
+      patience: 100
+    })
+    .select()
+    .single()
+
+  if (error) throw error
+  
+  // -- DIFUSIÓN DE INTENTO DE CLAUSULAZO --
+  try {
+    const { data: p } = await supabase.from('players').select('name, club:clubs(name)').eq('id', playerId).single()
+    const { data: b } = await supabase.from('clubs').select('name').eq('id', buyerClubId).single()
+    
+    if (p && b) {
+      const title = `🚨 INTENTO DE CLAUSULAZO`
+      const body = `El ${b.name} de PIFA está intentando convencer a ${p.name} para activar su cláusula de rescisión y abandonar el ${(p as any).club?.name || 'club'}.`
+      
+      // Push a todos
+      sendPushToAll(title, body, { type: 'market_alert' })
+      
+      // Generar Noticia con IA
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || ''
+      fetch(`${baseUrl}/api/news/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          isMarketTrigger: true, 
+          marketEvent: 'interes', 
+          textData: `RUMOR: El ${b.name} ha iniciado conversaciones directas con ${p.name} con la intención de pagar su cláusula de blindaje. Se reporta que las negociaciones están en curso.` 
+        })
+      }).catch(() => {})
+    }
+  } catch (e) {
+    console.error('Error broadcasting clause attempt:', e)
+  }
+
+  return created
+}
+
+/**
+ * Ejecuta el traspaso por cláusula una vez el jugador ha aceptado las condiciones.
+ */
+export async function transferPlayerByClause(negotiationId: string) {
+  const { data: neg, error: negError } = await supabase
+    .from('clause_negotiations')
+    .select('*, player:players(*), buyer_club:clubs(*)')
+    .eq('id', negotiationId)
+    .single()
+
+  if (negError || !neg || !neg.deal_terms) throw new Error('Condiciones no válidas')
+  
+  const player = neg.player as Player
+  const buyer = neg.buyer_club as Club
+  const amount = player.release_clause || 700000
+  const salary = neg.deal_terms.salary
+
+  // Validar presupuesto (cláusula + primer salario)
+  if (buyer.budget < (amount + salary)) {
+    throw new Error('No tienes presupuesto para pagar la cláusula y el salario acordado.')
+  }
+
+  // 1. Pago de cláusula
+  // Restar al comprador
+  await supabase.from('clubs').update({ budget: buyer.budget - amount }).eq('id', buyer.id)
+  
+  // Sumar al vendedor
+  const { data: seller } = await supabase.from('clubs').select('budget').eq('id', player.club_id).single()
+  if (seller) {
+    await supabase.from('clubs').update({ budget: seller.budget + amount }).eq('id', player.club_id)
+  }
+
+  // 2. Mover jugador y actualizar contrato
+  await supabase.from('players').update({
+    club_id: buyer.id,
+    is_on_sale: false,
+    sale_price: null,
+    contract_seasons_left: neg.deal_terms.seasons,
+    salary: neg.deal_terms.salary,
+    squad_role: neg.deal_terms.squad_role,
+    salary_paid_this_season: false,
+    morale: 100,
+    wants_to_leave: false,
+    contract_status: 'active',
+    updated_at: new Date().toISOString()
+  }).eq('id', player.id)
+
+  // 3. Marcar negociación como aceptada
+  await supabase.from('clause_negotiations').update({ status: 'accepted' }).eq('id', negotiationId)
+
+  // 4. Limpiar ofertas y registrar historial
+  await supabase.from('market_offers').update({ status: 'cancelled' }).eq('player_id', player.id)
+  
+  await supabase.from('market_history').insert({
+    player_id: player.id,
+    from_club_id: player.club_id,
+    to_club_id: buyer.id,
+    amount: amount,
+    type: 'sale'
+  })
+
+  // 5. Notificar
+  await supabase.from('notifications').insert([
+    {
+      club_id: buyer.id,
+      title: '¡Clausulazo Completado!',
+      message: `¡Has fichado a ${player.name} pagando su cláusula de $${amount.toLocaleString()}!`,
+      type: 'transfer_complete'
+    },
+    {
+      club_id: player.club_id,
+      title: 'Perdida por Cláusula',
+      message: `${buyer.name.toUpperCase()} ha pagado la cláusula de ${player.name} ($${amount.toLocaleString()}).`,
+      type: 'transfer_complete'
+    }
+  ])
+
+  // -- PUSH --
+  sendPushToAll('💣 ¡CLAUSULAZO BOMBA!', `${buyer.name} ha fichado a ${player.name} tras pagar su cláusula.`, { type: 'transfer_complete' })
+  sendPushToClub(player.club_id, '🚨 ¡Clausulazo!', `${buyer.name} ha ejecutado la cláusula de ${player.name}. El jugador abandona el club inmediatamente.`, { type: 'transfer_complete' })
+
+  // -- NEWS --
+  try {
+    fetch('/api/news/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        isMarketTrigger: true, 
+        marketEvent: 'clausula', 
+        textData: `¡CLAUSULAZO! ${buyer.name} ha pagado la cláusula de $${amount} por ${player.name}. El jugador aceptó las condiciones y abandona el ${seller?.name || 'club'} tras cerrarse la negociación directa.` 
+      })
+    }).catch(() => {})
+  } catch (e) {}
+
+  return { success: true }
+}
+
+/**
+ * Rescinde el contrato de un jugador pagando el doble de su salario.
+ */
+export async function firePlayer(playerId: string, clubId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    // 1. Obtener datos
+    const { data: player } = await supabase.from('players').select('*, club:clubs(name, budget)').eq('id', playerId).single()
+    if (!player || player.club_id !== clubId) throw new Error('Jugador no encontrado o no pertenece al club')
+
+    const cost = (player.salary || 25000) * 2
+    if (player.club.budget < cost) {
+      throw new Error(`Presupuesto insuficiente. Rescindir el contrato cuesta $${cost.toLocaleString()} (Salario x2).`)
+    }
+
+    // 2. Ejecutar rescisión
+    // A. Cobrar al club
+    await supabase.from('clubs').update({ 
+      budget: player.club.budget - cost,
+      updated_at: new Date().toISOString()
+    }).eq('id', clubId)
+
+    // B. Liberar jugador
+    await supabase.from('players').update({
+      club_id: null,
+      contract_status: 'free_agent',
+      wants_to_leave: true, // Buscando equipo
+      is_on_sale: false,
+      sale_price: null,
+      salary_paid_this_season: false,
+      morale: 20, // Moral por el suelo por ser despedido
+      updated_at: new Date().toISOString()
+    }).eq('id', playerId)
+
+    // C. Limpiar historial de negociaciones activas
+    await supabase.from('clause_negotiations').delete().eq('player_id', playerId)
+
+    // D. Registrar en historial
+    await supabase.from('market_history').insert({
+      player_id: playerId,
+      from_club_id: clubId,
+      to_club_id: null,
+      amount: cost,
+      type: 'release'
+    })
+
+    // 3. Notificaciones y Difusión
+    const title = `🚨 CONTRATO RESCINDIDO`
+    const body = `${player.club.name.toUpperCase()} ha despedido a ${player.name} tras pagar una indemnización de $${cost.toLocaleString()}.`
+    
+    sendPushToAll(title, body, { type: 'market_alert' })
+    
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || ''
+      fetch(`${baseUrl}/api/news/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          isMarketTrigger: true, 
+          marketEvent: 'rescindid', 
+          textData: `BOMBA: El club ${player.club.name} ha decidido DESPEDIR a ${player.name}. El club ha pagado $${cost} para rescindir su contrato unilateralmente. El jugador ahora es agente libre y su moral está por los suelos.` 
+        })
+      }).catch(() => {})
+    } catch (e) {}
+
+    return { success: true }
+  } catch (err: any) {
+    console.error('Error firing player:', err)
+    return { success: false, error: err.message }
+  }
 }

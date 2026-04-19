@@ -193,6 +193,8 @@ export interface Player {
   salary_paid_this_season: boolean
   wants_to_leave: boolean
   contract_status: ContractStatus
+  release_clause: number
+  is_one_club_man: boolean
   created_at: string
   updated_at: string
   // Relations
@@ -222,6 +224,8 @@ export interface PlayerInsert {
   salary_paid_this_season?: boolean
   wants_to_leave?: boolean
   contract_status?: ContractStatus
+  release_clause?: number
+  is_one_club_man?: boolean
   created_at?: string
   updated_at?: string
 }
@@ -249,6 +253,8 @@ export interface PlayerUpdate {
   salary_paid_this_season?: boolean
   wants_to_leave?: boolean
   contract_status?: ContractStatus
+  release_clause?: number
+  is_one_club_man?: boolean
   updated_at?: string
 }
 
@@ -318,6 +324,27 @@ export interface NotificationInsert {
   type: NotificationType
   data?: any
   is_read?: boolean
+}
+
+export type ClauseNegotiationStatus = 'active' | 'blocked' | 'accepted'
+
+export interface ClauseNegotiation {
+  id: string
+  player_id: string
+  buyer_club_id: string
+  season_id: string
+  status: ClauseNegotiationStatus
+  patience: number
+  deal_terms: {
+    salary: number
+    squad_role: SquadRole
+    seasons: number
+  } | null
+  created_at: string
+  updated_at: string
+  // Relations
+  player?: Player
+  buyer_club?: Club
 }
 
 export interface MarketHistory {

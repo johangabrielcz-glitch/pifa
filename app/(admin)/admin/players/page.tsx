@@ -59,7 +59,9 @@ export default function AdminPlayersPage() {
     photo_url: '',
     salary: '25000',
     contract_seasons_left: '3',
-    squad_role: '' as string
+    squad_role: '' as string,
+    release_clause: '700000',
+    is_one_club_man: false
   })
 
   const loadData = async () => {
@@ -93,7 +95,9 @@ export default function AdminPlayersPage() {
       photo_url: '',
       salary: '25000',
       contract_seasons_left: '3',
-      squad_role: ''
+      squad_role: '',
+      release_clause: '700000',
+      is_one_club_man: false
     })
     setEditingPlayer(null)
   }
@@ -113,7 +117,9 @@ export default function AdminPlayersPage() {
       photo_url: player.photo_url || '',
       salary: (player.salary ?? 25000).toString(),
       contract_seasons_left: (player.contract_seasons_left ?? 3).toString(),
-      squad_role: player.squad_role || ''
+      squad_role: player.squad_role || '',
+      release_clause: (player.release_clause ?? 700000).toString(),
+      is_one_club_man: !!player.is_one_club_man
     })
     setIsFormOpen(true)
   }
@@ -135,7 +141,9 @@ export default function AdminPlayersPage() {
         photo_url: formData.photo_url.trim() || null,
         salary: formData.salary ? parseInt(formData.salary) : 25000,
         contract_seasons_left: formData.contract_seasons_left ? parseInt(formData.contract_seasons_left) : 3,
-        squad_role: formData.squad_role || null
+        squad_role: formData.squad_role || null,
+        release_clause: formData.release_clause ? parseInt(formData.release_clause) : 700000,
+        is_one_club_man: formData.is_one_club_man
       }
 
       if (editingPlayer) {
@@ -442,6 +450,32 @@ export default function AdminPlayersPage() {
                     <SelectItem value="rotation" className="text-xs font-bold uppercase tracking-widest text-white/60">🔄 Rotación</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="w-full h-px bg-gradient-to-r from-transparent via-white/[0.05] to-transparent my-2"></div>
+              <p className="text-[8px] text-[#00FF85] font-black uppercase tracking-[0.2em] ml-1">🛡️ Configuración de Cláusula</p>
+
+              <div className="space-y-1.5">
+                <Label className="text-[8px] text-[#6A6C6E] uppercase tracking-[0.2em] font-black ml-1">Cláusula de Rescisión ($)</Label>
+                <Input 
+                  value={formData.release_clause} 
+                  onChange={(e) => setFormData({ ...formData, release_clause: e.target.value })} 
+                  placeholder="700000" 
+                  className="h-10.5 bg-[#0A0A0A] border-[#202020] rounded-xl text-white text-center font-bold text-xs" 
+                />
+              </div>
+
+              <div className="flex items-center gap-3 p-3 bg-white/[0.02] rounded-xl border border-white/[0.04]">
+                <input 
+                  type="checkbox" 
+                  id="one-club-man"
+                  checked={formData.is_one_club_man}
+                  onChange={(e) => setFormData({ ...formData, is_one_club_man: e.target.checked })}
+                  className="w-4 h-4 rounded border-[#202020] bg-black text-[#FF3131] focus:ring-[#FF3131]/30"
+                />
+                <Label htmlFor="one-club-man" className="text-[10px] font-black text-white uppercase tracking-tight cursor-pointer">
+                  Rasgo "One Club Man" (Lealtad Extrema)
+                </Label>
               </div>
             </div>
           </div>
