@@ -26,20 +26,49 @@ export async function POST(req: Request) {
       supabase.from('players').select('id, name, club_id'),
       supabase.from('clubs').select('id, name'),
       supabase.from('market_history').select('*, player:players(name), from_club:clubs!market_history_from_club_id_fkey(name), to_club:clubs!market_history_to_club_id_fkey(name)').order('created_at', { ascending: false }).limit(5),
-      supabase.from('standings').select('*, club:clubs(name)').order('points', { ascending: false })
+      // Standings con competición y temporada — para separar cada liga correctamente
+      supabase
+        .from('standings')
+        .select('*, club:clubs(id, name), competition:competitions(id, name, type, season:seasons(name, status))')
+        .order('points', { ascending: false })
     ])
 
     const allPlayers = playersRes.data || []
     const allClubs = clubsRes.data || []
     const marketHistory = marketRes.data || []
-    const standings = standingsRes.data || []
+    const allStandings = standingsRes.data || []
+
+    // Filtrar solo standings de temporadas activas o en progreso
+    const activeStandings = allStandings.filter((s: any) =>
+      s.competition?.season?.status === 'active' || s.competition?.season?.status === 'in_progress'
+    )
+    // Fallback: si no hay activas, usar todas
+    const standings = activeStandings.length > 0 ? activeStandings : allStandings
 
     const rosterMap = allClubs.map(c => {
       const pNames = allPlayers.filter(p => p.club_id === c.id).map(p => p.name).join(', ')
       return `${c.name}: [${pNames || 'Sin jugadores'}]`
     }).join(' | ')
 
-    const standingsTable = standings.map((s, i) => `${i + 1}. ${s.club?.name} (${s.points}pts)`).join(' / ')
+    // Agrupar standings por competición para que el modelo no mezcle ligas
+    const standingsByComp = new Map<string, { compName: string; rows: any[] }>()
+    for (const s of standings) {
+      const compId = s.competition?.id || 'unknown'
+      const compName = s.competition?.name || 'Competición desconocida'
+      if (!standingsByComp.has(compId)) {
+        standingsByComp.set(compId, { compName, rows: [] })
+      }
+      standingsByComp.get(compId)!.rows.push(s)
+    }
+
+    // Construir tabla legible por competición
+    const standingsTable = Array.from(standingsByComp.values()).map(({ compName, rows }) => {
+      const table = rows
+        .sort((a, b) => b.points - a.points)
+        .map((s, i) => `${i + 1}. ${s.club?.name} (${s.points}pts, GF:${s.goals_for ?? 0} GC:${s.goals_against ?? 0})`)
+        .join(', ')
+      return `[${compName}]: ${table}`
+    }).join('\n')
 
     let context = ""
     let participantsIds = new Set<string>()
@@ -50,7 +79,7 @@ export async function POST(req: Request) {
       mode = 'match'
       const { data: m } = await supabase
         .from('matches')
-        .select('*, home_club:clubs!matches_home_club_id_fkey(name), away_club:clubs!matches_away_club_id_fkey(name), competition:competitions(name)')
+        .select('*, home_club:clubs!matches_home_club_id_fkey(name), away_club:clubs!matches_away_club_id_fkey(name), competition:competitions(name, type)')
         .eq('id', matchId)
         .single()
       
@@ -74,45 +103,71 @@ export async function POST(req: Request) {
         .filter(Boolean)
         .join(', ')
 
-      context = `PARTIDO: ${m?.home_club?.name} ${m?.home_score} - ${m?.away_score} ${m?.away_club?.name}. PARTICIPANTES PERMITIDOS: ${participantNames}. GOLES: ${annData?.map(row => row.goals?.map((g: any) => allPlayers.find(p => p.id === g.player_id)?.name).join(', ')).filter(Boolean).join(' | ')}`
+      // Standings específicos de la competición del partido
+      const matchCompId = (m as any)?.competition_id
+      const matchCompStandings = standings
+        .filter((s: any) => s.competition?.id === matchCompId)
+        .sort((a: any, b: any) => b.points - a.points)
+        .map((s: any, i: number) => `${i + 1}. ${s.club?.name} (${s.points}pts)`)
+        .join(', ')
+
+      context = `COMPETICIÓN: ${(m as any)?.competition?.name}. PARTIDO: ${m?.home_club?.name} ${m?.home_score} - ${m?.away_score} ${m?.away_club?.name}. PARTICIPANTES PERMITIDOS: ${participantNames}. GOLES: ${annData?.map(row => row.goals?.map((g: any) => allPlayers.find(p => p.id === g.player_id)?.name).join(', ')).filter(Boolean).join(' | ')}. CLASIFICACIÓN DE ESTA COMPETICIÓN: ${matchCompStandings || 'No disponible'}`
     } 
     // CASO B: Mercado
     else if (isMarketTrigger) {
       mode = 'market'
       context = `EVENTO MERCADO: ${textData}`
     }
-    // CASO C: General
+    // CASO C: General — enfocado en el club y su competición real
     else {
       mode = 'general'
-      const { data: club } = await supabase.from('clubs').select('name').eq('id', clubId).single()
-      context = `ENFOQUE: ${club?.name || 'La Liga'}`
+      const { data: club } = await supabase.from('clubs').select('id, name').eq('id', clubId).single()
+      
+      // Encontrar en qué competiciones aparece este club y su posición
+      const clubStandingsInfo = standings
+        .filter((s: any) => s.club?.id === clubId)
+        .map((s: any) => {
+          const compRows = standings
+            .filter((r: any) => r.competition?.id === s.competition?.id)
+            .sort((a: any, b: any) => b.points - a.points)
+          const pos = compRows.findIndex((r: any) => r.club?.id === clubId) + 1
+          return `${s.competition?.name}: posición ${pos}° con ${s.points}pts (GF:${s.goals_for ?? 0} GC:${s.goals_against ?? 0}, PJ:${s.played ?? 0})`
+        })
+        .join(' | ')
+
+      context = `ENFOQUE: ${club?.name}. SITUACIÓN DEL CLUB: ${clubStandingsInfo || 'No tiene partidos registrados aún'}`
     }
+
 
     const marketContext = marketHistory.map(t => `- JUGADOR: ${t.player?.name} (DE: ${t.from_club?.name || 'Agente Libre'} -> A: ${t.to_club?.name})`).join('\n')
 
     // 2. DEFINICIÓN DE PROMPTS MODULARES
     const COMMON_RULES = `REGLAS DE ORO:
 1. IDIOMA: SIEMPRE ESPAÑOL.
-2. VERACIDAD: Si un jugador no está en el MAPA DE ROSTERS, no existe. 
-3. PRIORIDAD: Los "DATOS ACTUALES" mandan sobre cualquier otra cosa. Si dicen que algo ocurrió, ocurrió, aunque el Mapa de Rosters parezca decir lo contrario (puede estar un segundo desactualizado).
-4. ROLES: Presta mucha atención a quién es el COMPRADOR y quién el VENDEDOR. No los inviertas.
-5. JSON: Responde solo JSON con llaves [title, content, emoji, category, color].
-6. LONGITUD: Máximo 1 párrafo por noticia.`
+2. VERACIDAD: Si un jugador no está en el MAPA DE ROSTERS, no existe.
+3. PRIORIDAD: Los "DATOS ACTUALES" mandan sobre cualquier otra cosa.
+4. COMPETICIONES SEPARADAS: Hay varias competiciones con clubes distintos. NUNCA mezcles la clasificación de una competición con la de otra. Cada club pertenece a su propia liga o torneo.
+5. ROLES: Presta mucha atención a quién es el COMPRADOR y quién el VENDEDOR. No los inviertas.
+6. JSON: Responde solo JSON con llaves [title, content, emoji, category, color].
+7. LONGITUD: Máximo 1 párrafo por noticia.`
 
     const MODE_RULES = {
-      match: `MODO CRONISTA DEPORTIVO: 
-- Céntrate solo en el resultado y los participantes del partido. 
+      match: `MODO CRONISTA DEPORTIVO:
+- Céntrate solo en el resultado y los participantes del partido.
 - PROHIBIDO mencionar a jugadores que no estén en la lista de PARTICIPANTES PERMITIDOS del partido.
-- Usa la clasificación para decir si el equipo sube o baja.`,
+- El contexto incluye la COMPETICIÓN exacta del partido. Úsala para decir cómo impacta el resultado en esa clasificación específica.
+- NUNCA uses datos de clasificación de otra competición diferente a la indicada.`,
       market: `MODO INSIDER DE MERCADO:
-- Céntrate en la bomba del fichaje o movimiento. 
-- Si los datos dicen "INTERÉS" u "OFERTA", aclara que NO es oficial aún, es un rumor fuerte o negociación.
+- Céntrate en la bomba del fichaje o movimiento.
+- Si los datos dicen "INTERÉS" u "OFERTA", aclara que NO es oficial aún.
 - Si los datos dicen "OFICIAL" o "FICHAJE", trátalo como un hecho consumado.
-- Analiza el impacto deportivo de este movimiento para ambos clubes. 
+- Analiza el impacto deportivo para ambos clubes.
 - No hables de resultados de partidos.`,
       general: `MODO REPORTE DE LIGA:
-- Analiza el estado de los clubes según su posición en la clasificación.
-- Crea ambiente sobre la competición actual.`
+- El foco es el club y competición indicados en DATOS ACTUALES.
+- Usa la SITUACIÓN DEL CLUB para hablar de su posición real, puntos, goles y racha.
+- NUNCA inventes posiciones ni puntos. Usa SOLO los datos de clasificación provistos.
+- Si el club está en varias competiciones, diferéncialas claramente.`
     }
 
     const systemPrompt = `ERES EL DIRECTOR DE "PIFA DAILY".
@@ -120,10 +175,12 @@ ${COMMON_RULES}
 
 ${MODE_RULES[mode]}
 
-CLASIFICACIÓN ACTUAL: ${standingsTable}
+CLASIFICACIONES POR COMPETICIÓN (cada bloque es una liga/torneo independiente, NO las mezcles):
+${standingsTable || 'Sin datos de clasificación disponibles'}
+
 MAPA DE ROSTERS: ${rosterMap}
-HISTORIAL RECIENTE: ${marketContext}
-`.trim()
+HISTORIAL RECIENTE DE MERCADO:
+${marketContext || 'Sin movimientos recientes'}`.trim()
 
     const userPrompt = `DATOS ACTUALES: ${context}\nGenera 3 noticias veraces.`
 

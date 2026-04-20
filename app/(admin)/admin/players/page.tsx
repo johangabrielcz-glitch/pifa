@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Plus, Pencil, Trash2, Loader2, User, Search, X, Shield, ChevronLeft, Users, Zap, TrendingUp } from 'lucide-react'
+import { useEffect, useState, useRef, useCallback } from 'react'
+import { Plus, Pencil, Trash2, Loader2, User, Search, X, Shield, ChevronLeft, ChevronRight, Users } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
@@ -16,6 +16,8 @@ import { ImageUpload } from '@/components/pifa/image-upload'
 const POSITIONS = [
   'GK', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LM', 'RM', 'LW', 'RW', 'ST', 'CF'
 ]
+
+const PAGE_SIZE = 15
 
 const positionColors: Record<string, { bg: string; text: string; bar: string }> = {
   GK: { bg: 'bg-amber-500/10', text: 'text-amber-400', bar: 'bg-amber-400' },
@@ -44,6 +46,8 @@ export default function AdminPlayersPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [filterClub, setFilterClub] = useState<string>('all')
+  const [page, setPage] = useState(0)
+  const [totalCount, setTotalCount] = useState(0)
   
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
@@ -51,6 +55,10 @@ export default function AdminPlayersPage() {
   const [deletingPlayer, setDeletingPlayer] = useState<Player | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   
+  // Debounce search
+  const searchTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+
   const [formData, setFormData] = useState({
     name: '',
     position: '',
@@ -64,27 +72,71 @@ export default function AdminPlayersPage() {
     is_one_club_man: false
   })
 
-  const loadData = async () => {
-    setIsLoading(true)
-    
-    const [playersRes, clubsRes] = await Promise.all([
-      supabase.from('players').select('*, club:clubs(*)').order('club_id').order('position').order('number'),
-      supabase.from('clubs').select('*').order('name'),
-    ])
-
-    if (playersRes.data) {
-      setPlayers(playersRes.data.map(p => ({ ...p, club: p.club || null })))
-    }
-    if (clubsRes.data) {
-      setClubs(clubsRes.data)
-    }
-    
-    setIsLoading(false)
-  }
-
+  // Load clubs once
   useEffect(() => {
-    loadData()
+    supabase.from('clubs').select('*').order('name').then(({ data }) => {
+      if (data) setClubs(data)
+    })
   }, [])
+
+  // Debounce search input
+  useEffect(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    searchTimerRef.current = setTimeout(() => {
+      setDebouncedSearch(searchQuery)
+      setPage(0)
+    }, 300)
+    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current) }
+  }, [searchQuery])
+
+  // Reset page when filter changes
+  const isFilterResetRef = useRef(false)
+  useEffect(() => {
+    isFilterResetRef.current = true
+    setPage(0)
+    fetchPlayers(0)
+  }, [filterClub, debouncedSearch])
+
+  // Paginate — only on user-driven page changes
+  useEffect(() => {
+    if (isFilterResetRef.current) {
+      isFilterResetRef.current = false
+      return
+    }
+    fetchPlayers(page)
+  }, [page])
+
+  const fetchPlayers = useCallback(async (pageNum: number) => {
+    setIsLoading(true)
+    const from = pageNum * PAGE_SIZE
+    const to = from + PAGE_SIZE - 1
+
+    let query = supabase
+      .from('players')
+      .select('*, club:clubs(*)', { count: 'exact' })
+
+    // Server-side club filter
+    if (filterClub !== 'all') {
+      query = query.eq('club_id', filterClub)
+    }
+
+    // Server-side name search (ilike for case-insensitive partial match)
+    if (debouncedSearch.trim()) {
+      query = query.ilike('name', `%${debouncedSearch.trim()}%`)
+    }
+
+    const { data, count } = await query
+      .order('club_id', { ascending: true, nullsFirst: false })
+      .order('position', { ascending: true })
+      .order('number', { ascending: true })
+      .range(from, to)
+
+    if (data) {
+      setPlayers(data.map(p => ({ ...p, club: p.club || null })))
+    }
+    setTotalCount(count || 0)
+    setIsLoading(false)
+  }, [filterClub, debouncedSearch])
 
   const resetForm = () => {
     setFormData({
@@ -165,7 +217,7 @@ export default function AdminPlayersPage() {
 
       setIsFormOpen(false)
       resetForm()
-      loadData()
+      fetchPlayers(page)
     } catch (error) {
       toast.error('Error en la sincronización de datos')
       console.error(error)
@@ -184,17 +236,13 @@ export default function AdminPlayersPage() {
       toast.success('Atleta purgado del sistema')
       setIsDeleteOpen(false)
       setDeletingPlayer(null)
-      loadData()
+      fetchPlayers(page)
     } catch {
       toast.error('Error al purgar los datos')
     }
   }
 
-  const filteredPlayers = players.filter(player => {
-    const matchesSearch = player.name.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesClub = filterClub === 'all' || player.club_id === filterClub
-    return matchesSearch && matchesClub
-  })
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
 
   return (
     <div className="min-h-screen">
@@ -210,7 +258,7 @@ export default function AdminPlayersPage() {
             </button>
             <div>
               <h1 className="text-base font-black text-white uppercase tracking-tight">GESTIÓN DE <span className="text-[#FF3131]">ATLETAS</span></h1>
-              <p className="text-[7px] text-[#2D2D2D] font-black uppercase tracking-[0.3em] font-black">{players.length} REGISTROS ACTIVOS</p>
+              <p className="text-[7px] text-[#2D2D2D] font-black uppercase tracking-[0.3em]">{totalCount} REGISTROS ACTIVOS</p>
             </div>
           </div>
           <button 
@@ -270,14 +318,43 @@ export default function AdminPlayersPage() {
         </div>
       </header>
 
+      {/* Pagination Controls */}
+      <div className="px-6 pt-4 pb-2 flex items-center justify-between">
+        <span className="text-[9px] font-black text-[#6A6C6E] uppercase tracking-widest">
+          {totalCount > 0 
+            ? `${page * PAGE_SIZE + 1}–${Math.min((page + 1) * PAGE_SIZE, totalCount)} de ${totalCount}`
+            : '0 resultados'
+          }
+        </span>
+        <div className="flex items-center gap-2">
+          <button
+            disabled={page === 0}
+            onClick={() => setPage(p => p - 1)}
+            className="w-8 h-8 rounded-lg bg-[#141414] border border-[#202020] flex items-center justify-center disabled:opacity-20 hover:border-[#FF3131]/40 transition-all"
+          >
+            <ChevronLeft className="w-4 h-4 text-white" />
+          </button>
+          <span className="text-[9px] font-black text-[#6A6C6E] uppercase tracking-widest tabular-nums min-w-[48px] text-center">
+            {page + 1} / {totalPages}
+          </span>
+          <button
+            disabled={(page + 1) * PAGE_SIZE >= totalCount}
+            onClick={() => setPage(p => p + 1)}
+            className="w-8 h-8 rounded-lg bg-[#141414] border border-[#202020] flex items-center justify-center disabled:opacity-20 hover:border-[#FF3131]/40 transition-all"
+          >
+            <ChevronRight className="w-4 h-4 text-white" />
+          </button>
+        </div>
+      </div>
+
       {/* Players List */}
-      <div className="px-6 py-6 space-y-4 pb-32">
+      <div className="px-6 py-2 space-y-2 pb-32">
         {isLoading ? (
           <div className="flex justify-center py-20">
             <Loader2 className="w-8 h-8 animate-spin text-[#FF3131]" />
           </div>
-        ) : filteredPlayers.length === 0 ? (
-          <div className="text-center py-20 bg-[#141414]/30 rounded-[32px] border border-dashed border-white/[0.06] animate-fade-in-up">
+        ) : players.length === 0 ? (
+          <div className="text-center py-20 bg-[#141414]/30 rounded-[32px] border border-dashed border-white/[0.06]">
             <div className="w-20 h-20 rounded-3xl bg-[#0A0A0A] border border-[#202020] mx-auto mb-6 flex items-center justify-center">
               <User className="w-10 h-10 text-[#2D2D2D]" />
             </div>
@@ -286,13 +363,12 @@ export default function AdminPlayersPage() {
             </p>
           </div>
         ) : (
-          filteredPlayers.map((player, i) => {
+          players.map((player) => {
             const posColor = positionColors[player.position] || { bg: 'bg-muted/10', text: 'text-muted-foreground', bar: 'bg-muted' }
             return (
               <div
                 key={player.id}
-                className="group relative bg-[#141414]/50 rounded-[20px] p-4 border border-white/[0.04] transition-all duration-300 hover:border-[#FF3131]/20 animate-fade-in-up"
-                style={{ animationDelay: `${i * 30}ms` }}
+                className="group relative bg-[#141414]/50 rounded-[20px] p-4 border border-white/[0.04] transition-all duration-300 hover:border-[#FF3131]/20"
               >
                 <div className="relative flex items-center justify-between">
                   <div className="flex items-center gap-4 min-w-0">

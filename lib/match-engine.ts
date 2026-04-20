@@ -451,7 +451,7 @@ async function finalizeMatch(matchId: string): Promise<void> {
 // STANDINGS UPDATE
 // =============================================
 
-async function updateStandings(
+export async function updateStandings(
   match: Match,
   homeScore: number,
   awayScore: number,
@@ -526,7 +526,7 @@ async function updateStandings(
 // PLAYER STATS UPDATE
 // =============================================
 
-async function updatePlayerStats(annotations: MatchAnnotation[], competitionId: string, matchId?: string): Promise<void> {
+export async function updatePlayerStats(annotations: MatchAnnotation[], competitionId: string, matchId?: string, skipIdempotencyCheck: boolean = false): Promise<void> {
   if (!annotations || annotations.length === 0) return
 
   // Check if stats for this match were already processed (idempotency check)
@@ -537,8 +537,8 @@ async function updatePlayerStats(annotations: MatchAnnotation[], competitionId: 
       .eq('id', matchId)
       .single()
     
-    // If already marked as STATS-DONE, skip
-    if (matchData?.notes?.includes('[STATS-DONE]')) {
+    // If already marked as STATS-DONE, skip (unless admin edit bypasses this)
+    if (!skipIdempotencyCheck && matchData?.notes?.includes('[STATS-DONE]')) {
       return
     }
   }
@@ -1377,5 +1377,167 @@ export async function getNextMatchForClub(
     },
     waiting: false,
     waiting_until: null,
+  }
+}
+
+// =============================================
+// ADMIN EDIT: REVERT FUNCTIONS
+// =============================================
+
+/**
+ * Revert standings for a match — subtracts the delta that the old result contributed.
+ * This is the exact inverse of updateStandings().
+ */
+export async function revertStandings(
+  match: Match,
+  oldHomeScore: number,
+  oldAwayScore: number,
+  competition: Competition
+): Promise<void> {
+  let pointsWin = 3, pointsDraw = 1, pointsLoss = 0
+
+  if (competition.type === 'league') {
+    const config = competition.config as LeagueConfig
+    pointsWin = config.points_win ?? 3
+    pointsDraw = config.points_draw ?? 1
+    pointsLoss = config.points_loss ?? 0
+  }
+
+  const homeWon = oldHomeScore > oldAwayScore
+  const draw = oldHomeScore === oldAwayScore
+
+  // Revert HOME club standing
+  const { data: homeStanding } = await supabase
+    .from('standings')
+    .select('*')
+    .eq('competition_id', match.competition_id)
+    .eq('club_id', match.home_club_id)
+    .maybeSingle()
+
+  if (homeStanding) {
+    const hs = homeStanding as any
+    const updates = {
+      played: Math.max(0, hs.played - 1),
+      won: Math.max(0, hs.won - (homeWon ? 1 : 0)),
+      drawn: Math.max(0, hs.drawn - (draw ? 1 : 0)),
+      lost: Math.max(0, hs.lost - (!homeWon && !draw ? 1 : 0)),
+      goals_for: Math.max(0, hs.goals_for - oldHomeScore),
+      goals_against: Math.max(0, hs.goals_against - oldAwayScore),
+      goal_difference: (Math.max(0, hs.goals_for - oldHomeScore)) - (Math.max(0, hs.goals_against - oldAwayScore)),
+      points: Math.max(0, hs.points - (homeWon ? pointsWin : draw ? pointsDraw : pointsLoss)),
+      updated_at: new Date().toISOString(),
+    }
+    await (supabase.from('standings') as any).update(updates).eq('id', hs.id)
+  }
+
+  // Revert AWAY club standing
+  const { data: awayStanding } = await supabase
+    .from('standings')
+    .select('*')
+    .eq('competition_id', match.competition_id)
+    .eq('club_id', match.away_club_id)
+    .maybeSingle()
+
+  if (awayStanding) {
+    const as_ = awayStanding as any
+    const awayWon = oldAwayScore > oldHomeScore
+
+    const updates = {
+      played: Math.max(0, as_.played - 1),
+      won: Math.max(0, as_.won - (awayWon ? 1 : 0)),
+      drawn: Math.max(0, as_.drawn - (draw ? 1 : 0)),
+      lost: Math.max(0, as_.lost - (!awayWon && !draw ? 1 : 0)),
+      goals_for: Math.max(0, as_.goals_for - oldAwayScore),
+      goals_against: Math.max(0, as_.goals_against - oldHomeScore),
+      goal_difference: (Math.max(0, as_.goals_for - oldAwayScore)) - (Math.max(0, as_.goals_against - oldHomeScore)),
+      points: Math.max(0, as_.points - (awayWon ? pointsWin : draw ? pointsDraw : pointsLoss)),
+      updated_at: new Date().toISOString(),
+    }
+    await (supabase.from('standings') as any).update(updates).eq('id', as_.id)
+  }
+}
+
+/**
+ * Revert player competition stats for a match — subtracts the delta
+ * that the old annotations contributed.
+ * This is the exact inverse of updatePlayerStats().
+ */
+export async function revertPlayerStats(
+  annotations: MatchAnnotation[],
+  competitionId: string
+): Promise<void> {
+  if (!annotations || annotations.length === 0) return
+
+  // Build the same map that updatePlayerStats builds
+  const playerStatsMap = new Map<string, {
+    goals: number;
+    assists: number;
+    mvp: number;
+    played: boolean;
+  }>()
+
+  for (const annotation of annotations) {
+    const goals = (annotation.goals || []) as GoalEntry[]
+    const assists = (annotation.assists || []) as AssistEntry[]
+    const starting_xi = (annotation.starting_xi || []) as string[]
+    const substitutes_in_ids = getSubsInPlayerIds(annotation.substitutes_in)
+
+    const playedPlayers = new Set([...starting_xi, ...substitutes_in_ids])
+    for (const playerId of playedPlayers) {
+      if (!playerStatsMap.has(playerId)) {
+        playerStatsMap.set(playerId, { goals: 0, assists: 0, mvp: 0, played: true })
+      } else {
+        playerStatsMap.get(playerId)!.played = true
+      }
+    }
+
+    for (const goal of goals) {
+      if (!playerStatsMap.has(goal.player_id)) {
+        playerStatsMap.set(goal.player_id, { goals: 0, assists: 0, mvp: 0, played: false })
+      }
+      playerStatsMap.get(goal.player_id)!.goals += goal.count
+    }
+
+    for (const assist of assists) {
+      if (!playerStatsMap.has(assist.player_id)) {
+        playerStatsMap.set(assist.player_id, { goals: 0, assists: 0, mvp: 0, played: false })
+      }
+      playerStatsMap.get(assist.player_id)!.assists += assist.count
+    }
+
+    if (annotation.mvp_player_id) {
+      if (!playerStatsMap.has(annotation.mvp_player_id)) {
+        playerStatsMap.set(annotation.mvp_player_id, { goals: 0, assists: 0, mvp: 0, played: false })
+      }
+      playerStatsMap.get(annotation.mvp_player_id)!.mvp += 1
+    }
+  }
+
+  // Subtract from database
+  for (const [playerId, stats] of playerStatsMap.entries()) {
+    try {
+      const { data: existing } = await supabase
+        .from('player_competition_stats')
+        .select('*')
+        .eq('competition_id', competitionId)
+        .eq('player_id', playerId)
+        .maybeSingle()
+
+      if (existing) {
+        const ex = existing as any
+        const matchesDec = stats.played ? 1 : 0
+        await (supabase.from('player_competition_stats') as any)
+          .update({
+            goals: Math.max(0, (ex.goals || 0) - stats.goals),
+            assists: Math.max(0, (ex.assists || 0) - stats.assists),
+            mvp_count: Math.max(0, (ex.mvp_count || 0) - stats.mvp),
+            matches_played: Math.max(0, (ex.matches_played || 0) - matchesDec),
+            updated_at: new Date().toISOString(),
+          } as any)
+          .eq('id', ex.id)
+      }
+    } catch {
+      // Silently continue
+    }
   }
 }

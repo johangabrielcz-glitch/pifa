@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Player, Club, MarketOffer, MarketHistory } from '@/lib/types'
-import { ShoppingCart, History, Search, Filter, DollarSign, ArrowRight, User as UserIcon, Shield, Lock, UserPlus } from 'lucide-react'
+import { ShoppingCart, History, Search, Filter, DollarSign, ArrowRight, User as UserIcon, Shield, Lock, UserPlus, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { UltimateCard } from '@/components/pifa/ultimate-card'
@@ -995,27 +995,29 @@ export default function MarketPage() {
               <UserPlus className="w-5 h-5 text-[#00FF85]" />
               Confirmar Fichaje
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-[#6A6C6E] text-[10px] font-bold uppercase tracking-wider leading-relaxed">
-              Estás a punto de fichar a <span className="text-white">{freeAgentToSign?.name}</span> como agente libre. No hay coste de traspaso, pero deberás aceptar las siguientes condiciones:
-              
-              <div className="mt-4 p-4 bg-white/5 rounded-2xl border border-white/5 space-y-3">
-                <div className="flex justify-between items-center border-b border-white/5 pb-2">
-                  <span className="text-zinc-500">Salario Inicial:</span>
-                  <span className="text-[#00FF85] font-black italic">${(freeAgentToSign?.salary || 0).toLocaleString()} (Prepago)</span>
+            <AlertDialogDescription asChild className="text-[#6A6C6E] text-[10px] font-bold uppercase tracking-wider leading-relaxed">
+              <div>
+                Estás a punto de fichar a <span className="text-white">{freeAgentToSign?.name}</span> como agente libre. No hay coste de traspaso, pero deberás aceptar las siguientes condiciones:
+                
+                <div className="mt-4 p-4 bg-white/5 rounded-2xl border border-white/5 space-y-3">
+                  <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                    <span className="text-zinc-500">Salario Inicial:</span>
+                    <span className="text-[#00FF85] font-black italic">${(freeAgentToSign?.salary || 0).toLocaleString()} (Prepago)</span>
+                  </div>
+                  <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                    <span className="text-zinc-500">Contrato:</span>
+                    <span className="text-white font-black italic">2 Temporadas</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-zinc-500">Rol Inicial:</span>
+                    <span className="text-white font-black italic uppercase">Rotación</span>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center border-b border-white/5 pb-2">
-                  <span className="text-zinc-500">Contrato:</span>
-                  <span className="text-white font-black italic">2 Temporadas</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-zinc-500">Rol Inicial:</span>
-                  <span className="text-white font-black italic uppercase">Rotación</span>
-                </div>
-              </div>
 
-              <p className="mt-4 text-zinc-500 px-1 text-center">
-                * El primer salario se descontará de tu presupuesto de inmediato ($${(freeAgentToSign?.salary || 0).toLocaleString()}).
-              </p>
+                <p className="mt-4 text-zinc-500 px-1 text-center">
+                  * El primer salario se descontará de tu presupuesto de inmediato ($${(freeAgentToSign?.salary || 0).toLocaleString()}).
+                </p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="mt-6 gap-2">
