@@ -180,8 +180,8 @@ export async function processMatchFatigue(matchId: string): Promise<void> {
         // Substituted out: -5%
         staminaUpdates.set(playerId, (staminaUpdates.get(playerId) || 0) - 5)
       } else {
-        // Full match: -15%
-        staminaUpdates.set(playerId, (staminaUpdates.get(playerId) || 0) - 15)
+        // Full match: -10% (Campo) / -5% (GK se valida luego)
+        staminaUpdates.set(playerId, (staminaUpdates.get(playerId) || 0) - 10)
       }
     }
 
@@ -197,13 +197,19 @@ export async function processMatchFatigue(matchId: string): Promise<void> {
 
   const { data: players } = await supabase
     .from('players')
-    .select('id, stamina')
+    .select('id, stamina, position')
     .in('id', playerIds)
 
   if (!players || players.length === 0) return
 
   const updatePromises = players.map(player => {
-    const delta = staminaUpdates.get(player.id) || 0
+    let delta = staminaUpdates.get(player.id) || 0
+
+    // GKs playing full match only lose 5% (instead of 10%)
+    if (player.position === 'GK' && delta === -10) {
+      delta = -5
+    }
+
     const newStamina = Math.max(0, Math.min(100, (player.stamina ?? 100) + delta))
     
     if (newStamina === player.stamina) return Promise.resolve()
@@ -256,12 +262,11 @@ export async function processRestRecovery(matchId: string): Promise<void> {
   const updatePromises = (allPlayers as any[] || [])
     .filter(p => !participatedIds.has(p.id))
     .map(p => {
-      // Recovery: +25% stamina for non-participating players
-      const newStamina = Math.min(100, (p.stamina ?? 100) + 25)
-      if (newStamina === (p.stamina ?? 100)) return Promise.resolve()
+      // Recovery: Set to 100% for non-participating players
+      if ((p.stamina ?? 100) === 100) return Promise.resolve()
       
       return (supabase.from('players') as any)
-        .update({ stamina: newStamina })
+        .update({ stamina: 100 })
         .eq('id', p.id)
     })
 
