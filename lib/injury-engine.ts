@@ -58,48 +58,44 @@ const INJURY_REASONS_SERIOUS: string[] = [
   'Luxación de hombro tras caída aparatosa',
 ]
 
-const INJURY_REASONS_FUNNY: string[] = [
-  'Se lesionó celebrando un gol que no metió',
-  'Tropezó con la mascota del equipo en el túnel',
-  'Contractura por dormir en mala posición la noche anterior',
-  'Se resbaló con una cáscara de banana camino al vestuario',
-  'Calambre severo por comer churrasco en el entretiempo',
-  'Lesión en el ego tras ser regateado 7 veces seguidas',
-  'Tirantez muscular por un exceso de celebraciones prematuras',
-  'Se torció el tobillo evitando pisar una hormiga en el césped',
-  'Esguince de muñeca por lanzar la botella de agua con rabia',
-  'Dolor lumbar tras cargar la mochila del utilero',
-  'Se contracturó intentando hacer un baile viral de TikTok',
-  'Lesión por reír demasiado fuerte de un chiste del árbitro',
-  'Lesión en la mandíbula por mascar chicle con demasiada furia',
-  'Se mareó mirando al dron de la transmisión',
-  'Dolor cervical por girar la cabeza demasiado rápido a ver la repetición',
-  'Calambre en el dedo por señalar demasiado al árbitro',
-  'Desgarro emocional tras enterarse del marcador del rival',
-  'Contractura abdominal por ataque de risa en el calentamiento',
+const INJURY_REASONS_MODERATE: string[] = [
+  'Sobrecarga muscular en el isquiotibial',
+  'Esguince de tobillo de grado I',
+  'Contractura en el cuádriceps',
+  'Contusión fuerte tras choque aéreo',
+  'Sobrecarga en el aductor',
+  'Molestias persistentes en el tendón rotuliano',
+  'Elongación muscular tras carrera explosiva',
+  'Lumbalgia mecánica por esfuerzo',
+  'Microrrotura fibrilar en el gemelo',
+  'Sinovitis post-traumática en la rodilla',
+  'Distensión de ligamentos colaterales',
+  'Fascitis plantar por sobrecarga',
+  'Bursitis tras caída sobre el hombro',
+  'Calambre severo con desequilibrio electrolítico',
+  'Molestias cervicales por una mala postura en el bus del equipo',
+  'Esguince fortuito al celebrar un gol con demasiada euforia',
+  'Contractura abdominal tras un ataque de risa en el calentamiento',
+  'Leve conmoción tras chocar accidentalmente con el poste',
 ]
 
 const RED_CARD_REASONS: string[] = [
-  'Le mostró el dedo medio al árbitro equivocado',
-  'Quitó el banderín del corner y lo usó como espada',
-  'Intentó sobornar al árbitro con empanadas',
-  'Celebró un gol ajeno con danza ritual prohibida por la FIFA',
-  'Le pegó un pelotazo intencional al recogepelotas',
-  'Insultó al técnico rival en 3 idiomas distintos',
-  'Pateó el monitor del VAR',
-  'Se quitó la camiseta... dos veces en un minuto',
-  'Mordió al rival durante un tiro de esquina',
-  'Lanzó una botella de agua al banquillo rival',
-  'Hizo gestos obscenos a la cámara de TV',
-  'Fingió una lesión tan mala que el árbitro se ofendió',
-  'Le robó las tarjetas al árbitro y las escondió',
-  'Se sentó en el centro del campo en protesta',
-  'Simuló un penal tan exagerado que rompió las leyes de la física',
-  'Escupió chicle en el zapato del árbitro',
-  'Le echó agua al cuarto árbitro desde la banca',
-  'Hizo una falta tan brutal que el balón explotó',
-  'Intentó marcar gol con la mano... y presumió de ello',
-  'Agresión verbal al recogepelotas por no devolver la pelota rápido',
+  'Juego brusco grave por entrada con los dos pies por delante',
+  'Conducta violenta (agresión a un adversario sin balón)',
+  'Malograr una oportunidad manifiesta de gol mediante falta',
+  'Lenguaje ofensivo, grosero o abusivo hacía el equipo arbitral',
+  'Doble amonestación por falta táctica reiterada',
+  'Mano deliberada para evitar que el balón entre en la portería',
+  'Escupir a un adversario tras una disputa',
+  'Cabezazo intencionado tras un altercado',
+  'Intento de agresión a un miembro del cuerpo técnico rival',
+  'Protestas airadas y desconsideradas tras una decisión arbitral',
+  'Entrada tardía e imprudente impactando en el tobillo del rival',
+  'Gesto obsceno captado por las cámaras tras la celebración',
+  'Expulsado por aplaudir irónicamente una decisión del árbitro',
+  'Roja directa por lanzar el balón con furia hacia el banquillo rival',
+  'Segunda amarilla tras quitarse la camiseta en una celebración',
+  'Expulsado por encararse con un recogepelotas que no devolvía el balón',
 ]
 
 // =============================================
@@ -205,9 +201,9 @@ export async function processMatchFatigue(matchId: string): Promise<void> {
   const updatePromises = players.map(player => {
     let delta = staminaUpdates.get(player.id) || 0
 
-    // GKs playing full match only lose 5% (instead of 10%)
+    // GKs playing full match only lose 3% (instead of 10%)
     if (player.position === 'GK' && delta === -10) {
-      delta = -5
+      delta = -3
     }
 
     const newStamina = Math.max(0, Math.min(100, (player.stamina ?? 100) + delta))
@@ -330,7 +326,7 @@ export async function processInjuries(matchId: string): Promise<void> {
       const duration = getWeightedInjuryDuration()
       const reason = duration >= 8
         ? INJURY_REASONS_SERIOUS[Math.floor(Math.random() * INJURY_REASONS_SERIOUS.length)]
-        : INJURY_REASONS_FUNNY[Math.floor(Math.random() * INJURY_REASONS_FUNNY.length)]
+        : INJURY_REASONS_MODERATE[Math.floor(Math.random() * INJURY_REASONS_MODERATE.length)]
 
       await (supabase.from('players') as any).update({
         injury_matches_left: duration,
