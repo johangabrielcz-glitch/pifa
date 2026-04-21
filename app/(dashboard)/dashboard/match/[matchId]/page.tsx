@@ -129,7 +129,7 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
       const availableInitial11 = initial11.filter(id => {
         const p = (players as Player[])?.find(player => player.id === id)
         if (!p) return false
-        const isUnavailable = (p.injury_matches_left ?? 0) > 0 || (p.red_card_matches_left ?? 0) > 0 || !canUsePlayer(p).available
+        const isUnavailable = (p.injury_matches_left ?? 0) > 0 || (p.red_card_matches_left ?? 0) > 0 || !canUsePlayer(p).available || (p.stamina ?? 100) <= 20
         return !isUnavailable
       })
       

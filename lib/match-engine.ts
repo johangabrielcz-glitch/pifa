@@ -404,21 +404,28 @@ async function finalizeMatch(matchId: string): Promise<void> {
   sendPushToClub(match.away_club_id, '🏁 Partido Finalizado', resultMessage, { type: 'match_finished', match_id: matchId })
 
   // ====== INJURY ENGINE: Post-match processing ======
+  // Each step is isolated in its own try/catch so one failure doesn't block the rest.
+  // Critical: processRestRecovery MUST run even if earlier steps fail.
   try {
-    // 1. Decrement existing injuries/suspensions first (counts this match)
     await decrementSuspensionsAndInjuries((match as any).home_club_id)
     await decrementSuspensionsAndInjuries((match as any).away_club_id)
-    // 2. Process fatigue for players who participated
+  } catch (e) { console.warn('[finalizeMatch] Decrement suspensions error:', e) }
+
+  try {
     await processMatchFatigue(matchId)
-    // 3. Recover stamina for players who didn't play
+  } catch (e) { console.warn('[finalizeMatch] Fatigue error:', e) }
+
+  try {
     await processRestRecovery(matchId)
-    // 4. Roll for injuries (probability based on stamina)
+  } catch (e) { console.warn('[finalizeMatch] Rest recovery error:', e) }
+
+  try {
     await processInjuries(matchId)
-    // 5. Roll for red cards (every 3 matches per club)
+  } catch (e) { console.warn('[finalizeMatch] Injuries error:', e) }
+
+  try {
     await processRedCards(matchId)
-  } catch (injuryError) {
-    console.warn('[finalizeMatch] Injury engine error (non-blocking):', injuryError)
-  }
+  } catch (e) { console.warn('[finalizeMatch] Red cards error:', e) }
 
   // ====== MORALE ENGINE: Post-match moral processing ======
   try {
@@ -1037,11 +1044,26 @@ export async function checkAndAutoResolveExpired(): Promise<number> {
     .select('id, default_lineup')
     .in('id', Array.from(clubIds))
 
+  // Pre-fetch player availability to filter lineups
+  const { data: allClubPlayers } = await supabase
+    .from('players')
+    .select('id, club_id, injury_matches_left, red_card_matches_left, stamina')
+    .in('club_id', Array.from(clubIds))
+
+  const unavailablePlayerIds = new Set<string>()
+  for (const p of (allClubPlayers || []) as any[]) {
+    if ((p.injury_matches_left ?? 0) > 0 || (p.red_card_matches_left ?? 0) > 0 || (p.stamina ?? 100) <= 20) {
+      unavailablePlayerIds.add(p.id)
+    }
+  }
+
   const clubLineups = new Map<string, string[]>()
   for (const club of (clubsData || [])) {
     const defLineup = (club as any)?.default_lineup
     if (defLineup?.players) {
-      clubLineups.set(club.id, Object.values(defLineup.players).filter(Boolean) as string[])
+      const rawIds = Object.values(defLineup.players).filter(Boolean) as string[]
+      // Filter out unavailable players (injured, suspended, exhausted)
+      clubLineups.set(club.id, rawIds.filter(id => !unavailablePlayerIds.has(id)))
     } else {
       clubLineups.set(club.id, [])
     }
@@ -1232,16 +1254,27 @@ export async function checkAndAutoResolveExpired(): Promise<number> {
       }
 
       // ====== INJURY ENGINE: Post-match processing ======
+      // Each step isolated so one failure doesn't block the rest.
       try {
         await decrementSuspensionsAndInjuries(match.home_club_id)
         await decrementSuspensionsAndInjuries(match.away_club_id)
+      } catch (e) { console.warn('[autoResolve] Decrement error:', e) }
+
+      try {
         await processMatchFatigue(match.id)
+      } catch (e) { console.warn('[autoResolve] Fatigue error:', e) }
+
+      try {
         await processRestRecovery(match.id)
+      } catch (e) { console.warn('[autoResolve] Rest recovery error:', e) }
+
+      try {
         await processInjuries(match.id)
+      } catch (e) { console.warn('[autoResolve] Injuries error:', e) }
+
+      try {
         await processRedCards(match.id)
-      } catch (injuryError) {
-        console.warn('[autoResolve] Injury engine error (non-blocking):', injuryError)
-      }
+      } catch (e) { console.warn('[autoResolve] Red cards error:', e) }
 
       // ====== MORALE ENGINE: Post-match moral processing ======
       try {

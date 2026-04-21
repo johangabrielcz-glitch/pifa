@@ -229,7 +229,10 @@ export async function processRestRecovery(matchId: string): Promise<void> {
     .eq('id', matchId)
     .single()
 
-  if (!match) return
+  if (!match) {
+    console.warn('[processRestRecovery] Match not found:', matchId)
+    return
+  }
   const m = match as any
 
   const { data: annotations } = await supabase
@@ -253,20 +256,33 @@ export async function processRestRecovery(matchId: string): Promise<void> {
     .select('id, stamina')
     .in('club_id', clubIds)
 
-  if (!allPlayers) return
+  if (!allPlayers || allPlayers.length === 0) {
+    console.warn('[processRestRecovery] No players found for clubs:', clubIds)
+    return
+  }
 
-  const updatePromises = (allPlayers as any[] || [])
-    .filter(p => !participatedIds.has(p.id))
-    .map(p => {
-      // Recovery: Set to 100% for non-participating players
-      if ((p.stamina ?? 100) === 100) return Promise.resolve()
-      
-      return (supabase.from('players') as any)
+  const playersToRecover = (allPlayers as any[])
+    .filter(p => !participatedIds.has(p.id) && (p.stamina ?? 100) < 100)
+
+  if (playersToRecover.length === 0) return
+
+  // Update each player's stamina to 100% and check for errors
+  const results = await Promise.allSettled(
+    playersToRecover.map(async (p) => {
+      const { error } = await (supabase.from('players') as any)
         .update({ stamina: 100 })
         .eq('id', p.id)
+      if (error) {
+        console.error(`[processRestRecovery] Failed to recover player ${p.id}:`, error)
+        throw error
+      }
     })
+  )
 
-  await Promise.allSettled(updatePromises)
+  const failed = results.filter(r => r.status === 'rejected').length
+  if (failed > 0) {
+    console.warn(`[processRestRecovery] ${failed}/${playersToRecover.length} recovery updates failed`)
+  }
 }
 
 /**
