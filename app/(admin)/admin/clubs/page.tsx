@@ -240,15 +240,15 @@ export default function AdminClubsPage() {
         ) : (
           filteredClubs.map((club, i) =>             <div
               key={club.id}
-              className="group relative bg-[#141414]/50 rounded-[20px] p-4 border border-white/[0.04] transition-all duration-300 hover:border-[#FF3131]/20 animate-fade-in-up"
+              className="group relative bg-[#141414]/50 rounded-xl px-3 py-2.5 border border-white/[0.04] transition-all duration-300 hover:border-[#FF3131]/20 animate-fade-in-up"
               style={{ animationDelay: `${i * 30}ms` }}
             >
               <div className="relative flex items-center justify-between">
-                <div className="flex items-center gap-4 min-w-0">
+                <div className="flex items-center gap-2.5 min-w-0">
                   <div className="relative shrink-0">
-                    <div className="absolute inset-0 bg-[#FF3131]/10 rounded-xl blur-lg opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="absolute inset-0 bg-[#FF3131]/10 rounded-lg blur-lg opacity-0 group-hover:opacity-100 transition-opacity" />
                     {club.shield_url ? (
-                      <div className="relative w-13 h-13 rounded-xl overflow-hidden bg-[#0A0A0A] border border-[#202020] flex items-center justify-center p-2 shadow-2xl transition-transform group-hover:scale-105">
+                      <div className="relative w-8 h-8 rounded-lg overflow-hidden bg-[#0A0A0A] border border-[#202020] flex items-center justify-center p-1.5 shadow-lg transition-transform group-hover:scale-105">
                         <img
                           src={club.shield_url}
                           alt={club.name}
@@ -256,13 +256,13 @@ export default function AdminClubsPage() {
                         />
                       </div>
                     ) : (
-                      <div className="relative w-13 h-13 rounded-xl bg-[#0A0A0A] border border-[#202020] flex items-center justify-center shadow-2xl transition-transform group-hover:scale-105">
-                        <Shield className="w-6 h-6 text-[#FF3131]" />
+                      <div className="relative w-8 h-8 rounded-lg bg-[#0A0A0A] border border-[#202020] flex items-center justify-center shadow-lg transition-transform group-hover:scale-105">
+                        <Shield className="w-4 h-4 text-[#FF3131]" />
                       </div>
                     )}
                   </div>
                   <div className="min-w-0">
-                    <h3 className="text-sm font-black text-white uppercase tracking-tight truncate mb-0.5">{club.name}</h3>
+                    <h3 className="text-[11px] font-black text-white uppercase tracking-tight truncate mb-0.5">{club.name}</h3>
                     {club.dt ? (
                       <div className="flex items-center gap-1.5 bg-[#FF3131]/5 w-fit px-2 py-0.5 rounded-full border border-[#FF3131]/10">
                         <div className="w-1 h-1 rounded-full bg-[#FF3131] animate-pulse" />
@@ -284,40 +284,40 @@ export default function AdminClubsPage() {
                 <div className="flex items-center gap-1 shrink-0 relative z-10">
                   <button
                     onClick={() => openEditForm(club)}
-                    className="w-8 h-8 rounded-lg bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#2D2D2D] hover:text-white transition-all shadow-xl"
+                    className="w-7 h-7 rounded-lg bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#2D2D2D] hover:text-white transition-all shadow-md"
                   >
-                    <Pencil className="w-3.5 h-3.5" />
+                    <Pencil className="w-3 h-3" />
                   </button>
                   <button
                     onClick={() => {
                       setDeletingClub(club)
                       setIsDeleteOpen(true)
                     }}
-                    className="w-8 h-8 rounded-lg bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#2D2D2D] hover:text-red-500 hover:bg-red-500/5 transition-all shadow-xl"
+                    className="w-7 h-7 rounded-lg bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#2D2D2D] hover:text-red-500 hover:bg-red-500/5 transition-all shadow-md"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-3 h-3" />
                   </button>
                 </div>
               </div>
               
               {/* Club Context Stats */}
-              <div className="relative mt-4 pt-4 border-t border-white/[0.04] flex items-center gap-2">
-                <div className="flex-1 flex items-center gap-2.5 bg-[#0A0A0A]/30 border border-white/[0.02] rounded-xl px-3 py-2.5 group/stat">
-                  <div className="w-7 h-7 rounded-lg bg-amber-400/5 flex items-center justify-center border border-amber-400/10">
-                    <DollarSign className="w-3.5 h-3.5 text-amber-400" />
+              <div className="relative mt-2.5 pt-2.5 border-t border-white/[0.04] flex items-center gap-2">
+                <div className="flex-1 flex items-center gap-2 bg-[#0A0A0A]/30 border border-white/[0.02] rounded-lg px-2 py-1.5 group/stat">
+                  <div className="w-6 h-6 rounded bg-amber-400/5 flex items-center justify-center border border-amber-400/10">
+                    <DollarSign className="w-3 h-3 text-amber-400" />
                   </div>
                   <div>
-                    <p className="text-[12px] font-black text-white tracking-widest leading-none">{formatBudget(club.budget)}</p>
-                    <p className="text-[7px] text-[#2D2D2D] uppercase font-black tracking-widest mt-0.5">Tesorería</p>
+                    <p className="text-[10px] font-black text-white tracking-widest leading-none">{formatBudget(club.budget)}</p>
+                    <p className="text-[6.5px] text-[#2D2D2D] uppercase font-black tracking-widest mt-0.5">Tesorería</p>
                   </div>
                 </div>
-                <div className="flex-1 flex items-center gap-2.5 bg-[#0A0A0A]/30 border border-white/[0.02] rounded-xl px-3 py-2.5 group/stat">
-                  <div className="w-7 h-7 rounded-lg bg-emerald-400/5 flex items-center justify-center border border-emerald-400/10">
-                    <Users className="w-3.5 h-3.5 text-emerald-400" />
+                <div className="flex-1 flex items-center gap-2 bg-[#0A0A0A]/30 border border-white/[0.02] rounded-lg px-2 py-1.5 group/stat">
+                  <div className="w-6 h-6 rounded bg-emerald-400/5 flex items-center justify-center border border-emerald-400/10">
+                    <Users className="w-3 h-3 text-emerald-400" />
                   </div>
                   <div>
-                    <p className="text-[12px] font-black text-white tracking-widest leading-none">{club.players_count}</p>
-                    <p className="text-[7px] text-[#2D2D2D] uppercase font-black tracking-widest mt-0.5">Operativos</p>
+                    <p className="text-[10px] font-black text-white tracking-widest leading-none">{club.players_count}</p>
+                    <p className="text-[6.5px] text-[#2D2D2D] uppercase font-black tracking-widest mt-0.5">Operativos</p>
                   </div>
                 </div>
               </div>

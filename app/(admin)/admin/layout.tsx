@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Loader2, LogOut, User, Settings } from 'lucide-react'
 import { toast } from 'sonner'
 import { syncPushToken } from '@/lib/push-notifications'
-import { MobileNav } from '@/components/pifa/mobile-nav'
+import { AdminNavigation } from '@/components/pifa/admin-navigation'
 import { PifaLogo } from '@/components/pifa/logo'
 import { Button } from '@/components/ui/button'
 import {
@@ -150,7 +150,7 @@ export default function AdminLayout({
       </main>
 
       <div className="fixed bottom-0 left-0 right-0 z-50">
-        <MobileNav variant="admin" />
+        <AdminNavigation />
       </div>
     </div>
   )

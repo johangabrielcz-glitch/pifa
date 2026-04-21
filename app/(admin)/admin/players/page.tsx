@@ -368,33 +368,33 @@ export default function AdminPlayersPage() {
             return (
               <div
                 key={player.id}
-                className="group relative bg-[#141414]/50 rounded-[20px] p-4 border border-white/[0.04] transition-all duration-300 hover:border-[#FF3131]/20"
+                className="group relative bg-[#141414]/50 rounded-xl px-3 py-2.5 border border-white/[0.04] transition-all duration-300 hover:border-[#FF3131]/20"
               >
                 <div className="relative flex items-center justify-between">
-                  <div className="flex items-center gap-4 min-w-0">
+                  <div className="flex items-center gap-2.5 min-w-0">
                     <div className="relative shrink-0">
-                      <div className={`w-11 h-11 rounded-xl ${posColor.bg} border border-white/[0.04] flex items-center justify-center shadow-2xl transition-transform group-hover:scale-105`}>
-                        <span className={`text-base font-black ${posColor.text}`}>
+                      <div className={`w-8 h-8 rounded-lg ${posColor.bg} border border-white/[0.04] flex items-center justify-center shadow-lg transition-transform group-hover:scale-105`}>
+                        <span className={`text-[11px] font-black ${posColor.text}`}>
                           {player.number || '—'}
                         </span>
                       </div>
                     </div>
                     
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <h3 className="text-sm font-black text-white uppercase tracking-tight truncate">{player.name}</h3>
-                        <div className={`px-1.5 py-0.5 rounded-md ${posColor.bg} border border-white/[0.04]`}>
-                          <p className={`text-[7px] font-black ${posColor.text} tracking-widest uppercase`}>{player.position}</p>
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <h3 className="text-[11px] font-black text-white uppercase tracking-tight truncate">{player.name}</h3>
+                        <div className={`px-1 py-0.5 rounded ${posColor.bg} border border-white/[0.04]`}>
+                          <p className={`text-[6.5px] font-black ${posColor.text} tracking-widest uppercase`}>{player.position}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5">
                         {player.club ? (
-                          <div className="flex items-center gap-1.5 bg-white/[0.02] px-2 py-0.5 rounded-md border border-white/[0.04]">
+                          <div className="flex items-center gap-1 bg-white/[0.02] px-1.5 py-0.5 rounded-md border border-white/[0.04]">
                             <Shield className="w-2.5 h-2.5 text-[#FF3131]" />
                             <p className="text-[7.5px] font-black text-[#424242] uppercase tracking-widest">{player.club.name}</p>
                           </div>
                         ) : (
-                          <div className="flex items-center gap-1.5 bg-white/[0.02] px-2 py-0.5 rounded-md border border-white/[0.04] opacity-50">
+                          <div className="flex items-center gap-1 bg-white/[0.02] px-1.5 py-0.5 rounded-md border border-white/[0.04] opacity-50">
                             <Shield className="w-2.5 h-2.5 text-[#2D2D2D]" />
                             <p className="text-[7.5px] font-black text-[#2D2D2D] uppercase tracking-widest">Agente Libre</p>
                           </div>
@@ -406,18 +406,18 @@ export default function AdminPlayersPage() {
                   <div className="flex items-center gap-1 shrink-0 relative z-10">
                     <button
                       onClick={() => openEditForm(player)}
-                      className="w-8 h-8 rounded-lg bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#2D2D2D] hover:text-white transition-all shadow-xl"
+                      className="w-7 h-7 rounded-lg bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#2D2D2D] hover:text-white transition-all shadow-md"
                     >
-                      <Pencil className="w-3.5 h-3.5" />
+                      <Pencil className="w-3 h-3" />
                     </button>
                     <button
                       onClick={() => {
                         setDeletingPlayer(player)
                         setIsDeleteOpen(true)
                       }}
-                      className="w-8 h-8 rounded-lg bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#2D2D2D] hover:text-red-500 hover:bg-red-500/5 transition-all shadow-xl"
+                      className="w-7 h-7 rounded-lg bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#2D2D2D] hover:text-red-500 hover:bg-red-500/5 transition-all shadow-md"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-3 h-3" />
                     </button>
                   </div>
                 </div>

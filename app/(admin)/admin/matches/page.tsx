@@ -415,66 +415,66 @@ export default function AdminMatchesPage() {
                 matches.map(match => (
                   <div
                     key={match.id}
-                    className="bg-[#0A0A0A]/50 rounded-2xl p-4 border border-white/[0.03] hover:border-white/[0.08] transition-all group"
+                    className="bg-[#0A0A0A]/50 rounded-xl px-3 py-2.5 border border-white/[0.03] hover:border-white/[0.08] transition-all group"
                   >
                     {/* Round name */}
-                    <p className="text-[7px] text-[#6A6C6E] font-black uppercase tracking-[0.3em] mb-2 text-center">
+                    <p className="text-[6.5px] text-[#6A6C6E] font-black uppercase tracking-[0.3em] mb-1.5 text-center">
                       {match.round_name || `Jornada ${match.matchday}`}
                       {match.group_name ? ` · Grupo ${match.group_name}` : ''}
                     </p>
 
                     {/* Match row */}
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center justify-between gap-1.5">
                       {/* Home */}
-                      <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
-                        <span className="text-[11px] font-black text-white uppercase tracking-tight truncate text-right">
+                      <div className="flex items-center gap-1.5 flex-1 min-w-0 justify-end">
+                        <span className="text-[10px] font-black text-white uppercase tracking-tight truncate text-right">
                           {match.home_club?.name || 'TBD'}
                         </span>
-                        <div className="w-8 h-8 rounded-lg bg-black border border-[#202020] p-1.5 shrink-0 flex items-center justify-center">
+                        <div className="w-6 h-6 rounded bg-black border border-[#202020] p-1 shrink-0 flex items-center justify-center">
                           {match.home_club?.shield_url ? (
                             <img src={match.home_club.shield_url} className="w-full h-full object-contain" alt="" />
                           ) : (
-                            <Shield className="w-4 h-4 text-[#2D2D2D]" />
+                            <Shield className="w-3 h-3 text-[#2D2D2D]" />
                           )}
                         </div>
                       </div>
 
                       {/* Score / Status */}
-                      <div className="shrink-0 mx-2">
+                      <div className="shrink-0 mx-1">
                         {match.status === 'finished' ? (
-                          <div className="flex items-center gap-1.5 bg-[#141414] border border-white/[0.06] rounded-xl px-3 py-1.5">
-                            <span className="text-lg font-black text-white tabular-nums">{match.home_score}</span>
-                            <span className="text-[10px] text-[#2D2D2D] font-black">-</span>
-                            <span className="text-lg font-black text-white tabular-nums">{match.away_score}</span>
+                          <div className="flex items-center gap-1 bg-[#141414] border border-white/[0.06] rounded-lg px-2.5 py-1">
+                            <span className="text-sm font-black text-white tabular-nums">{match.home_score}</span>
+                            <span className="text-[8px] text-[#2D2D2D] font-black">-</span>
+                            <span className="text-sm font-black text-white tabular-nums">{match.away_score}</span>
                           </div>
                         ) : match.status === 'postponed' ? (
-                          <span className="text-[8px] font-black text-amber-400 uppercase tracking-widest px-3 py-2 bg-amber-500/10 rounded-xl border border-amber-500/20">
+                          <span className="text-[7px] font-black text-amber-400 uppercase tracking-widest px-2 py-1.5 bg-amber-500/10 rounded-lg border border-amber-500/20">
                             Aplazado
                           </span>
                         ) : (
-                          <span className="text-[8px] font-black text-[#6A6C6E] uppercase tracking-widest px-3 py-2 bg-[#141414] rounded-xl border border-white/[0.04]">
+                          <span className="text-[7px] font-black text-[#6A6C6E] uppercase tracking-widest px-2 py-1.5 bg-[#141414] rounded-lg border border-white/[0.04]">
                             VS
                           </span>
                         )}
                       </div>
 
                       {/* Away */}
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <div className="w-8 h-8 rounded-lg bg-black border border-[#202020] p-1.5 shrink-0 flex items-center justify-center">
+                      <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                        <div className="w-6 h-6 rounded bg-black border border-[#202020] p-1 shrink-0 flex items-center justify-center">
                           {match.away_club?.shield_url ? (
                             <img src={match.away_club.shield_url} className="w-full h-full object-contain" alt="" />
                           ) : (
-                            <Shield className="w-4 h-4 text-[#2D2D2D]" />
+                            <Shield className="w-3 h-3 text-[#2D2D2D]" />
                           )}
                         </div>
-                        <span className="text-[11px] font-black text-white uppercase tracking-tight truncate">
+                        <span className="text-[10px] font-black text-white uppercase tracking-tight truncate">
                           {match.away_club?.name || 'TBD'}
                         </span>
                       </div>
                     </div>
 
                     {/* Action buttons */}
-                    <div className="flex justify-center gap-2 mt-3">
+                    <div className="flex justify-center gap-2 mt-2.5">
                       {match.status === 'finished' && (
                         <button
                           onClick={() => openEditModal(match)}

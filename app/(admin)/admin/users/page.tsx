@@ -217,29 +217,29 @@ export default function AdminUsersPage() {
           filteredUsers.map((user, i) => (
             <div
               key={user.id}
-              className="group relative bg-[#141414]/50 rounded-[20px] p-4 border border-white/[0.04] transition-all duration-300 hover:border-[#FF3131]/20 hover:bg-[#1A1A1A]/60 animate-fade-in-up"
+              className="group relative bg-[#141414]/50 rounded-xl px-3 py-2.5 border border-white/[0.04] transition-all duration-300 hover:border-[#FF3131]/20 hover:bg-[#1A1A1A]/60 animate-fade-in-up"
               style={{ animationDelay: `${i * 30}ms` }}
             >
               {/* Background gradient detail */}
               <div className={`absolute -right-10 -top-10 w-24 h-24 rounded-full blur-3xl opacity-0 group-hover:opacity-10 transition-opacity ${user.role === 'admin' ? 'bg-[#FF3131]' : 'bg-blue-500'}`} />
 
               <div className="relative flex items-center justify-between">
-                <div className="flex items-center gap-4 min-w-0">
+                <div className="flex items-center gap-2.5 min-w-0">
                   <div className="relative shrink-0">
-                    <div className={`relative w-11 h-11 rounded-xl flex items-center justify-center border border-[#202020] shadow-2xl transition-transform group-hover:scale-105 ${user.role === 'admin' ? 'bg-gradient-to-br from-[#FF3131] to-[#991B1B]' : 'bg-[#0A0A0A]'}`}>
+                    <div className={`relative w-8 h-8 rounded-lg flex items-center justify-center border border-[#202020] shadow-xl transition-transform group-hover:scale-105 ${user.role === 'admin' ? 'bg-gradient-to-br from-[#FF3131] to-[#991B1B]' : 'bg-[#0A0A0A]'}`}>
                       {user.role === 'admin' ? (
-                        <Shield className="w-5 h-5 text-white" />
+                        <Shield className="w-4 h-4 text-white" />
                       ) : (
-                        <UserCog className="w-5 h-5 text-[#FF3131]" />
+                        <UserCog className="w-4 h-4 text-[#FF3131]" />
                       )}
                     </div>
                   </div>
                   <div className="min-w-0">
-                    <h3 className="text-sm font-black text-white uppercase tracking-tight truncate mb-0.5">{user.full_name}</h3>
+                    <h3 className="text-[11px] font-black text-white uppercase tracking-tight truncate mb-0.5">{user.full_name}</h3>
                     <div className="flex items-center gap-1.5">
-                       <p className="text-[8px] text-[#6A6C6E] font-bold uppercase tracking-widest truncate">@{user.username}</p>
+                       <p className="text-[7.5px] text-[#6A6C6E] font-bold uppercase tracking-widest truncate">@{user.username}</p>
                        <span className="w-1 h-1 rounded-full bg-[#202020]" />
-                       <p className="text-[7px] text-[#FF3131]/60 font-black uppercase tracking-widest">{user.role === 'admin' ? 'Root' : 'User'}</p>
+                       <p className="text-[6.5px] text-[#FF3131]/60 font-black uppercase tracking-widest">{user.role === 'admin' ? 'Root' : 'User'}</p>
                       </div>
                    </div>
                   </div>
@@ -247,23 +247,23 @@ export default function AdminUsersPage() {
                   <div className="flex items-center gap-1 shrink-0 relative z-10">
                     <button
                       onClick={() => openEditForm(user)}
-                      className="w-8 h-8 rounded-lg bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#2D2D2D] hover:text-white transition-all"
+                      className="w-7 h-7 rounded-lg bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#2D2D2D] hover:text-white transition-all"
                     >
-                      <Pencil className="w-3.5 h-3.5" />
+                      <Pencil className="w-3 h-3" />
                     </button>
                     <button
                       onClick={() => {
                         setDeletingUser(user)
                         setIsDeleteOpen(true)
                       }}
-                      className="w-8 h-8 rounded-lg bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#2D2D2D] hover:text-red-500 hover:bg-red-500/5 transition-all"
+                      className="w-7 h-7 rounded-lg bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#2D2D2D] hover:text-red-500 hover:bg-red-500/5 transition-all"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-3 h-3" />
                     </button>
                   </div>
                 </div>
               
-                <div className="mt-4 flex items-center gap-2">
+                <div className="mt-2.5 pt-2.5 border-t border-white/[0.04] flex items-center gap-2">
                 <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md border font-black uppercase tracking-widest text-[7px] ${
                   user.role === 'admin' 
                     ? 'bg-[#FF3131]/5 text-[#FF3131] border-[#FF3131]/10' 

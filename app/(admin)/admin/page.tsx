@@ -39,15 +39,22 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     const loadData = async () => {
-      const stored = localStorage.getItem('pifa_admin_user')
+      const stored = localStorage.getItem('pifa_auth_session')
       if (stored) {
-        const user = JSON.parse(stored)
-        setAdminName(user.full_name || 'Admin')
+        try {
+          const session = JSON.parse(stored)
+          const user = session.user
+          if (user) {
+            setAdminName(user.full_name || 'Admin')
 
-        // Sincronizar token de forma silenciosa
-        const token = localStorage.getItem('expoPushToken')
-        if (token) {
-          syncPushToken(user.id, user.full_name || 'Admin', 'login')
+            // Sincronizar token de forma silenciosa
+            const token = localStorage.getItem('expoPushToken')
+            if (token) {
+              syncPushToken(user.id, user.full_name || 'Admin', 'login')
+            }
+          }
+        } catch (e) {
+          console.error(e)
         }
       }
 
