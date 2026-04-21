@@ -1302,27 +1302,31 @@ export async function checkAndAutoResolveExpired(): Promise<number> {
 // HELPERS FOR UI
 // =============================================
 
+export type PlayableMatch = Match & {
+  home_club?: Record<string, unknown>
+  away_club?: Record<string, unknown>
+  competition?: Record<string, unknown>
+  my_annotation?: MatchAnnotation | null
+  opponent_annotation_exists?: boolean
+}
+
 export interface NextMatchResult {
-  match: (Match & {
-    home_club?: Record<string, unknown>
-    away_club?: Record<string, unknown>
-    competition?: Record<string, unknown>
-    my_annotation?: MatchAnnotation | null
-    opponent_annotation_exists?: boolean
-  }) | null
+  match: PlayableMatch | null
+  allPlayableMatches: PlayableMatch[]
   waiting: boolean
   waiting_until: string | null
 }
 
 /**
- * Get the next pending match for a club.
+ * Get the next pending match(es) for a club.
+ * Includes both 'scheduled' and 'postponed' matches.
  * If the match belongs to a future matchday whose previous matchday deadline
  * hasn't expired yet, returns waiting=true with the countdown target.
  */
 export async function getNextMatchForClub(
   clubId: string
 ): Promise<NextMatchResult> {
-  // Get matches for this club that are scheduled (not finished)
+  // Get matches for this club that are scheduled or postponed (not finished)
   const { data: matches } = await supabase
     .from('matches')
     .select(`
@@ -1335,13 +1339,13 @@ export async function getNextMatchForClub(
       )
     `)
     .or(`home_club_id.eq.${clubId},away_club_id.eq.${clubId}`)
-    .eq('status', 'scheduled')
+    .in('status', ['scheduled', 'postponed'])
     .not('home_club_id', 'is', null)
     .not('away_club_id', 'is', null)
     .order('match_order', { ascending: true })
 
   if (!matches || matches.length === 0) {
-    return { match: null, waiting: false, waiting_until: null }
+    return { match: null, allPlayableMatches: [], waiting: false, waiting_until: null }
   }
 
   // Filter to only active season matches
@@ -1351,66 +1355,102 @@ export async function getNextMatchForClub(
   })
 
   if (activeMatches.length === 0) {
-    return { match: null, waiting: false, waiting_until: null }
+    return { match: null, allPlayableMatches: [], waiting: false, waiting_until: null }
   }
 
-  const nextMatch = activeMatches[0] as unknown as Match & {
-    home_club?: Record<string, unknown>
-    away_club?: Record<string, unknown>
-    competition?: Record<string, unknown>
-  }
+  // Separate scheduled and postponed matches
+  const scheduledMatches = activeMatches.filter((m: any) => m.status === 'scheduled')
+  const postponedMatches = activeMatches.filter((m: any) => m.status === 'postponed')
+
+  // The "primary" next match is the first scheduled one (by match_order)
+  const nextScheduled = scheduledMatches.length > 0
+    ? scheduledMatches[0] as unknown as PlayableMatch
+    : null
+
   const now = new Date()
 
   // --- GLOBAL VISUAL FLOW WAIT LOGIC ---
-  // If the club is "resting" or has already played its match in the current 
-  // global slot, we must ensure they don't jump to the next slot prematurely.
-  
-  const seasonId = (nextMatch.competition as any)?.season_id
-  if (seasonId) {
-    // Check if there are ANY matches in this season that are still PENDING 
-    // and have a deadline EARLIER than our next match's deadline.
-    const { data: globalPending } = await supabase
-      .from('matches')
-      .select('deadline')
-      .eq('status', 'scheduled')
-      .not('home_club_id', 'is', null)
-      .not('away_club_id', 'is', null)
-      .not('deadline', 'is', null)
-      .lt('deadline', nextMatch.deadline as string)
-      .order('deadline', { ascending: true })
-      .limit(1)
+  // Only applies to scheduled matches (postponed have no deadline)
+  if (nextScheduled) {
+    const seasonId = (nextScheduled.competition as any)?.season_id
+    if (seasonId) {
+      const { data: globalPending } = await supabase
+        .from('matches')
+        .select('deadline')
+        .eq('status', 'scheduled')
+        .not('home_club_id', 'is', null)
+        .not('away_club_id', 'is', null)
+        .not('deadline', 'is', null)
+        .lt('deadline', nextScheduled.deadline as string)
+        .order('deadline', { ascending: true })
+        .limit(1)
 
-    if (globalPending && globalPending.length > 0) {
-      // There is an active global slot that hasn't finished yet. 
-      // The club should wait until that slot expires.
-      return {
-        match: null,
-        waiting: true,
-        waiting_until: globalPending[0].deadline,
+      if (globalPending && globalPending.length > 0) {
+        // There is an active global slot that hasn't finished yet.
+        // The club should wait — but postponed matches are still playable!
+        if (postponedMatches.length > 0) {
+          // Enrich postponed matches with annotations
+          const postponedPlayable = await enrichMatchesWithAnnotations(postponedMatches as any[], clubId)
+          return {
+            match: postponedPlayable[0] || null,
+            allPlayableMatches: postponedPlayable,
+            waiting: true,
+            waiting_until: globalPending[0].deadline,
+          }
+        }
+
+        return {
+          match: null,
+          allPlayableMatches: [],
+          waiting: true,
+          waiting_until: globalPending[0].deadline,
+        }
       }
     }
   }
 
-  // --- NORMAL: return the match ---
-  // Check for annotations
-  const { data: annotations } = await supabase
-    .from('match_annotations')
-    .select('*')
-    .eq('match_id', nextMatch.id)
+  // --- Build full list of playable matches ---
+  // Postponed matches come first (urgent/pending), then the current scheduled one
+  const allCandidates = [...postponedMatches, ...(nextScheduled ? [nextScheduled] : [])]
 
-  const myAnnotation = annotations?.find((a: MatchAnnotation) => a.club_id === clubId) || null
-  const opponentId = nextMatch.home_club_id === clubId ? nextMatch.away_club_id : nextMatch.home_club_id
-  const opponentAnnotationExists = annotations?.some((a: MatchAnnotation) => a.club_id === opponentId) || false
+  const allPlayable = await enrichMatchesWithAnnotations(allCandidates as any[], clubId)
 
+  // The primary match is the first one (postponed if any, otherwise the scheduled)
   return {
-    match: {
-      ...nextMatch,
-      my_annotation: myAnnotation,
-      opponent_annotation_exists: opponentAnnotationExists,
-    },
+    match: allPlayable[0] || null,
+    allPlayableMatches: allPlayable,
     waiting: false,
     waiting_until: null,
   }
+}
+
+/**
+ * Helper: Enrich a list of matches with annotation data for a specific club.
+ */
+async function enrichMatchesWithAnnotations(
+  matches: PlayableMatch[],
+  clubId: string
+): Promise<PlayableMatch[]> {
+  if (matches.length === 0) return []
+
+  const matchIds = matches.map(m => m.id)
+  const { data: annotations } = await supabase
+    .from('match_annotations')
+    .select('*')
+    .in('match_id', matchIds)
+
+  return matches.map(m => {
+    const matchAnns = (annotations || []) as MatchAnnotation[]
+    const myAnnotation = matchAnns.find(a => a.match_id === m.id && a.club_id === clubId) || null
+    const opponentId = m.home_club_id === clubId ? m.away_club_id : m.home_club_id
+    const opponentAnnotationExists = matchAnns.some(a => a.match_id === m.id && a.club_id === opponentId)
+
+    return {
+      ...m,
+      my_annotation: myAnnotation,
+      opponent_annotation_exists: opponentAnnotationExists,
+    }
+  })
 }
 
 // =============================================

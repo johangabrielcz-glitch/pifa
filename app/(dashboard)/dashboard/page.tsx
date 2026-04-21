@@ -7,7 +7,7 @@ import {
   Shield, Users, LogOut, Loader2, AlertCircle, Wallet,
   ChevronDown, ChevronUp, Trophy, Calendar, Swords, LayoutList,
   Clock, Goal, HandHelping, Star, Play, Check, BarChart3,
-  Hourglass, TrendingUp, Flame, Award, Newspaper, ChevronRight, Camera, Megaphone
+  Hourglass, TrendingUp, Flame, Award, Newspaper, ChevronRight, ChevronLeft, Camera, Megaphone
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
@@ -84,7 +84,8 @@ export default function DashboardPage() {
   const [players, setPlayers] = useState<Player[]>([])
   const [competitions, setCompetitions] = useState<CompetitionFull[]>([])
   const [upcomingMatches, setUpcomingMatches] = useState<MatchWithDetails[]>([])
-  const [matchResult, setMatchResult] = useState<NextMatchResult>({ match: null, waiting: false, waiting_until: null })
+  const [matchResult, setMatchResult] = useState<NextMatchResult>({ match: null, allPlayableMatches: [], waiting: false, waiting_until: null })
+  const [matchIndex, setMatchIndex] = useState(0)
   const [activeTab, setActiveTab] = useState<DtTab>('home')
   const [filterCompetition, setFilterCompetition] = useState<string>('all')
   const [expandedCompetitions, setExpandedCompetitions] = useState<Set<string>>(new Set())
@@ -484,7 +485,9 @@ export default function DashboardPage() {
     )
   }
 
-  const nextPlayableMatch = matchResult.match
+  const allPlayable = matchResult.allPlayableMatches || []
+  const safeIndex = Math.min(matchIndex, Math.max(0, allPlayable.length - 1))
+  const nextPlayableMatch = allPlayable.length > 0 ? allPlayable[safeIndex] : matchResult.match
 
   return (
     <div className="h-dvh flex flex-col bg-[#0A0A0A] safe-area-top font-sans overflow-hidden">
@@ -620,9 +623,9 @@ export default function DashboardPage() {
               {nextPlayableMatch && (
                 <div className="rounded-xl bg-[#141414] border border-[#202020] overflow-hidden flex flex-col animate-fade-in-up">
                   {/* Top Bar Label */}
-                  <div className="bg-[#00FF85] px-4 py-2 flex items-center justify-between">
+                  <div className={`px-4 py-2 flex items-center justify-between ${nextPlayableMatch.status === 'postponed' ? 'bg-amber-500' : 'bg-[#00FF85]'}`}>
                     <span className="text-[10px] font-black text-[#0A0A0A] uppercase tracking-[0.2em] flex items-center gap-1.5">
-                       PRÓXIMO PARTIDO
+                       {nextPlayableMatch.status === 'postponed' ? '⏸ PARTIDO APLAZADO' : 'PRÓXIMO PARTIDO'}
                     </span>
                     {nextPlayableMatch.my_annotation ? (
                       <span className="flex items-center gap-1 text-[#0A0A0A] text-[9px] font-black uppercase tracking-wider">
@@ -631,9 +634,32 @@ export default function DashboardPage() {
                     ) : nextPlayableMatch.opponent_annotation_exists ? (
                        <span className="flex items-center gap-1 text-[#0A0A0A] text-[9px] font-black uppercase tracking-wider">
                         <AlertCircle className="w-3 h-3 stroke-[3]" /> Rival
-                      </span>
+                       </span>
                     ) : null}
                   </div>
+
+                  {/* Navigation arrows when multiple matches */}
+                  {allPlayable.length > 1 && (
+                    <div className="flex items-center justify-between px-4 py-2 bg-[#0A0A0A] border-b border-[#202020]">
+                      <button
+                        disabled={safeIndex === 0}
+                        onClick={() => setMatchIndex(i => Math.max(0, i - 1))}
+                        className="w-7 h-7 rounded-lg bg-[#141414] border border-[#202020] flex items-center justify-center disabled:opacity-20 hover:border-[#00FF85]/40 transition-all"
+                      >
+                        <ChevronLeft className="w-4 h-4 text-white" />
+                      </button>
+                      <span className="text-[9px] font-black text-[#6A6C6E] uppercase tracking-widest">
+                        Partido {safeIndex + 1} de {allPlayable.length}
+                      </span>
+                      <button
+                        disabled={safeIndex >= allPlayable.length - 1}
+                        onClick={() => setMatchIndex(i => Math.min(allPlayable.length - 1, i + 1))}
+                        className="w-7 h-7 rounded-lg bg-[#141414] border border-[#202020] flex items-center justify-center disabled:opacity-20 hover:border-[#00FF85]/40 transition-all"
+                      >
+                        <ChevronRight className="w-4 h-4 text-white" />
+                      </button>
+                    </div>
+                  )}
 
                   <div className="p-3 relative">
                     <div className="flex items-center justify-between">
@@ -679,7 +705,11 @@ export default function DashboardPage() {
                         </p>
                       </div>
 
-                      {nextPlayableMatch.deadline && (
+                      {nextPlayableMatch.status === 'postponed' ? (
+                        <div className="text-right">
+                          <span className="px-2 py-1 rounded bg-amber-500/15 text-amber-400 text-[8px] font-black uppercase tracking-widest">Sin plazo</span>
+                        </div>
+                      ) : nextPlayableMatch.deadline ? (
                         <div className="text-right">
                           <p className="text-[8px] text-[#6A6C6E] font-bold uppercase tracking-wider mb-0.5">CIERRE</p>
                           <CountdownTimer 
@@ -688,7 +718,7 @@ export default function DashboardPage() {
                             onExpired={refreshData}
                           />
                         </div>
-                      )}
+                      ) : null}
                     </div>
 
                     <Link

@@ -17,6 +17,7 @@ import {
   Plus,
   Minus,
   Star,
+  PauseCircle,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -53,7 +54,8 @@ export default function AdminMatchesPage() {
   const [matchPage, setMatchPage] = useState(0)
   const [totalMatches, setTotalMatches] = useState(0)
   const [loadingMatches, setLoadingMatches] = useState(false)
-  const [statusFilter, setStatusFilter] = useState<'all' | 'finished' | 'scheduled'>('finished')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'finished' | 'scheduled' | 'postponed'>('finished')
+  const [postponingId, setPostponingId] = useState<string | null>(null)
 
   // Edit modal
   const [editingMatch, setEditingMatch] = useState<MatchWithClubs | null>(null)
@@ -347,18 +349,18 @@ export default function AdminMatchesPage() {
 
         {/* Status Filter */}
         {selectedCompId && (
-          <div className="flex gap-2">
-            {(['finished', 'scheduled', 'all'] as const).map(f => (
+          <div className="flex gap-2 flex-wrap">
+            {(['finished', 'scheduled', 'postponed', 'all'] as const).map(f => (
               <button
                 key={f}
                 onClick={() => { setStatusFilter(f); setMatchPage(0) }}
                 className={`px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
                   statusFilter === f
-                    ? 'bg-[#FF3131] text-white shadow-[0_4px_15px_rgba(255,49,49,0.3)]'
+                    ? f === 'postponed' ? 'bg-amber-500 text-black shadow-[0_4px_15px_rgba(245,158,11,0.3)]' : 'bg-[#FF3131] text-white shadow-[0_4px_15px_rgba(255,49,49,0.3)]'
                     : 'bg-[#141414] text-[#6A6C6E] border border-white/[0.04] hover:text-white'
                 }`}
               >
-                {f === 'finished' ? 'Finalizados' : f === 'scheduled' ? 'Pendientes' : 'Todos'}
+                {f === 'finished' ? 'Finalizados' : f === 'scheduled' ? 'Pendientes' : f === 'postponed' ? 'Aplazados' : 'Todos'}
               </button>
             ))}
           </div>
@@ -445,6 +447,10 @@ export default function AdminMatchesPage() {
                             <span className="text-[10px] text-[#2D2D2D] font-black">-</span>
                             <span className="text-lg font-black text-white tabular-nums">{match.away_score}</span>
                           </div>
+                        ) : match.status === 'postponed' ? (
+                          <span className="text-[8px] font-black text-amber-400 uppercase tracking-widest px-3 py-2 bg-amber-500/10 rounded-xl border border-amber-500/20">
+                            Aplazado
+                          </span>
                         ) : (
                           <span className="text-[8px] font-black text-[#6A6C6E] uppercase tracking-widest px-3 py-2 bg-[#141414] rounded-xl border border-white/[0.04]">
                             VS
@@ -479,12 +485,51 @@ export default function AdminMatchesPage() {
                         </button>
                       )}
                       {match.status === 'scheduled' && (
+                        <>
+                          <button
+                            onClick={() => openClubEditModal(match)}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 rounded-xl text-[8px] font-black text-blue-400 uppercase tracking-widest transition-all"
+                          >
+                            <Users className="w-3 h-3" />
+                            Editar Clubs
+                          </button>
+                          <button
+                            disabled={postponingId === match.id}
+                            onClick={async () => {
+                              setPostponingId(match.id)
+                              try {
+                                const res = await fetch('/api/admin/postpone-match', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ matchId: match.id }),
+                                })
+                                const data = await res.json()
+                                if (data.success) {
+                                  toast.success('Partido aplazado correctamente')
+                                  fetchMatches(matchPage)
+                                } else {
+                                  toast.error(data.error || 'Error al aplazar')
+                                }
+                              } catch (e) {
+                                toast.error('Error de conexión')
+                              } finally {
+                                setPostponingId(null)
+                              }
+                            }}
+                            className="flex items-center gap-2 px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 rounded-xl text-[8px] font-black text-amber-400 uppercase tracking-widest transition-all disabled:opacity-50"
+                          >
+                            <PauseCircle className="w-3 h-3" />
+                            {postponingId === match.id ? 'Aplazando...' : 'Aplazar'}
+                          </button>
+                        </>
+                      )}
+                      {match.status === 'postponed' && (
                         <button
-                          onClick={() => openClubEditModal(match)}
-                          className="flex items-center gap-2 px-4 py-2 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 rounded-xl text-[8px] font-black text-blue-400 uppercase tracking-widest transition-all"
+                          onClick={() => openEditModal(match)}
+                          className="flex items-center gap-2 px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 rounded-xl text-[8px] font-black text-amber-400 uppercase tracking-widest transition-all"
                         >
-                          <Users className="w-3 h-3" />
-                          Editar Clubs
+                          <Pencil className="w-3 h-3" />
+                          Ver Detalles
                         </button>
                       )}
                     </div>
