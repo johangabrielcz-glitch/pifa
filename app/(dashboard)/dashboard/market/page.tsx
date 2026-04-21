@@ -469,31 +469,31 @@ export default function MarketPage() {
                                         Compra Directa
                                       </Button>
                                     )}
-                                    {player.is_one_club_man ? (
-                                      <div className="w-full py-2 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-[8px] font-black text-amber-500 text-center uppercase tracking-[0.2em]">
-                                        🛡️ One Club Man (Innegociable)
-                                      </div>
-                                    ) : (
-                                      <Button 
-                                        className={`w-full text-[10px] font-black uppercase tracking-widest h-10 transition-all duration-300 rounded-2xl ${
-                                          myNegotiations.find(n => n.player_id === player.id && n.status === 'blocked')
-                                            ? 'bg-red-500/10 border border-red-500/20 text-red-500 cursor-not-allowed'
-                                            : 'bg-white/5 border border-white/10 hover:bg-white/10 text-white'
-                                        }`}
-                                        disabled={!!myNegotiations.find(n => n.player_id === player.id && n.status === 'blocked')}
-                                        onClick={() => {
-                                          setPlayerForClause(player)
-                                          setIsClauseChatOpen(true)
-                                        }}
-                                      >
-                                        {myNegotiations.find(n => n.player_id === player.id && n.status === 'blocked') 
-                                          ? '🚫 Negociación Bloqueada' 
-                                          : 'Pagar Cláusula'}
-                                      </Button>
-                                    )}
                                   </>
                                 ) : (
                                   <p className="text-[8px] font-bold text-red-400/60 text-center uppercase tracking-widest py-2">🔒 Mercado cerrado</p>
+                                )}
+                                {player.is_one_club_man ? (
+                                  <div className="w-full py-2 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-[8px] font-black text-amber-500 text-center uppercase tracking-[0.2em]">
+                                    🛡️ One Club Man (Innegociable)
+                                  </div>
+                                ) : (
+                                  <Button 
+                                    className={`w-full text-[10px] font-black uppercase tracking-widest h-10 transition-all duration-300 rounded-2xl ${
+                                      (!transferWindowStatus || myNegotiations.find(n => n.player_id === player.id && n.status === 'blocked'))
+                                        ? 'bg-red-500/10 border border-red-500/20 text-red-500 cursor-not-allowed'
+                                        : 'bg-white/5 border border-white/10 hover:bg-white/10 text-white'
+                                    }`}
+                                    disabled={!transferWindowStatus || !!myNegotiations.find(n => n.player_id === player.id && n.status === 'blocked')}
+                                    onClick={() => {
+                                      setPlayerForClause(player)
+                                      setIsClauseChatOpen(true)
+                                    }}
+                                  >
+                                    {!transferWindowStatus ? '🔒 Mercado Cerrado' : myNegotiations.find(n => n.player_id === player.id && n.status === 'blocked') 
+                                      ? '🚫 Negociación Bloqueada' 
+                                      : 'Pagar Cláusula'}
+                                  </Button>
                                 )}
                               </div>
                             )
@@ -675,17 +675,17 @@ export default function MarketPage() {
                                     ) : (
                                       <Button 
                                         className={`w-full mt-2 text-[8px] font-black uppercase tracking-widest h-8 transition-all duration-300 rounded-xl ${
-                                          myNegotiations.find(n => n.player_id === player.id && n.status === 'blocked')
+                                          (!transferWindowStatus || myNegotiations.find(n => n.player_id === player.id && n.status === 'blocked'))
                                             ? 'bg-red-500/10 border border-red-500/20 text-red-500 cursor-not-allowed'
                                             : 'bg-white/5 border border-white/10 hover:bg-white/10 text-white'
                                         }`}
-                                        disabled={!!myNegotiations.find(n => n.player_id === player.id && n.status === 'blocked')}
+                                        disabled={!transferWindowStatus || !!myNegotiations.find(n => n.player_id === player.id && n.status === 'blocked')}
                                         onClick={() => {
                                           setPlayerForClause(player)
                                           setIsClauseChatOpen(true)
                                         }}
                                       >
-                                        {myNegotiations.find(n => n.player_id === player.id && n.status === 'blocked') 
+                                        {!transferWindowStatus ? '🔒 Cerrado' : myNegotiations.find(n => n.player_id === player.id && n.status === 'blocked') 
                                           ? '🚫 Bloqueado' 
                                           : 'Cláusula'}
                                       </Button>
