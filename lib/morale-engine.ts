@@ -72,7 +72,12 @@ export async function processEndOfMatchMorale(
     const emailTriggers: { playerId: string; playerName: string; triggerType: string; context: string }[] = []
 
     for (const player of allPlayers as Player[]) {
-      if (player.wants_to_leave || player.contract_status === 'free_agent') continue
+      if (
+        player.wants_to_leave || 
+        player.contract_status === 'free_agent' ||
+        (player.injury_matches_left && player.injury_matches_left > 0) ||
+        (player.red_card_matches_left && player.red_card_matches_left > 0)
+      ) continue
 
       let moraleDelta = 0
       const wasParticipant = participantIds.has(player.id)

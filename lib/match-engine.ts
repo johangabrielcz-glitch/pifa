@@ -19,6 +19,7 @@ import {
   processInjuries,
   processRedCards,
   getSubsInPlayerIds,
+  processByeRecovery,
 } from './injury-engine'
 
 // =============================================
@@ -455,24 +456,30 @@ async function finalizeMatch(matchId: string): Promise<void> {
 
   // ====== WAVE COMPLETION (BYE RECOVERY) ======
   try {
-    await checkWaveCompletion((match as any).deadline)
+    await checkWaveCompletion(match)
   } catch (e) {
     console.warn('[finalizeMatch] Wave completion error:', e)
   }
 }
 
 /**
- * Checks if all matches for a specific deadline (Wave) are finished or postponed.
- * If so, recovers stamina for all clubs that did not participate in this wave.
+ * Checks if all matches for a specific matchday/round (Wave) are finished or postponed.
+ * If so, recovers stamina for all clubs in that competition that did not have a scheduled match (descansos).
  */
-export async function checkWaveCompletion(deadlineStr: string | null): Promise<void> {
-  if (!deadlineStr) return
+export async function checkWaveCompletion(match: any): Promise<void> {
+  if (!match.competition_id) return
+  // Descansos (Byes) solo aplican a jornadas regulares (Ligas o Fase de Grupos)
+  // No aplica a rondas eliminatorias (round_name) para no darle estamina a equipos ya eliminados.
+  if (!match.matchday) return
 
-  // 1. Get all matches with this exact deadline
-  const { data: waveMatches } = await supabase
+  // 1. Get all matches for this specific wave in this competition
+  let query = supabase
     .from('matches')
     .select('id, status, home_club_id, away_club_id')
-    .eq('deadline', deadlineStr)
+    .eq('competition_id', match.competition_id)
+    .eq('matchday', match.matchday)
+
+  const { data: waveMatches } = await query
 
   if (!waveMatches || waveMatches.length === 0) return
 
@@ -483,25 +490,31 @@ export async function checkWaveCompletion(deadlineStr: string | null): Promise<v
     return // Wave is still ongoing
   }
 
-  // 3. Wave is complete! Collect participating clubs
-  const participatingClubIds = new Set<string>()
+  // 3. Wave is complete! Collect participating clubs (including postponed ones)
+  // Postponed clubs DID NOT REST in the "Bye" sense, so they shouldn't recover stamina.
+  const clubsWithMatches = new Set<string>()
   for (const m of waveMatches) {
-    if (m.home_club_id) participatingClubIds.add(m.home_club_id)
-    if (m.away_club_id) participatingClubIds.add(m.away_club_id)
+    if (m.home_club_id) clubsWithMatches.add(m.home_club_id)
+    if (m.away_club_id) clubsWithMatches.add(m.away_club_id)
   }
 
-  // 4. Trigger recovery for resting clubs
-  // Important: we must ensure we only trigger this ONCE per wave.
-  // We can use a flag on the first match of the wave, or simply check if the recovery was already done.
-  // To keep it simple and stateless, if the recovery is idempotent (sets to 100), it's safe if it runs multiple times,
-  // but it would spam notifications.
-  // We'll use a simple lock mechanism: update the matches to mark wave_processed=true (requires DB schema change) 
-  // OR just check if the last finalized match was the one triggering it.
-  // Actually, we can check if the current time is close to when they finished?
-  // Let's rely on the processByeRecovery implementation to handle it.
-  // Wait, if 5 matches finish at the exact same millisecond (e.g., bulk update), this might run 5 times.
-  // That's rare. Let's just call processByeRecovery.
-  await processByeRecovery(Array.from(participatingClubIds))
+  // 4. Find all clubs inscribed in this competition
+  const { data: inscribed } = await supabase
+    .from('competition_clubs')
+    .select('club_id')
+    .eq('competition_id', match.competition_id)
+
+  if (!inscribed || inscribed.length === 0) return
+
+  const allInscribedClubIds = inscribed.map(i => i.club_id)
+
+  // 5. The resting clubs are those inscribed but without any match in this wave
+  const restingClubIds = allInscribedClubIds.filter(id => !clubsWithMatches.has(id))
+
+  if (restingClubIds.length === 0) return
+
+  // 6. Trigger recovery for these specific resting clubs
+  await processByeRecovery(restingClubIds)
 }
 
 // =============================================
@@ -1340,7 +1353,7 @@ export async function checkAndAutoResolveExpired(): Promise<number> {
 
       // ====== WAVE COMPLETION (BYE RECOVERY) ======
       try {
-        await checkWaveCompletion(match.deadline)
+        await checkWaveCompletion(match)
       } catch (e) {
         console.warn('[autoResolve] Wave completion error:', e)
       }

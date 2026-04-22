@@ -1133,9 +1133,13 @@ export default function DashboardPage() {
                                                     <div className="px-2 py-0.5 rounded-full bg-white/[0.03] border border-white/[0.05]">
                                                        <span className="text-[8px] font-black text-[#2D2D2D] uppercase tracking-tighter">VS</span>
                                                     </div>
-                                                    {m.deadline && (
+                                                    {m.status === 'postponed' ? (
+                                                       <div className="mt-1.5 px-2 py-0.5 bg-yellow-500/10 border border-yellow-500/20 rounded-md">
+                                                         <span className="text-[7px] text-yellow-500 font-black uppercase tracking-widest">Aplazado</span>
+                                                       </div>
+                                                    ) : m.deadline ? (
                                                        <span className="text-[6px] text-[#6A6C6E] font-black uppercase mt-1 tracking-widest animate-pulse">Pending</span>
-                                                    )}
+                                                    ) : null}
                                                   </div>
                                                 )}
                                               </div>
@@ -1424,7 +1428,11 @@ export default function DashboardPage() {
                                       <div className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 mb-2">
                                         <span className="text-[9px] font-black text-white/40 tracking-widest">VS</span>
                                       </div>
-                                      {match.deadline ? (
+                                      {match.status === 'postponed' ? (
+                                          <div className="px-2 py-1 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                                            <span className="text-[8px] text-yellow-500 font-black uppercase tracking-widest">Aplazado</span>
+                                          </div>
+                                      ) : match.deadline ? (
                                           <div className="scale-[0.8] md:scale-[0.85] origin-center -my-1">
                                             <CountdownTimer deadline={match.deadline} size="sm" />
                                           </div>
