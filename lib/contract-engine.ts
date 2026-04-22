@@ -386,6 +386,7 @@ export async function markPlayerSeeking(playerId: string): Promise<{ success: bo
 
     // Marcar como irrevocable
     await supabase.from('players').update({
+      club_id: null,
       wants_to_leave: true,
       contract_status: 'free_agent',
       is_on_sale: false,
@@ -393,12 +394,23 @@ export async function markPlayerSeeking(playerId: string): Promise<{ success: bo
       updated_at: new Date().toISOString()
     }).eq('id', playerId)
 
+    // Registrar en historial de mercado
+    if (p.club_id) {
+      await supabase.from('market_history').insert({
+        player_id: playerId,
+        from_club_id: p.club_id,
+        to_club_id: null,
+        amount: 0,
+        type: 'release'
+      })
+    }
+
     // Notificar al club dueño
     if (p.club_id) {
       await supabase.from('notifications').insert({
         club_id: p.club_id,
         title: '⚠️ Jugador quiere irse',
-        message: `${p.name} ha decidido buscar otro equipo. Ya no estará disponible para partidos.`,
+        message: `${p.name} ha decidido buscar otro equipo. Ya no estará disponible para partidos y ha abandonado el club.`,
         type: 'player_seeking_transfer',
         data: { player_id: playerId, player_name: p.name }
       })
@@ -406,7 +418,7 @@ export async function markPlayerSeeking(playerId: string): Promise<{ success: bo
       sendPushToClub(
         p.club_id,
         `⚠️ ${p.name} quiere irse`,
-        `${p.name} ha declarado que busca un nuevo club. Ya no podrá ser convocado.`
+        `${p.name} ha abandonado el club y busca un nuevo destino. Ya no podrá ser convocado.`
       )
     }
 
@@ -426,7 +438,7 @@ export async function markPlayerSeeking(playerId: string): Promise<{ success: bo
         body: JSON.stringify({
           isMarketTrigger: true,
           marketEvent: 'player_seeking',
-          textData: `BOMBAZO: La estrella ${p.name} del club ${clubName} (ACTUAL) ha decidido IRSE. Ha declarado públicamente que busca un nuevo destino y no jugará más para el ${clubName}. Su moral está rota y quiere forzar su salida como agente libre.`
+          textData: `BOMBAZO: La estrella ${p.name} del club ${clubName} (ACTUAL) ha decidido IRSE. Ha declarado públicamente que busca un nuevo destino y ha abandonado las filas del ${clubName}. Su moral está rota y quiere forzar su salida como agente libre.`
         })
       }).catch(() => {})
     } catch (e) {}

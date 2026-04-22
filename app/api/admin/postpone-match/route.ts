@@ -28,6 +28,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'El partido ya está aplazado' }, { status: 400 })
     }
 
+    const oldDeadline = (match as any).deadline
+
     // Postpone: set status to 'postponed' and clear deadline
     const { error: updateError } = await (supabaseAdmin.from('matches') as any)
       .update({
@@ -40,6 +42,14 @@ export async function POST(req: Request) {
     if (updateError) {
       console.error('[postpone-match] Update error:', updateError)
       return NextResponse.json({ error: 'Error al aplazar el partido' }, { status: 500 })
+    }
+
+    // Check if postponing this match completes its original wave
+    if (oldDeadline) {
+      const { checkWaveCompletion } = await import('@/lib/match-engine')
+      await checkWaveCompletion(oldDeadline).catch(e => {
+        console.warn('[postpone-match] Wave completion check failed:', e)
+      })
     }
 
     return NextResponse.json({ success: true })

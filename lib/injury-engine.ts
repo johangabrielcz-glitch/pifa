@@ -482,3 +482,66 @@ export async function processRedCards(matchId: string): Promise<void> {
     }).eq('id', clubId)
   }
 }
+
+/**
+ * Process stamina recovery for all players of clubs that did NOT participate in a given wave.
+ * This handles "byes" (descansos) automatically when an entire wave of matches finishes.
+ */
+export async function processByeRecovery(participatingClubIds: string[]): Promise<void> {
+  // Get all active clubs
+  const { data: allClubs } = await supabase
+    .from('clubs')
+    .select('id, name')
+
+  if (!allClubs || allClubs.length === 0) return
+
+  // Find clubs that did NOT play in this wave
+  const restingClubs = (allClubs as any[]).filter(c => !participatingClubIds.includes(c.id))
+
+  if (restingClubs.length === 0) return
+
+  const restingClubIds = restingClubs.map(c => c.id)
+
+  // Update stamina to 100 for all players in resting clubs
+  // Exclude players who want to leave or are free agents
+  const { error } = await supabase
+    .from('players')
+    .update({ stamina: 100, updated_at: new Date().toISOString() } as any)
+    .in('club_id', restingClubIds)
+    .eq('wants_to_leave', false)
+    .in('contract_status', ['active', 'renewal_pending'])
+
+  if (error) {
+    console.error('[processByeRecovery] Error recovering stamina for byes:', error)
+    return
+  }
+
+  // Prevent duplicate notifications if this function runs multiple times in quick succession
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+  const { data: recentNotifs } = await supabase
+    .from('notifications')
+    .select('club_id')
+    .eq('type', 'stamina_recovery')
+    .gte('created_at', fiveMinutesAgo)
+    .in('club_id', restingClubIds)
+
+  const notifiedClubs = new Set((recentNotifs || []).map(n => n.club_id))
+
+  // Send notifications to the resting clubs that haven't been notified recently
+  const notificationPromises = restingClubs
+    .filter(club => !notifiedClubs.has(club.id))
+    .map(club => {
+      return supabase.from('notifications').insert({
+        club_id: club.id,
+        title: '🛌 Jornada de Descanso',
+        message: 'Al no tener partido programado en esta jornada, tus jugadores han descansado y recuperado el 100% de su energía.',
+        type: 'stamina_recovery' as any,
+        data: { club_id: club.id },
+        is_read: false,
+      } as any)
+    })
+
+  await Promise.allSettled(notificationPromises)
+  
+  console.log(`[processByeRecovery] Recovered stamina for ${restingClubs.length} resting clubs.`)
+}

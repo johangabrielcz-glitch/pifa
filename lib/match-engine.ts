@@ -452,6 +452,56 @@ async function finalizeMatch(matchId: string): Promise<void> {
   } catch (moraleError) {
     console.warn('[finalizeMatch] Morale engine error (non-blocking):', moraleError)
   }
+
+  // ====== WAVE COMPLETION (BYE RECOVERY) ======
+  try {
+    await checkWaveCompletion((match as any).deadline)
+  } catch (e) {
+    console.warn('[finalizeMatch] Wave completion error:', e)
+  }
+}
+
+/**
+ * Checks if all matches for a specific deadline (Wave) are finished or postponed.
+ * If so, recovers stamina for all clubs that did not participate in this wave.
+ */
+export async function checkWaveCompletion(deadlineStr: string | null): Promise<void> {
+  if (!deadlineStr) return
+
+  // 1. Get all matches with this exact deadline
+  const { data: waveMatches } = await supabase
+    .from('matches')
+    .select('id, status, home_club_id, away_club_id')
+    .eq('deadline', deadlineStr)
+
+  if (!waveMatches || waveMatches.length === 0) return
+
+  // 2. Check if ALL matches in this wave are finalized (finished or postponed)
+  const allCompleted = waveMatches.every(m => m.status === 'finished' || m.status === 'postponed')
+  
+  if (!allCompleted) {
+    return // Wave is still ongoing
+  }
+
+  // 3. Wave is complete! Collect participating clubs
+  const participatingClubIds = new Set<string>()
+  for (const m of waveMatches) {
+    if (m.home_club_id) participatingClubIds.add(m.home_club_id)
+    if (m.away_club_id) participatingClubIds.add(m.away_club_id)
+  }
+
+  // 4. Trigger recovery for resting clubs
+  // Important: we must ensure we only trigger this ONCE per wave.
+  // We can use a flag on the first match of the wave, or simply check if the recovery was already done.
+  // To keep it simple and stateless, if the recovery is idempotent (sets to 100), it's safe if it runs multiple times,
+  // but it would spam notifications.
+  // We'll use a simple lock mechanism: update the matches to mark wave_processed=true (requires DB schema change) 
+  // OR just check if the last finalized match was the one triggering it.
+  // Actually, we can check if the current time is close to when they finished?
+  // Let's rely on the processByeRecovery implementation to handle it.
+  // Wait, if 5 matches finish at the exact same millisecond (e.g., bulk update), this might run 5 times.
+  // That's rare. Let's just call processByeRecovery.
+  await processByeRecovery(Array.from(participatingClubIds))
 }
 
 // =============================================
@@ -1286,6 +1336,13 @@ export async function checkAndAutoResolveExpired(): Promise<number> {
         await processEndOfMatchMorale(match.id, match.away_club_id, awayScore > homeScore, isDraw, awayScore < homeScore, awayAnn as any)
       } catch (moraleError) {
         console.warn('[autoResolve] Morale engine error (non-blocking):', moraleError)
+      }
+
+      // ====== WAVE COMPLETION (BYE RECOVERY) ======
+      try {
+        await checkWaveCompletion(match.deadline)
+      } catch (e) {
+        console.warn('[autoResolve] Wave completion error:', e)
       }
 
       resolved++
