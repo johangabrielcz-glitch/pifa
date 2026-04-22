@@ -119,17 +119,20 @@ export default function DashboardPage() {
     const allStats = statsComps.flatMap(c => c.playerStats)
     if (allStats.length === 0) return { scorers: [], assists: [], mvps: [] }
 
-    const playerMap = new Map<string, { player: Player; goals: number; assists: number; mvps: number; played: number }>()
+    const playerMap = new Map<string, { player: Player; club: any; goals: number; assists: number; mvps: number; played: number }>()
     for (const stat of allStats) {
       if (!stat.player) continue
       const existing = playerMap.get(stat.player_id) || {
         player: stat.player,
+        club: stat.club,
         goals: 0, assists: 0, mvps: 0, played: 0
       }
       existing.goals += stat.goals
       existing.assists += stat.assists
       existing.mvps += stat.mvp_count
       existing.played += stat.matches_played
+      // Update club to latest just in case they transferred
+      if (stat.club) existing.club = stat.club
       playerMap.set(stat.player_id, existing)
     }
 
@@ -253,7 +256,7 @@ export default function DashboardPage() {
             // OPTIMIZACIÓN: Cargar todo el sub-detalle de las competencias en 3 queries globales
             const [standingsRes, statsRes, compMatchesRes] = await Promise.all([
               supabase.from('standings').select('*, club:clubs(*)').in('competition_id', compIds).order('points', { ascending: false }),
-              supabase.from('player_competition_stats').select('*, player:players(*)').in('competition_id', compIds),
+              supabase.from('player_competition_stats').select('*, player:players(*), club:clubs(*)').in('competition_id', compIds),
               supabase.from('matches').select('*, home_club:clubs!matches_home_club_id_fkey(*), away_club:clubs!matches_away_club_id_fkey(*)').in('competition_id', compIds).order('match_order', { ascending: true })
             ])
 
@@ -1279,15 +1282,20 @@ export default function DashboardPage() {
                                   </div>
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2">
+                                      {entry.club?.shield_url ? (
+                                        <img src={entry.club.shield_url} alt={entry.club.name} className="w-4 h-4 object-contain" />
+                                      ) : entry.club ? (
+                                        <Shield className="w-4 h-4 text-white/40" />
+                                      ) : null}
                                       <p className={`text-[11px] font-black uppercase tracking-tight truncate ${isMine ? 'text-[#00FF85]' : 'text-white/90'}`}>
                                         {entry.player?.name}
                                       </p>
                                       {isMine && (
-                                        <span className="text-[6px] font-black bg-[#00FF85] text-[#0A0A0A] px-1 py-0.5 rounded-full uppercase tracking-tighter">Tu</span>
+                                        <span className="text-[6px] font-black bg-[#00FF85] text-[#0A0A0A] px-1 py-0.5 rounded-full uppercase tracking-tighter shrink-0">Tu</span>
                                       )}
                                     </div>
-                                    <p className="text-[8px] text-white/30 font-bold uppercase tracking-widest mt-0.5">
-                                      {entry.player?.position} · {entry.played} PJ
+                                    <p className="text-[8px] text-white/30 font-bold uppercase tracking-widest mt-0.5 truncate">
+                                      {entry.club?.name || 'Sin equipo'} · {entry.player?.position} · {entry.played} PJ
                                     </p>
                                   </div>
                                   <div className="text-right shrink-0">
