@@ -487,20 +487,18 @@ export async function processRedCards(matchId: string): Promise<void> {
  * Process stamina recovery for all players of clubs that did NOT participate in a given wave.
  * This handles "byes" (descansos) automatically when an entire wave of matches finishes.
  */
-export async function processByeRecovery(participatingClubIds: string[]): Promise<void> {
-  // Get all active clubs
-  const { data: allClubs } = await supabase
+export async function processByeRecovery(restingClubIds: string[]): Promise<void> {
+  if (!restingClubIds || restingClubIds.length === 0) return
+
+  // Get the resting clubs for notification purposes
+  const { data: restingClubsData } = await supabase
     .from('clubs')
     .select('id, name')
+    .in('id', restingClubIds)
 
-  if (!allClubs || allClubs.length === 0) return
+  if (!restingClubsData || restingClubsData.length === 0) return
 
-  // Find clubs that did NOT play in this wave
-  const restingClubs = (allClubs as any[]).filter(c => !participatingClubIds.includes(c.id))
-
-  if (restingClubs.length === 0) return
-
-  const restingClubIds = restingClubs.map(c => c.id)
+  const restingClubs = restingClubsData as any[]
 
   // Update stamina to 100 for all players in resting clubs
   // Exclude players who want to leave or are free agents
