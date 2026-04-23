@@ -404,31 +404,9 @@ async function finalizeMatch(matchId: string): Promise<void> {
   sendPushToClub(match.home_club_id, '🏁 Partido Finalizado', resultMessage, { type: 'match_finished', match_id: matchId })
   sendPushToClub(match.away_club_id, '🏁 Partido Finalizado', resultMessage, { type: 'match_finished', match_id: matchId })
 
-  // ====== INJURY ENGINE: Post-match processing ======
-  // Each step is isolated in its own try/catch so one failure doesn't block the rest.
-  // Critical: processRestRecovery MUST run even if earlier steps fail.
-  try {
-    await decrementSuspensionsAndInjuries((match as any).home_club_id)
-    await decrementSuspensionsAndInjuries((match as any).away_club_id)
-  } catch (e) { console.warn('[finalizeMatch] Decrement suspensions error:', e) }
-
-  try {
-    await processMatchFatigue(matchId)
-  } catch (e) { console.warn('[finalizeMatch] Fatigue error:', e) }
-
-  try {
-    await processRestRecovery(matchId)
-  } catch (e) { console.warn('[finalizeMatch] Rest recovery error:', e) }
-
-  try {
-    await processInjuries(matchId)
-  } catch (e) { console.warn('[finalizeMatch] Injuries error:', e) }
-
-  try {
-    await processRedCards(matchId)
-  } catch (e) { console.warn('[finalizeMatch] Red cards error:', e) }
-
   // ====== MORALE ENGINE: Post-match moral processing ======
+  // MUST RUN BEFORE INJURY ENGINE! Otherwise, decrementSuspensionsAndInjuries will heal players,
+  // making them eligible for morale drops because the morale engine will think they were healthy but benched.
   try {
     const homeAnnotation_ = (annotations as any[]).find((a: MatchAnnotation) => a.club_id === (match as any).home_club_id)
     const awayAnnotation_ = (annotations as any[]).find((a: MatchAnnotation) => a.club_id === (match as any).away_club_id)
@@ -453,6 +431,30 @@ async function finalizeMatch(matchId: string): Promise<void> {
   } catch (moraleError) {
     console.warn('[finalizeMatch] Morale engine error (non-blocking):', moraleError)
   }
+
+  // ====== INJURY ENGINE: Post-match processing ======
+  // Each step is isolated in its own try/catch so one failure doesn't block the rest.
+  // Critical: processRestRecovery MUST run even if earlier steps fail.
+  try {
+    await decrementSuspensionsAndInjuries((match as any).home_club_id)
+    await decrementSuspensionsAndInjuries((match as any).away_club_id)
+  } catch (e) { console.warn('[finalizeMatch] Decrement suspensions error:', e) }
+
+  try {
+    await processMatchFatigue(matchId)
+  } catch (e) { console.warn('[finalizeMatch] Fatigue error:', e) }
+
+  try {
+    await processRestRecovery(matchId)
+  } catch (e) { console.warn('[finalizeMatch] Rest recovery error:', e) }
+
+  try {
+    await processInjuries(matchId)
+  } catch (e) { console.warn('[finalizeMatch] Injuries error:', e) }
+
+  try {
+    await processRedCards(matchId)
+  } catch (e) { console.warn('[finalizeMatch] Red cards error:', e) }
 
   // ====== WAVE COMPLETION (BYE RECOVERY) ======
   try {
