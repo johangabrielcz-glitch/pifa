@@ -58,15 +58,23 @@ export async function processEndOfMatchMorale(
       .limit(BENCH_STREAK_TRIGGER + 1)
 
     const recentMatchIds = (recentMatches || []).map(m => m.id)
+    const matchIdToDate = new Map((recentMatches || []).map(m => [m.id, m.played_at]))
 
     let recentAnnotations: any[] = []
     if (recentMatchIds.length > 0) {
       const { data: annotations } = await supabase
         .from('match_annotations')
-        .select('starting_xi, substitutes_in')
+        .select('match_id, starting_xi, substitutes_in')
         .eq('club_id', clubId)
         .in('match_id', recentMatchIds)
-      recentAnnotations = annotations || []
+      
+      // CRITICAL FIX: Sort annotations by date descending to match matchIds order
+      // Otherwise benchStreak calculation is random/wrong.
+      recentAnnotations = (annotations || []).sort((a, b) => {
+        const dateA = new Date(matchIdToDate.get(a.match_id) || 0).getTime()
+        const dateB = new Date(matchIdToDate.get(b.match_id) || 0).getTime()
+        return dateB - dateA
+      })
     }
 
     const emailTriggers: { playerId: string; playerName: string; triggerType: string; context: string }[] = []
