@@ -1,0 +1,240 @@
+--- FULL SEASON CALENDAR MAP ---
+[2026-04-18T04:49:30.01+00:00] | Liga Alpha (league) | MD: 1 | Jornada 1
+[2026-04-18T04:49:30.01+00:00] | Liga Beta (league) | MD: 1 | Jornada 1
+[2026-04-18T04:49:30.01+00:00] | Liga Beta (league) | MD: 1 | Jornada 1
+[2026-04-18T04:49:30.01+00:00] | Liga Alpha (league) | MD: 1 | Jornada 1
+[2026-04-18T04:49:30.01+00:00] | Liga Beta (league) | MD: 1 | Jornada 1
+[2026-04-18T04:49:30.01+00:00] | Liga Alpha (league) | MD: 1 | Jornada 1
+[2026-04-18T04:49:30.01+00:00] | Liga Beta (league) | MD: 1 | Jornada 1
+[2026-04-18T04:49:30.01+00:00] | Liga Alpha (league) | MD: 1 | Jornada 1
+[2026-04-19T04:49:30.01+00:00] | Liga Alpha (league) | MD: 2 | Jornada 2
+[2026-04-19T04:49:30.01+00:00] | Liga Alpha (league) | MD: 2 | Jornada 2
+[2026-04-19T04:49:30.01+00:00] | Liga Beta (league) | MD: 2 | Jornada 2
+[2026-04-19T04:49:30.01+00:00] | Liga Beta (league) | MD: 2 | Jornada 2
+[2026-04-19T04:49:30.01+00:00] | Liga Alpha (league) | MD: 2 | Jornada 2
+[2026-04-19T04:49:30.01+00:00] | Liga Alpha (league) | MD: 2 | Jornada 2
+[2026-04-19T04:49:30.01+00:00] | Liga Beta (league) | MD: 2 | Jornada 2
+[2026-04-19T04:49:30.01+00:00] | Liga Beta (league) | MD: 2 | Jornada 2
+[2026-04-20T04:49:30.01+00:00] | Liga Beta (league) | MD: 3 | Jornada 3
+[2026-04-20T04:49:30.01+00:00] | Liga Alpha (league) | MD: 3 | Jornada 3
+[2026-04-20T04:49:30.01+00:00] | Liga Alpha (league) | MD: 3 | Jornada 3
+[2026-04-20T04:49:30.01+00:00] | Liga Alpha (league) | MD: 3 | Jornada 3
+[2026-04-20T04:49:30.01+00:00] | Liga Beta (league) | MD: 3 | Jornada 3
+[2026-04-20T04:49:30.01+00:00] | Liga Beta (league) | MD: 3 | Jornada 3
+[2026-04-20T04:49:30.01+00:00] | Liga Beta (league) | MD: 3 | Jornada 3
+[2026-04-20T04:49:30.01+00:00] | Liga Alpha (league) | MD: 3 | Jornada 3
+[2026-04-21T04:49:30.01+00:00] | Liga Alpha (league) | MD: 4 | Jornada 4
+[2026-04-21T04:49:30.01+00:00] | Liga Beta (league) | MD: 4 | Jornada 4
+[2026-04-21T04:49:30.01+00:00] | Liga Beta (league) | MD: 4 | Jornada 4
+[2026-04-21T04:49:30.01+00:00] | Liga Beta (league) | MD: 4 | Jornada 4
+[2026-04-21T04:49:30.01+00:00] | Liga Alpha (league) | MD: 4 | Jornada 4
+[2026-04-21T04:49:30.01+00:00] | Liga Beta (league) | MD: 4 | Jornada 4
+[2026-04-21T04:49:30.01+00:00] | Liga Alpha (league) | MD: 4 | Jornada 4
+[2026-04-21T04:49:30.01+00:00] | Liga Alpha (league) | MD: 4 | Jornada 4
+[2026-04-22T04:49:30.01+00:00] | Liga Alpha (league) | MD: 5 | Jornada 5
+[2026-04-22T04:49:30.01+00:00] | Liga Alpha (league) | MD: 5 | Jornada 5
+[2026-04-22T04:49:30.01+00:00] | Liga Alpha (league) | MD: 5 | Jornada 5
+[2026-04-22T04:49:30.01+00:00] | Liga Beta (league) | MD: 5 | Jornada 5
+[2026-04-22T04:49:30.01+00:00] | Liga Beta (league) | MD: 5 | Jornada 5
+[2026-04-22T04:49:30.01+00:00] | Liga Beta (league) | MD: 5 | Jornada 5
+[2026-04-22T04:49:30.01+00:00] | Liga Alpha (league) | MD: 5 | Jornada 5
+[2026-04-22T04:49:30.01+00:00] | Liga Beta (league) | MD: 5 | Jornada 5
+[2026-04-23T04:49:30.01+00:00] | Liga Alpha (league) | MD: 6 | Jornada 6
+[2026-04-23T04:49:30.01+00:00] | Liga Alpha (league) | MD: 6 | Jornada 6
+[2026-04-23T04:49:30.01+00:00] | Liga Alpha (league) | MD: 6 | Jornada 6
+[2026-04-23T04:49:30.01+00:00] | Liga Beta (league) | MD: 6 | Jornada 6
+[2026-04-23T04:49:30.01+00:00] | Liga Beta (league) | MD: 6 | Jornada 6
+[2026-04-23T04:49:30.01+00:00] | Liga Beta (league) | MD: 6 | Jornada 6
+[2026-04-23T04:49:30.01+00:00] | Liga Beta (league) | MD: 6 | Jornada 6
+[2026-04-23T04:49:30.01+00:00] | Liga Alpha (league) | MD: 6 | Jornada 6
+[2026-04-24T04:49:30.01+00:00] | Liga Alpha (league) | MD: 7 | Jornada 7
+[2026-04-24T04:49:30.01+00:00] | Liga Alpha (league) | MD: 7 | Jornada 7
+[2026-04-24T04:49:30.01+00:00] | Liga Alpha (league) | MD: 7 | Jornada 7
+[2026-04-24T04:49:30.01+00:00] | Liga Beta (league) | MD: 7 | Jornada 7
+[2026-04-24T04:49:30.01+00:00] | Liga Beta (league) | MD: 7 | Jornada 7
+[2026-04-24T04:49:30.01+00:00] | Liga Beta (league) | MD: 7 | Jornada 7
+[2026-04-24T04:49:30.01+00:00] | Liga Alpha (league) | MD: 7 | Jornada 7
+[2026-04-24T04:49:30.01+00:00] | Liga Beta (league) | MD: 7 | Jornada 7
+[2026-04-25T04:49:30.01+00:00] | PIFA Champions League (groups_knockout) | MD: 1 | Grupo B - J1
+[2026-04-25T04:49:30.01+00:00] | PIFA Champions League (groups_knockout) | MD: 1 | Grupo A - J1
+[2026-04-26T04:49:30.01+00:00] | Liga Alpha (league) | MD: 8 | Jornada 8
+[2026-04-26T04:49:30.01+00:00] | Liga Alpha (league) | MD: 8 | Jornada 8
+[2026-04-26T04:49:30.01+00:00] | Liga Alpha (league) | MD: 8 | Jornada 8
+[2026-04-26T04:49:30.01+00:00] | Liga Beta (league) | MD: 8 | Jornada 8
+[2026-04-26T04:49:30.01+00:00] | Liga Beta (league) | MD: 8 | Jornada 8
+[2026-04-26T04:49:30.01+00:00] | Liga Beta (league) | MD: 8 | Jornada 8
+[2026-04-26T04:49:30.01+00:00] | Liga Beta (league) | MD: 8 | Jornada 8
+[2026-04-26T04:49:30.01+00:00] | Liga Alpha (league) | MD: 8 | Jornada 8
+[2026-04-27T04:49:30.01+00:00] | Liga Alpha (league) | MD: 9 | Jornada 9
+[2026-04-27T04:49:30.01+00:00] | Liga Alpha (league) | MD: 9 | Jornada 9
+[2026-04-27T04:49:30.01+00:00] | Liga Alpha (league) | MD: 9 | Jornada 9
+[2026-04-27T04:49:30.01+00:00] | Liga Alpha (league) | MD: 9 | Jornada 9
+[2026-04-27T04:49:30.01+00:00] | Liga Beta (league) | MD: 9 | Jornada 9
+[2026-04-27T04:49:30.01+00:00] | Liga Beta (league) | MD: 9 | Jornada 9
+[2026-04-27T04:49:30.01+00:00] | Liga Beta (league) | MD: 9 | Jornada 9
+[2026-04-27T04:49:30.01+00:00] | Liga Beta (league) | MD: 9 | Jornada 9
+[2026-04-28T04:49:30.01+00:00] | PIFA Champions League (groups_knockout) | MD: 2 | Grupo A - J2
+[2026-04-28T04:49:30.01+00:00] | PIFA Champions League (groups_knockout) | MD: 2 | Grupo B - J2
+[2026-04-29T04:49:30.01+00:00] | Liga Alpha (league) | MD: 10 | Jornada 10
+[2026-04-29T04:49:30.01+00:00] | Liga Alpha (league) | MD: 10 | Jornada 10
+[2026-04-29T04:49:30.01+00:00] | Liga Alpha (league) | MD: 10 | Jornada 10
+[2026-04-29T04:49:30.01+00:00] | Liga Alpha (league) | MD: 10 | Jornada 10
+[2026-04-29T04:49:30.01+00:00] | Liga Beta (league) | MD: 10 | Jornada 10
+[2026-04-29T04:49:30.01+00:00] | Liga Beta (league) | MD: 10 | Jornada 10
+[2026-04-29T04:49:30.01+00:00] | Liga Beta (league) | MD: 10 | Jornada 10
+[2026-04-29T04:49:30.01+00:00] | Liga Beta (league) | MD: 10 | Jornada 10
+[2026-04-30T04:49:30.01+00:00] | Liga Alpha (league) | MD: 11 | Jornada 11
+[2026-04-30T04:49:30.01+00:00] | Liga Alpha (league) | MD: 11 | Jornada 11
+[2026-04-30T04:49:30.01+00:00] | Liga Alpha (league) | MD: 11 | Jornada 11
+[2026-04-30T04:49:30.01+00:00] | Liga Beta (league) | MD: 11 | Jornada 11
+[2026-04-30T04:49:30.01+00:00] | Liga Beta (league) | MD: 11 | Jornada 11
+[2026-04-30T04:49:30.01+00:00] | Liga Beta (league) | MD: 11 | Jornada 11
+[2026-04-30T04:49:30.01+00:00] | Liga Alpha (league) | MD: 11 | Jornada 11
+[2026-04-30T04:49:30.01+00:00] | Liga Beta (league) | MD: 11 | Jornada 11
+[2026-05-01T04:49:30.01+00:00] | Liga Alpha (league) | MD: 12 | Jornada 12
+[2026-05-01T04:49:30.01+00:00] | Liga Alpha (league) | MD: 12 | Jornada 12
+[2026-05-01T04:49:30.01+00:00] | Liga Alpha (league) | MD: 12 | Jornada 12
+[2026-05-01T04:49:30.01+00:00] | Liga Alpha (league) | MD: 12 | Jornada 12
+[2026-05-01T04:49:30.01+00:00] | Liga Beta (league) | MD: 12 | Jornada 12
+[2026-05-01T04:49:30.01+00:00] | Liga Beta (league) | MD: 12 | Jornada 12
+[2026-05-01T04:49:30.01+00:00] | Liga Beta (league) | MD: 12 | Jornada 12
+[2026-05-01T04:49:30.01+00:00] | Liga Beta (league) | MD: 12 | Jornada 12
+[2026-05-02T04:49:30.01+00:00] | PIFA Champions League (groups_knockout) | MD: 3 | Grupo A - J3
+[2026-05-02T04:49:30.01+00:00] | PIFA Champions League (groups_knockout) | MD: 3 | Grupo B - J3
+[2026-05-03T04:49:30.01+00:00] | Liga Alpha (league) | MD: 13 | Jornada 13
+[2026-05-03T04:49:30.01+00:00] | Liga Alpha (league) | MD: 13 | Jornada 13
+[2026-05-03T04:49:30.01+00:00] | Liga Alpha (league) | MD: 13 | Jornada 13
+[2026-05-03T04:49:30.01+00:00] | Liga Alpha (league) | MD: 13 | Jornada 13
+[2026-05-03T04:49:30.01+00:00] | Liga Beta (league) | MD: 13 | Jornada 13
+[2026-05-03T04:49:30.01+00:00] | Liga Beta (league) | MD: 13 | Jornada 13
+[2026-05-03T04:49:30.01+00:00] | Liga Beta (league) | MD: 13 | Jornada 13
+[2026-05-03T04:49:30.01+00:00] | Liga Beta (league) | MD: 13 | Jornada 13
+[2026-05-04T04:49:30.01+00:00] | Liga Beta (league) | MD: 14 | Jornada 14
+[2026-05-04T04:49:30.01+00:00] | Liga Alpha (league) | MD: 14 | Jornada 14
+[2026-05-04T04:49:30.01+00:00] | Liga Alpha (league) | MD: 14 | Jornada 14
+[2026-05-04T04:49:30.01+00:00] | Liga Alpha (league) | MD: 14 | Jornada 14
+[2026-05-04T04:49:30.01+00:00] | Liga Beta (league) | MD: 14 | Jornada 14
+[2026-05-04T04:49:30.01+00:00] | Liga Beta (league) | MD: 14 | Jornada 14
+[2026-05-04T04:49:30.01+00:00] | Liga Beta (league) | MD: 14 | Jornada 14
+[2026-05-04T04:49:30.01+00:00] | Liga Alpha (league) | MD: 14 | Jornada 14
+[2026-05-05T04:49:30.01+00:00] | Liga Alpha (league) | MD: 15 | Jornada 15
+[2026-05-05T04:49:30.01+00:00] | Liga Alpha (league) | MD: 15 | Jornada 15
+[2026-05-05T04:49:30.01+00:00] | Liga Alpha (league) | MD: 15 | Jornada 15
+[2026-05-05T04:49:30.01+00:00] | Liga Alpha (league) | MD: 15 | Jornada 15
+[2026-05-05T04:49:30.01+00:00] | Liga Beta (league) | MD: 15 | Jornada 15
+[2026-05-05T04:49:30.01+00:00] | Liga Beta (league) | MD: 15 | Jornada 15
+[2026-05-05T04:49:30.01+00:00] | Liga Beta (league) | MD: 15 | Jornada 15
+[2026-05-05T04:49:30.01+00:00] | Liga Beta (league) | MD: 15 | Jornada 15
+[2026-05-06T04:49:30.01+00:00] | PIFA Champions League (groups_knockout) | MD: 4 | Semifinales - Ida
+[2026-05-06T04:49:30.01+00:00] | PIFA Champions League (groups_knockout) | MD: 4 | Semifinales - Ida
+[2026-05-07T04:49:30.01+00:00] | PIFA Europa League (cup) | MD: 1 | Semifinales - Ida
+[2026-05-07T04:49:30.01+00:00] | PIFA Europa League (cup) | MD: 1 | Semifinales - Ida
+[2026-05-08T04:49:30.01+00:00] | PIFA Champions League (groups_knockout) | MD: 4 | Semifinales - Vuelta
+[2026-05-08T04:49:30.01+00:00] | PIFA Champions League (groups_knockout) | MD: 4 | Semifinales - Vuelta
+[2026-05-09T04:49:30.01+00:00] | PIFA Europa League (cup) | MD: 1 | Semifinales - Vuelta
+[2026-05-09T04:49:30.01+00:00] | PIFA Europa League (cup) | MD: 1 | Semifinales - Vuelta
+[2026-05-10T04:49:30.01+00:00] | Liga Alpha (league) | MD: 16 | Jornada 16
+[2026-05-10T04:49:30.01+00:00] | Liga Alpha (league) | MD: 16 | Jornada 16
+[2026-05-10T04:49:30.01+00:00] | Liga Alpha (league) | MD: 16 | Jornada 16
+[2026-05-10T04:49:30.01+00:00] | Liga Beta (league) | MD: 16 | Jornada 16
+[2026-05-10T04:49:30.01+00:00] | Liga Beta (league) | MD: 16 | Jornada 16
+[2026-05-10T04:49:30.01+00:00] | Liga Beta (league) | MD: 16 | Jornada 16
+[2026-05-10T04:49:30.01+00:00] | Liga Alpha (league) | MD: 16 | Jornada 16
+[2026-05-10T04:49:30.01+00:00] | Liga Beta (league) | MD: 16 | Jornada 16
+[2026-05-11T04:49:30.01+00:00] | Liga Alpha (league) | MD: 17 | Jornada 17
+[2026-05-11T04:49:30.01+00:00] | Liga Alpha (league) | MD: 17 | Jornada 17
+[2026-05-11T04:49:30.01+00:00] | Liga Alpha (league) | MD: 17 | Jornada 17
+[2026-05-11T04:49:30.01+00:00] | Liga Alpha (league) | MD: 17 | Jornada 17
+[2026-05-11T04:49:30.01+00:00] | Liga Beta (league) | MD: 17 | Jornada 17
+[2026-05-11T04:49:30.01+00:00] | Liga Beta (league) | MD: 17 | Jornada 17
+[2026-05-11T04:49:30.01+00:00] | Liga Beta (league) | MD: 17 | Jornada 17
+[2026-05-11T04:49:30.01+00:00] | Liga Beta (league) | MD: 17 | Jornada 17
+[2026-05-12T04:49:30.01+00:00] | PIFA Champions League (groups_knockout) | MD: 5 | Final
+[2026-05-13T04:49:30.01+00:00] | PIFA Europa League (cup) | MD: 2 | Final
+[2026-05-14T04:49:30.01+00:00] | Liga Alpha (league) | MD: 18 | Jornada 18
+[2026-05-14T04:49:30.01+00:00] | Liga Alpha (league) | MD: 18 | Jornada 18
+[2026-05-14T04:49:30.01+00:00] | Liga Alpha (league) | MD: 18 | Jornada 18
+[2026-05-14T04:49:30.01+00:00] | Liga Alpha (league) | MD: 18 | Jornada 18
+[2026-05-14T04:49:30.01+00:00] | Liga Beta (league) | MD: 18 | Jornada 18
+[2026-05-14T04:49:30.01+00:00] | Liga Beta (league) | MD: 18 | Jornada 18
+[2026-05-14T04:49:30.01+00:00] | Liga Beta (league) | MD: 18 | Jornada 18
+[2026-05-14T04:49:30.01+00:00] | Liga Beta (league) | MD: 18 | Jornada 18
+[2026-05-15T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 1 | Grupo A - J1
+[2026-05-15T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 1 | Grupo A - J1
+[2026-05-15T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 1 | Grupo A - J1
+[2026-05-15T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 1 | Grupo B - J1
+[2026-05-15T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 1 | Grupo A - J1
+[2026-05-15T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 1 | Grupo B - J1
+[2026-05-15T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 1 | Grupo B - J1
+[2026-05-15T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 1 | Grupo B - J1
+[2026-05-16T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 2 | Grupo B - J2
+[2026-05-16T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 2 | Grupo B - J2
+[2026-05-16T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 2 | Grupo A - J2
+[2026-05-16T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 2 | Grupo A - J2
+[2026-05-16T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 2 | Grupo B - J2
+[2026-05-16T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 2 | Grupo B - J2
+[2026-05-16T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 2 | Grupo A - J2
+[2026-05-16T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 2 | Grupo A - J2
+[2026-05-17T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 3 | Grupo A - J3
+[2026-05-17T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 3 | Grupo A - J3
+[2026-05-17T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 3 | Grupo A - J3
+[2026-05-17T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 3 | Grupo A - J3
+[2026-05-17T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 3 | Grupo B - J3
+[2026-05-17T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 3 | Grupo B - J3
+[2026-05-17T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 3 | Grupo B - J3
+[2026-05-17T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 3 | Grupo B - J3
+[2026-05-18T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 4 | Grupo A - J4
+[2026-05-18T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 4 | Grupo A - J4
+[2026-05-18T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 4 | Grupo A - J4
+[2026-05-18T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 4 | Grupo A - J4
+[2026-05-18T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 4 | Grupo B - J4
+[2026-05-18T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 4 | Grupo B - J4
+[2026-05-18T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 4 | Grupo B - J4
+[2026-05-18T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 4 | Grupo B - J4
+[2026-05-19T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 5 | Grupo A - J5
+[2026-05-19T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 5 | Grupo A - J5
+[2026-05-19T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 5 | Grupo A - J5
+[2026-05-19T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 5 | Grupo A - J5
+[2026-05-19T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 5 | Grupo B - J5
+[2026-05-19T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 5 | Grupo B - J5
+[2026-05-19T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 5 | Grupo B - J5
+[2026-05-19T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 5 | Grupo B - J5
+[2026-05-20T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 6 | Grupo B - J6
+[2026-05-20T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 6 | Grupo A - J6
+[2026-05-20T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 6 | Grupo A - J6
+[2026-05-20T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 6 | Grupo A - J6
+[2026-05-20T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 6 | Grupo A - J6
+[2026-05-20T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 6 | Grupo B - J6
+[2026-05-20T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 6 | Grupo B - J6
+[2026-05-20T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 6 | Grupo B - J6
+[2026-05-21T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 7 | Grupo A - J7
+[2026-05-21T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 7 | Grupo A - J7
+[2026-05-21T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 7 | Grupo A - J7
+[2026-05-21T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 7 | Grupo A - J7
+[2026-05-21T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 7 | Grupo B - J7
+[2026-05-21T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 7 | Grupo B - J7
+[2026-05-21T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 7 | Grupo B - J7
+[2026-05-21T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 7 | Grupo B - J7
+[2026-05-22T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 8 | Grupo A - J8
+[2026-05-22T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 8 | Grupo A - J8
+[2026-05-22T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 8 | Grupo A - J8
+[2026-05-22T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 8 | Grupo A - J8
+[2026-05-22T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 8 | Grupo B - J8
+[2026-05-22T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 8 | Grupo B - J8
+[2026-05-22T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 8 | Grupo B - J8
+[2026-05-22T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 8 | Grupo B - J8
+[2026-05-23T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 9 | Grupo B - J9
+[2026-05-23T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 9 | Grupo A - J9
+[2026-05-23T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 9 | Grupo A - J9
+[2026-05-23T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 9 | Grupo A - J9
+[2026-05-23T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 9 | Grupo A - J9
+[2026-05-23T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 9 | Grupo B - J9
+[2026-05-23T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 9 | Grupo B - J9
+[2026-05-23T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 9 | Grupo B - J9
+[2026-05-24T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 10 | Cuartos de Final
+[2026-05-24T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 10 | Cuartos de Final
+[2026-05-24T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 10 | Cuartos de Final
+[2026-05-24T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 10 | Cuartos de Final
+[2026-05-25T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 11 | Semifinales
+[2026-05-25T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 11 | Semifinales
+[2026-05-26T04:49:30.01+00:00] | PIFA Mundial de Clubes (groups_knockout) | MD: 12 | Final

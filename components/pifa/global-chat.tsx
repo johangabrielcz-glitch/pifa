@@ -1442,19 +1442,22 @@ export function GlobalChat({ user, club, onBack }: { user: User; club: Club | nu
           const hasEveryone = text.trim().toLowerCase().includes('@todos')
           const mentionedClubs = allDTs.filter(dt => dt.club?.name && text.trim().toLowerCase().includes(`@${dt.club.name.toLowerCase()}`))
 
-            if (hasEveryone) {
-              sendPushToAll(`📢 @TODOS: Mensaje de ${club?.name || user.full_name}`, pushBody, { type: 'chat_mention_all' }, [user.id, ...onlineUsers.map(u => u.user_id)])
-            } else if (mentionedClubs.length > 0) {
-              const onlineIds = onlineUsers.map(u => u.user_id)
-              mentionedClubs.forEach(dt => {
-                if (dt.club_id && dt.club_id !== club?.id && !onlineIds.includes(dt.id)) {
-                  sendPushToClub(dt.club_id, `🔔 ¡Has sido etiquetado!`, `${club?.name || user.full_name}: ${pushBody}`, { type: 'chat_mention_direct' })
-                }
-              })
-              sendPushToAll(pushTitle, pushBody, { type: 'chat_message' }, [user.id, ...onlineIds])
-            } else {
-              sendPushToAll(pushTitle, pushBody, { type: 'chat_message' }, [user.id, ...onlineUsers.map(u => u.user_id)])
-            }
+          // Preparar lista de exclusión: Yo mismo + los que están online
+          const exclusionList = [user.id, ...onlineUsers.map(u => u.user_id)].filter(Boolean)
+
+          if (hasEveryone) {
+            sendPushToAll(`📢 @TODOS: Mensaje de ${club?.name || user.full_name}`, pushBody, { type: 'chat_mention_all' }, exclusionList)
+          } else if (mentionedClubs.length > 0) {
+            const onlineIds = onlineUsers.map(u => u.user_id)
+            mentionedClubs.forEach(dt => {
+              if (dt.club_id && dt.club_id !== club?.id && !onlineIds.includes(dt.id)) {
+                sendPushToClub(dt.club_id, `🔔 ¡Has sido etiquetado!`, `${club?.name || user.full_name}: ${pushBody}`, { type: 'chat_mention_direct' })
+              }
+            })
+            sendPushToAll(pushTitle, pushBody, { type: 'chat_message' }, exclusionList)
+          } else {
+            sendPushToAll(pushTitle, pushBody, { type: 'chat_message' }, exclusionList)
+          }
           }}
           onUploadMedia={handleFileUpload}
           user={user}

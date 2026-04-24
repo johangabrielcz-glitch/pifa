@@ -8,7 +8,8 @@ export async function sendExpoPush(tokens: string[], title: string, body: string
   if (!tokens || tokens.length === 0) return { success: true, sentCount: 0 }
 
   // Filtrar tokens duplicados o vacíos
-  const uniqueTokens = [...new Set(tokens)].filter(t => t.startsWith('ExponentPushToken'))
+  const uniqueTokens = [...new Set(tokens)].filter(t => t && t.startsWith('ExponentPushToken'))
+  console.log(`[PUSH] Intentando enviar a ${uniqueTokens.length} dispositivos únicos.`)
   if (uniqueTokens.length === 0) return { success: true, sentCount: 0 }
 
   // DETERMINAR SI USAR PROXY (Browser) O DIRECTO (Server)
@@ -28,35 +29,44 @@ export async function sendExpoPush(tokens: string[], title: string, body: string
     }
   }
 
-  // SI ES SERVIDOR (API Routes o Motores) - Llamada directa a Expo
-  const messages = uniqueTokens.map(token => ({
-    to: token,
-    sound: 'default',
-    title,
-    body,
-    data,
-    priority: 'high',
-    channelId: 'default',
-  }))
-
-  try {
-    const response = await fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Accept-encoding': 'gzip, deflate',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(messages),
-    })
-
-    const result = await response.json()
-    console.log('Expo Push Server Result:', result)
-    return { success: true, sentCount: uniqueTokens.length, result }
-  } catch (error) {
-    console.error('Error sending Expo Push from Server:', error)
-    return { success: false, error }
+  // SI ES SERVIDOR (API Routes o Motores) - Llamada directa a Expo con BATCHING
+  const batches = []
+  for (let i = 0; i < uniqueTokens.length; i += 100) {
+    batches.push(uniqueTokens.slice(i, i + 100))
   }
+
+  const results = []
+  for (const batch of batches) {
+    const messages = batch.map(token => ({
+      to: token,
+      sound: 'default',
+      title,
+      body,
+      data,
+      priority: 'high',
+      channelId: 'default',
+    }))
+
+    try {
+      const response = await fetch('https://exp.host/--/api/v2/push/send', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Accept-encoding': 'gzip, deflate',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(messages),
+      })
+
+      const result = await response.json()
+      results.push(result)
+    } catch (error) {
+      console.error('[PUSH] Error in batch:', error)
+    }
+  }
+
+  console.log(`[PUSH] Finalizado el envío de ${batches.length} lotes.`)
+  return { success: true, sentCount: uniqueTokens.length, results }
 }
 
 /**
@@ -64,6 +74,7 @@ export async function sendExpoPush(tokens: string[], title: string, body: string
  */
 export async function sendPushToClub(clubId: string, title: string, body: string, data?: any) {
   try {
+    console.log(`[PUSH] Enviando notificación a club: ${clubId}`)
     // Step 1: Get all user IDs belonging to the club
     const { data: userData } = await supabase
       .from('users')
@@ -71,7 +82,10 @@ export async function sendPushToClub(clubId: string, title: string, body: string
       .eq('club_id', clubId)
 
     const userIds = (userData as any[] || []).map(u => u.id)
-    if (userIds.length === 0) return { success: true, sentCount: 0 }
+    if (userIds.length === 0) {
+      console.log(`[PUSH] El club ${clubId} no tiene usuarios registrados.`)
+      return { success: true, sentCount: 0 }
+    }
 
     // Step 2: Get all tokens for those specific users
     const { data: tokenData, error } = await supabase
@@ -81,7 +95,7 @@ export async function sendPushToClub(clubId: string, title: string, body: string
 
     if (error) throw error
 
-    const tokens = (tokenData as any[] || []).map(t => t.expo_push_token)
+    const tokens = (tokenData as any[] || []).map(t => t.expo_push_token).filter(Boolean)
     return await sendExpoPush(tokens, title, body, data)
   } catch (err) {
     console.error(`Error sending push to club ${clubId}:`, err)
@@ -119,13 +133,13 @@ export async function sendPushToAll(title: string, body: string, data?: any, exc
       .select('expo_push_token')
 
     if (excludeUserIds) {
-      if (Array.isArray(excludeUserIds)) {
-        if (excludeUserIds.length > 0) {
-          // Filtrar múltiples usuarios (ej: los que están online)
-          query = query.not('user_id', 'in', `(${excludeUserIds.join(",")})`)
-        }
-      } else {
-        query = query.neq('user_id', excludeUserIds)
+      const idsToExclude = Array.isArray(excludeUserIds) 
+        ? excludeUserIds.filter(id => id && typeof id === 'string')
+        : [excludeUserIds].filter(id => id && typeof id === 'string')
+
+      if (idsToExclude.length > 0) {
+        // Usar el formato correcto de Supabase para .in() con exclusión
+        query = query.not('user_id', 'in', `(${idsToExclude.join(',')})`)
       }
     }
 
@@ -133,7 +147,7 @@ export async function sendPushToAll(title: string, body: string, data?: any, exc
 
     if (error) throw error
 
-    const tokens = (tokenData as any[] || []).map(t => t.expo_push_token)
+    const tokens = (tokenData as any[] || []).map(t => t.expo_push_token).filter(Boolean)
     return await sendExpoPush(tokens, title, body, data)
   } catch (err) {
     console.error(`Error sending push to all:`, err)
@@ -169,20 +183,33 @@ export async function syncPushToken(userId: string, userName: string, action: 'l
 
   try {
     if (action === 'login') {
+      // 1. LIMPIEZA PREVENTIVA: Si este token ya existe para OTRO usuario, borrarlo
+      // Esto evita que te lleguen notificaciones de cuentas anteriores en el mismo dispositivo
+      const { error: deleteError } = await supabase
+        .from('user_push_tokens')
+        .delete()
+        .eq('expo_push_token', token)
+        .neq('user_id', userId)
+
+      if (deleteError) {
+        console.warn('⚠️ [PUSH DEBUG] Fallo no crítico al limpiar tokens viejos:', deleteError.message)
+      }
+
+      // 2. UPSERT: Registrar o actualizar el token para el usuario actual
       const { error } = await (supabase.from('user_push_tokens') as any)
         .upsert({
           user_id: userId,
           user_name: userName,
           expo_push_token: token,
           updated_at: new Date().toISOString()
-        }, { onConflict: 'user_id,expo_push_token' })
+        }, { onConflict: 'expo_push_token' }) // El conflicto ahora es el token, no el par
 
       if (error) {
         console.error('❌ [PUSH DEBUG] Error de Supabase al guardar:', error.message, error.details)
         throw error
       }
       
-      console.log('✅ [PUSH DEBUG] Token sincronizado con éxito en DB.')
+      console.log('✅ [PUSH DEBUG] Token sincronizado con éxito en DB (y limpiado de otros usuarios).')
       return { success: true }
     } else {
       // Eliminar solo el token de este dispositivo al cerrar sesión, no todos
