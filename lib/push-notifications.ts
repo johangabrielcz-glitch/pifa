@@ -183,33 +183,32 @@ export async function syncPushToken(userId: string, userName: string, action: 'l
 
   try {
     if (action === 'login') {
-      // 1. LIMPIEZA PREVENTIVA: Si este token ya existe para OTRO usuario, borrarlo
-      // Esto evita que te lleguen notificaciones de cuentas anteriores en el mismo dispositivo
+      // 1. LIMPIEZA TOTAL: Borrar este token de CUALQUIER usuario que lo tenga
       const { error: deleteError } = await supabase
         .from('user_push_tokens')
         .delete()
         .eq('expo_push_token', token)
-        .neq('user_id', userId)
 
       if (deleteError) {
-        console.warn('⚠️ [PUSH DEBUG] Fallo no crítico al limpiar tokens viejos:', deleteError.message)
+        console.warn('⚠️ [PUSH DEBUG] Fallo al limpiar token:', deleteError.message)
       }
 
-      // 2. UPSERT: Registrar o actualizar el token para el usuario actual
-      const { error } = await (supabase.from('user_push_tokens') as any)
-        .upsert({
+      // 2. INSERT: Registrar el token para el usuario actual
+      const { error: insertError } = await supabase
+        .from('user_push_tokens')
+        .insert({
           user_id: userId,
           user_name: userName,
           expo_push_token: token,
           updated_at: new Date().toISOString()
-        }, { onConflict: 'expo_push_token' }) // El conflicto ahora es el token, no el par
+        })
 
-      if (error) {
-        console.error('❌ [PUSH DEBUG] Error de Supabase al guardar:', error.message, error.details)
-        throw error
+      if (insertError) {
+        console.error('❌ [PUSH DEBUG] Error de Supabase al insertar token:', insertError.message)
+        return { success: false, error: insertError.message }
       }
       
-      console.log('✅ [PUSH DEBUG] Token sincronizado con éxito en DB (y limpiado de otros usuarios).')
+      console.log('✅ [PUSH DEBUG] Token registrado con éxito en DB.')
       return { success: true }
     } else {
       // Eliminar solo el token de este dispositivo al cerrar sesión, no todos
