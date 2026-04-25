@@ -1442,8 +1442,8 @@ export function GlobalChat({ user, club, onBack }: { user: User; club: Club | nu
           const hasEveryone = text.trim().toLowerCase().includes('@todos')
           const mentionedClubs = allDTs.filter(dt => dt.club?.name && text.trim().toLowerCase().includes(`@${dt.club.name.toLowerCase()}`))
 
-          // Preparar lista de exclusión: Yo mismo + los que están online
-          const exclusionList = [user.id, ...onlineUsers.map(u => u.user_id)].filter(Boolean)
+          // Preparar lista de exclusión: Solo yo mismo (el emisor)
+          const exclusionList = [user.id].filter(Boolean)
 
           if (hasEveryone) {
             sendPushToAll(`📢 @TODOS: Mensaje de ${club?.name || user.full_name}`, pushBody, { type: 'chat_mention_all' }, exclusionList)

@@ -20,32 +20,45 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, sentCount: 0 })
     }
 
-    const messages = uniqueTokens.map(token => ({
-      to: token,
-      sound: 'default',
-      title,
-      body: message,
-      data,
-      priority: 'high',
-      channelId: 'default',
-    }))
+    // Fragmentar en lotes de 100 (límite de Expo)
+    const batches = []
+    for (let i = 0; i < uniqueTokens.length; i += 100) {
+      batches.push(uniqueTokens.slice(i, i + 100))
+    }
 
-    const expoResponse = await fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Accept-encoding': 'gzip, deflate',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(messages),
-    })
+    const results = []
+    for (const batch of batches) {
+      const messages = batch.map(token => ({
+        to: token,
+        sound: 'default',
+        title,
+        body: message,
+        data,
+        priority: 'high',
+        channelId: 'default',
+      }))
 
-    const result = await expoResponse.json()
+      try {
+        const expoResponse = await fetch('https://exp.host/--/api/v2/push/send', {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Accept-encoding': 'gzip, deflate',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(messages),
+        })
+        const result = await expoResponse.json()
+        results.push(result)
+      } catch (e) {
+        console.error('Error en lote de push:', e)
+      }
+    }
     
     return NextResponse.json({ 
       success: true, 
       sentCount: uniqueTokens.length, 
-      expoResult: result 
+      results 
     })
 
   } catch (error: any) {
