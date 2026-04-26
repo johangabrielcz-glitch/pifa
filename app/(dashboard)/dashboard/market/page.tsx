@@ -463,10 +463,15 @@ export default function MarketPage() {
                                     </Button>
                                     {player.is_on_sale && player.sale_price && (
                                       <Button 
-                                        className="w-full bg-[#00FF85] text-[#0A0A0A] text-[10px] font-black uppercase tracking-widest h-10 transition-all duration-300 rounded-2xl shadow-[0_5px_15px_rgba(0,255,133,0.2)]"
+                                        className={`w-full text-[10px] font-black uppercase tracking-widest h-10 transition-all duration-300 rounded-2xl ${
+                                          (currentUserClub?.budget || 0) < player.sale_price
+                                            ? 'bg-red-500/10 border border-red-500/20 text-red-500 cursor-not-allowed opacity-50'
+                                            : 'bg-[#00FF85] text-[#0A0A0A] border-[#00FF85] shadow-[0_5px_15px_rgba(0,255,133,0.2)]'
+                                        }`}
+                                        disabled={(currentUserClub?.budget || 0) < player.sale_price}
                                         onClick={() => setPlayerToBuy(player)}
                                       >
-                                        Compra Directa
+                                        {(currentUserClub?.budget || 0) < player.sale_price ? 'Faltan Fondos' : 'Compra Directa'}
                                       </Button>
                                     )}
                                   </>
@@ -478,22 +483,26 @@ export default function MarketPage() {
                                     🛡️ One Club Man (Innegociable)
                                   </div>
                                 ) : (
-                                  <Button 
-                                    className={`w-full text-[10px] font-black uppercase tracking-widest h-10 transition-all duration-300 rounded-2xl ${
-                                      (!transferWindowStatus || myNegotiations.find(n => n.player_id === player.id && n.status === 'blocked'))
-                                        ? 'bg-red-500/10 border border-red-500/20 text-red-500 cursor-not-allowed'
-                                        : 'bg-white/5 border border-white/10 hover:bg-white/10 text-white'
-                                    }`}
-                                    disabled={!transferWindowStatus || !!myNegotiations.find(n => n.player_id === player.id && n.status === 'blocked')}
-                                    onClick={() => {
-                                      setPlayerForClause(player)
-                                      setIsClauseChatOpen(true)
-                                    }}
-                                  >
-                                    {!transferWindowStatus ? '🔒 Mercado Cerrado' : myNegotiations.find(n => n.player_id === player.id && n.status === 'blocked') 
-                                      ? '🚫 Negociación Bloqueada' 
-                                      : 'Pagar Cláusula'}
-                                  </Button>
+                                    <Button 
+                                      className={`w-full text-[10px] font-black uppercase tracking-widest h-10 transition-all duration-300 rounded-2xl ${
+                                        (!transferWindowStatus || !!myNegotiations.find(n => n.player_id === player.id && n.status === 'blocked'))
+                                          ? 'bg-red-500/10 border border-red-500/20 text-red-500 cursor-not-allowed'
+                                          : (currentUserClub?.budget || 0) < (player.release_clause || 700000)
+                                          ? 'bg-red-500/5 border border-red-500/10 text-red-500/60 cursor-not-allowed opacity-40'
+                                          : 'bg-white/5 border border-white/10 hover:bg-white/10 text-white'
+                                      }`}
+                                      disabled={!transferWindowStatus || !!myNegotiations.find(n => n.player_id === player.id && n.status === 'blocked') || (currentUserClub?.budget || 0) < (player.release_clause || 700000)}
+                                      onClick={() => {
+                                        setPlayerForClause(player)
+                                        setIsClauseChatOpen(true)
+                                      }}
+                                    >
+                                      {!transferWindowStatus ? '🔒 Mercado Cerrado' : myNegotiations.find(n => n.player_id === player.id && n.status === 'blocked') 
+                                        ? '🚫 Negociación Bloqueada' 
+                                        : (currentUserClub?.budget || 0) < (player.release_clause || 700000)
+                                        ? 'Presupuesto Insuficiente'
+                                        : 'Pagar Cláusula'}
+                                    </Button>
                                 )}
                               </div>
                             )
@@ -677,9 +686,11 @@ export default function MarketPage() {
                                         className={`w-full mt-2 text-[8px] font-black uppercase tracking-widest h-8 transition-all duration-300 rounded-xl ${
                                           (!transferWindowStatus || myNegotiations.find(n => n.player_id === player.id && n.status === 'blocked'))
                                             ? 'bg-red-500/10 border border-red-500/20 text-red-500 cursor-not-allowed'
+                                            : (currentUserClub?.budget || 0) < (player.release_clause || 700000)
+                                            ? 'bg-red-500/5 border border-red-500/10 text-red-500/60 cursor-not-allowed opacity-40'
                                             : 'bg-white/5 border border-white/10 hover:bg-white/10 text-white'
                                         }`}
-                                        disabled={!transferWindowStatus || !!myNegotiations.find(n => n.player_id === player.id && n.status === 'blocked')}
+                                        disabled={!transferWindowStatus || !!myNegotiations.find(n => n.player_id === player.id && n.status === 'blocked') || (currentUserClub?.budget || 0) < (player.release_clause || 700000)}
                                         onClick={() => {
                                           setPlayerForClause(player)
                                           setIsClauseChatOpen(true)
@@ -687,6 +698,8 @@ export default function MarketPage() {
                                       >
                                         {!transferWindowStatus ? '🔒 Cerrado' : myNegotiations.find(n => n.player_id === player.id && n.status === 'blocked') 
                                           ? '🚫 Bloqueado' 
+                                          : (currentUserClub?.budget || 0) < (player.release_clause || 700000)
+                                          ? 'Sin Fondos'
                                           : 'Cláusula'}
                                       </Button>
                                     )}

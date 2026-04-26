@@ -257,7 +257,7 @@ export function ClauseChatDrawer({ player, isOpen, onClose, buyerClubId, onTrans
 
           {/* Footer - Final Deal or Input */}
           <div className="p-6 bg-[#0A0A0A] border-t border-white/5">
-            {dealAccepted ? (
+            {dealAccepted && negotiation?.status !== 'blocked' ? (
               <motion.div 
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
@@ -275,6 +275,12 @@ export function ClauseChatDrawer({ player, isOpen, onClose, buyerClubId, onTrans
                     {executingTransfer ? <Loader2 className="w-5 h-5 animate-spin" /> : 'DATAR TRANSFERENCIA (Pagar Cláusula)'}
                 </Button>
               </motion.div>
+            ) : negotiation?.status === 'blocked' ? (
+              <div className="flex justify-center">
+                <Button onClick={onClose} className="w-full h-12 bg-white/5 text-white/40 font-black uppercase tracking-widest rounded-2xl border border-white/5 hover:bg-white/10">
+                  Cerrar Negociación
+                </Button>
+              </div>
             ) : (
               <div className="space-y-4">
                 <div className="flex items-center gap-3">

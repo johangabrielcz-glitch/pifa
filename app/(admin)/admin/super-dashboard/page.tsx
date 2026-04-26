@@ -19,7 +19,8 @@ import {
   User as UserIcon,
   TrendingDown,
   TrendingUp,
-  Filter
+  Filter,
+  Heart
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
@@ -28,7 +29,7 @@ import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Player, Club, PlayerEmail } from '@/lib/types'
 
-type Tab = 'mailbox' | 'audit' | 'terminal'
+type Tab = 'mailbox' | 'audit' | 'terminal' | 'ocm'
 const PAGE_SIZE = 10
 
 export default function SuperDashboardPage() {
@@ -60,7 +61,7 @@ export default function SuperDashboardPage() {
 
   useEffect(() => {
     if (activeTab === 'mailbox') fetchEmails()
-    if (activeTab === 'audit') fetchClubs()
+    if (activeTab === 'audit' || activeTab === 'ocm') fetchClubs()
     if (activeTab === 'terminal') fetchPlayers()
   }, [activeTab, emailPage, playerPage, searchQuery])
 
@@ -200,6 +201,7 @@ export default function SuperDashboardPage() {
         <TabButton active={activeTab === 'mailbox'} onClick={() => { setActiveTab('mailbox'); setSearchQuery(''); }} icon={<Mail className="w-3.5 h-3.5" />} label="Buzón Global" />
         <TabButton active={activeTab === 'audit'} onClick={() => { setActiveTab('audit'); setSearchQuery(''); }} icon={<Shield className="w-3.5 h-3.5" />} label="Auditoría Salarial" />
         <TabButton active={activeTab === 'terminal'} onClick={() => { setActiveTab('terminal'); setSearchQuery(''); }} icon={<Zap className="w-3.5 h-3.5" />} label="Controlador" />
+        <TabButton active={activeTab === 'ocm'} onClick={() => { setActiveTab('ocm'); setSearchQuery(''); }} icon={<Heart className="w-3.5 h-3.5" />} label="One Club Man" />
       </nav>
 
       <main className="relative z-10">
@@ -264,6 +266,7 @@ export default function SuperDashboardPage() {
               {activeTab === 'mailbox' && <MailboxDisplay emails={emails} onRead={markAsRead} />}
               {activeTab === 'audit' && <AuditDisplay clubs={clubs} expandedClubs={expandedClubs} onToggle={(id) => setExpandedClubs(p => ({...p, [id]: !p[id]}))} />}
               {activeTab === 'terminal' && <TerminalDisplay players={players} onTrigger={forceTrigger} isTriggering={isTriggering} />}
+              {activeTab === 'ocm' && <OCMDisplay clubs={clubs} onUpdate={fetchClubs} />}
               
               {/* Pagination Controls Bottom */}
               {(activeTab === 'mailbox' || activeTab === 'terminal') && (
@@ -597,6 +600,154 @@ function TerminalDisplay({ players, onTrigger, isTriggering }: { players: any[],
           </div>
         )
       })}
+    </div>
+  )
+}
+
+function OCMDisplay({ clubs, onUpdate }: { clubs: any[], onUpdate: () => void }) {
+  const [selectedClubId, setSelectedClubId] = useState<string>('')
+  const [selectedPlayerIds, setSelectedPlayerIds] = useState<Set<string>>(new Set())
+  const [updating, setUpdating] = useState(false)
+
+  const selectedClub = clubs.find(c => c.id === selectedClubId)
+
+  const togglePlayer = (id: string) => {
+    const next = new Set(selectedPlayerIds)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    setSelectedPlayerIds(next)
+  }
+
+  const handleBulkUpdate = async (status: boolean) => {
+    if (selectedPlayerIds.size === 0) return
+    setUpdating(true)
+    try {
+      const { error } = await supabase
+        .from('players')
+        .update({ is_one_club_man: status })
+        .in('id', Array.from(selectedPlayerIds))
+
+      if (error) throw error
+      toast.success(`Actualizados ${selectedPlayerIds.size} jugadores con éxito`)
+      setSelectedPlayerIds(new Set())
+      onUpdate()
+    } catch (err) {
+      toast.error('Error al actualizar jugadores')
+    } finally {
+      setUpdating(false)
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-[#141414] border border-white/5 p-8 rounded-[32px] shadow-2xl">
+        <h3 className="text-xl font-black uppercase tracking-tighter mb-6 italic">Gestor de <span className="text-[#00FF85]">One Club Man</span></h3>
+        
+        <div className="flex flex-col md:flex-row gap-6 mb-8">
+          <div className="flex-1 space-y-2">
+            <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-1">1. Seleccionar Club</label>
+            <select 
+              className="w-full bg-[#0A0A0A] border border-white/10 rounded-xl px-4 h-12 text-xs font-bold text-white outline-none focus:border-[#00FF85] transition-all"
+              value={selectedClubId}
+              onChange={(e) => {
+                setSelectedClubId(e.target.value)
+                setSelectedPlayerIds(new Set())
+              }}
+            >
+              <option value="">-- Selecciona un club --</option>
+              {clubs.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+          
+          <div className="flex items-end gap-3">
+             <Button 
+              disabled={selectedPlayerIds.size === 0 || updating}
+              onClick={() => handleBulkUpdate(true)}
+              className="bg-[#00FF85] text-black hover:bg-[#00CC6A] text-[10px] font-black uppercase px-6 h-12 rounded-xl shadow-[0_0_20px_rgba(0,255,133,0.15)]"
+             >
+                Activar OCM ({selectedPlayerIds.size})
+             </Button>
+             <Button 
+              disabled={selectedPlayerIds.size === 0 || updating}
+              onClick={() => handleBulkUpdate(false)}
+              className="bg-red-500 hover:bg-red-600 text-white text-[10px] font-black uppercase px-6 h-12 rounded-xl"
+             >
+                Desactivar OCM
+             </Button>
+          </div>
+        </div>
+
+        {selectedClub ? (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between px-4 text-[9px] font-black text-zinc-600 uppercase tracking-widest border-b border-white/5 pb-3">
+               <div className="flex items-center gap-4">
+                  <button onClick={() => {
+                    if (selectedPlayerIds.size === selectedClub.players.length) setSelectedPlayerIds(new Set())
+                    else setSelectedPlayerIds(new Set(selectedClub.players.map((p:any) => p.id)))
+                  }} className="text-[#00FF85] hover:underline">
+                    {selectedPlayerIds.size === selectedClub.players.length ? 'Deseleccionar Todo' : 'Seleccionar Todo'}
+                  </button>
+                  <span>Jugador</span>
+               </div>
+               <span className="text-right">Estado Actual</span>
+            </div>
+            
+            <div className="grid gap-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+              {selectedClub.players.sort((a:any, b:any) => a.name.localeCompare(b.name)).map((player: any) => (
+                <div 
+                  key={player.id} 
+                  onClick={() => togglePlayer(player.id)}
+                  className={`flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer ${
+                    selectedPlayerIds.has(player.id) 
+                      ? 'bg-[#00FF85]/5 border-[#00FF85]/30 shadow-[0_0_15px_rgba(0,255,133,0.05)]' 
+                      : 'bg-[#0A0A0A] border-white/5 hover:border-white/20'
+                  }`}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${
+                      selectedPlayerIds.has(player.id) ? 'bg-[#00FF85] border-[#00FF85]' : 'bg-transparent border-white/10'
+                    }`}>
+                      {selectedPlayerIds.has(player.id) && <Zap className="w-3 h-3 text-black fill-current" />}
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-black text-white uppercase">{player.name}</p>
+                      <p className="text-[8px] text-zinc-500 font-bold uppercase tracking-widest">{player.position}</p>
+                    </div>
+                  </div>
+                  
+                  {player.is_one_club_man ? (
+                    <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-lg">
+                       <Shield className="w-3 h-3 text-amber-500" />
+                       <span className="text-[8px] font-black text-amber-500 uppercase tracking-widest">ONE CLUB MAN</span>
+                    </div>
+                  ) : (
+                    <span className="text-[8px] font-black text-zinc-600 uppercase tracking-widest px-3">Estándar</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="py-20 text-center border border-dashed border-white/5 rounded-3xl">
+             <UserIcon className="w-10 h-10 text-white/5 mx-auto mb-4" />
+             <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">Selecciona un club para empezar a gestionar blindajes</p>
+          </div>
+        )}
+      </div>
+      
+      <div className="bg-amber-500/5 border border-amber-500/10 p-6 rounded-[24px]">
+        <div className="flex items-start gap-4">
+           <div className="p-2 bg-amber-500/20 rounded-xl">
+              <Shield className="w-5 h-5 text-amber-500" />
+           </div>
+           <div>
+              <h4 className="text-xs font-black text-amber-500 uppercase tracking-widest mb-1">Nota de Seguridad</h4>
+              <p className="text-[10px] text-amber-500/60 font-bold leading-relaxed">
+                El estado <span className="text-amber-500">One Club Man</span> hace que el jugador sea innegociable e impagable por cláusula. Úsalo para proteger leyendas o jugadores clave del club. Los jugadores con este estado NO aparecerán como opción de fichaje en el mercado.
+              </p>
+           </div>
+        </div>
+      </div>
     </div>
   )
 }
