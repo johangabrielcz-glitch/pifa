@@ -109,6 +109,9 @@ export default function DashboardPage() {
   const shieldInputRef = useRef<HTMLInputElement>(null)
   const [isPreseason, setIsPreseason] = useState(false)
   const [transferWindowOpen, setTransferWindowOpen] = useState(false)
+  
+  // Cálculo de Masa Salarial (Nómina)
+  const payroll = useMemo(() => players.reduce((sum, p) => sum + (p.salary || 0), 0), [players])
 
   // Optimización de Estadísticas: Memoizar el cálculo de rankings en el nivel superior (Rules of Hooks)
   const statsComps = useMemo(() => 
@@ -604,7 +607,7 @@ export default function DashboardPage() {
                   <p className="text-base font-bold text-white/90">{user?.full_name}</p>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-2 w-full max-w-[280px] mt-1 relative z-10">
+                <div className="grid grid-cols-3 gap-2 w-full max-w-[340px] mt-1 relative z-10">
                   <div className="flex flex-col items-center justify-center p-2 rounded-lg border border-[#202020] bg-[#0A0A0A]/50 backdrop-blur-sm transition-colors hover:bg-[#0A0A0A]">
                     <span className="text-[8px] text-[#6A6C6E] font-bold uppercase tracking-[0.15em] mb-1">Plantilla</span>
                     <div className="flex items-center gap-1">
@@ -617,6 +620,13 @@ export default function DashboardPage() {
                     <div className="flex items-center gap-1">
                       <Wallet className="w-3 h-3 text-[#00FF85]/60"/>
                       <span className="text-sm font-black text-[#00FF85]">{formatBudget(club.budget)}</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-center justify-center p-2 rounded-lg border border-[#202020] bg-[#0A0A0A]/50 backdrop-blur-sm transition-colors hover:bg-[#0A0A0A]">
+                    <span className="text-[8px] text-[#6A6C6E] font-bold uppercase tracking-[0.15em] mb-1">Nómina</span>
+                    <div className="flex items-center gap-1">
+                      <TrendingUp className="w-3 h-3 text-rose-500/60"/>
+                      <span className="text-sm font-black text-rose-500">{formatBudget(payroll)}</span>
                     </div>
                   </div>
                 </div>
