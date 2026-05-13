@@ -101,6 +101,12 @@ export async function handleOfferResponse(
     .single()
 
   if (fetchError) throw fetchError
+  if (!offer) throw new Error('Oferta no encontrada')
+
+  // Evitar doble procesamiento
+  if (offer.status !== 'pending' && offer.status !== 'countered') {
+    throw new Error('Esta oferta ya no está activa o ya ha sido procesada')
+  }
 
   if (response === 'accept') {
     return await executeTransfer(offer)
@@ -280,56 +286,93 @@ export async function buyPlayerDirectly(player: Player, buyerClubId: string) {
 async function executeTransfer(offer: any) {
   const { player, buyer_club, seller_club, amount } = offer
 
-  // 1. Validate budget again
-  const { data: latestBuyer } = await supabase.from('clubs').select('budget').eq('id', offer.buyer_club_id).single()
+  // 1. Validate budget and player ownership in parallel
+  const [buyerRes, playerRes] = await Promise.all([
+    supabase.from('clubs').select('budget').eq('id', offer.buyer_club_id).single(),
+    supabase.from('players').select('club_id').eq('id', offer.player_id).single()
+  ])
   
+  const latestBuyer = buyerRes.data
+  const latestPlayer = playerRes.data
+
   if (!latestBuyer || latestBuyer.budget < amount) {
     throw new Error('El club comprador no tiene fondos suficientes para completar esta operación.')
   }
 
-  // 2. Atomic updates
-  // A. Subtract from buyer
-  await supabase.from('clubs').update({ budget: latestBuyer.budget - amount }).eq('id', offer.buyer_club_id)
+  if (!latestPlayer || latestPlayer.club_id !== offer.seller_club_id) {
+    throw new Error('El jugador ya no pertenece a este club o ya fue transferido.')
+  }
 
-  // B. Add to seller
-  const { data: latestSeller } = await supabase.from('clubs').select('budget').eq('id', offer.seller_club_id).single()
-  await supabase.from('clubs').update({ budget: (latestSeller?.budget || 0) + amount }).eq('id', offer.seller_club_id)
+  // 2. Perform updates in optimized batches
+  // Fetch seller budget while updating buyer
+  const [buyerUpdate, sellerRes] = await Promise.all([
+    supabase.from('clubs').update({ budget: latestBuyer.budget - amount }).eq('id', offer.buyer_club_id),
+    supabase.from('clubs').select('budget').eq('id', offer.seller_club_id).single()
+  ])
 
-  // C. Move player with new default contract
-  await supabase.from('players').update({ 
-    club_id: offer.buyer_club_id, 
-    is_on_sale: false, 
-    sale_price: null,
-    // Reset contract for new club
-    contract_seasons_left: 3,
-    salary: 25000,
-    squad_role: 'rotation',
-    salary_paid_this_season: false,
-    morale: 100,
-    wants_to_leave: false,
-    contract_status: 'active',
-    updated_at: new Date().toISOString()
-  }).eq('id', offer.player_id)
+  const latestSeller = sellerRes.data
 
-  // D. Update offer status
-  await supabase.from('market_offers').update({ status: 'accepted' }).eq('id', offer.id)
+  // Perform remaining data updates in parallel
+  await Promise.all([
+    // Update Seller Budget
+    supabase.from('clubs').update({ budget: (latestSeller?.budget || 0) + amount }).eq('id', offer.seller_club_id),
+    
+    // Move Player & Reset Contract
+    supabase.from('players').update({ 
+      club_id: offer.buyer_club_id, 
+      is_on_sale: false, 
+      sale_price: null,
+      contract_seasons_left: 3,
+      salary: 25000,
+      squad_role: 'rotation',
+      salary_paid_this_season: false,
+      morale: 100,
+      wants_to_leave: false,
+      contract_status: 'active',
+      updated_at: new Date().toISOString()
+    }).eq('id', offer.player_id),
 
-  // E. Invalidate other pending offers
-  await supabase
-    .from('market_offers')
-    .update({ status: 'cancelled' })
-    .eq('player_id', offer.player_id)
-    .neq('id', offer.id)
-    .eq('status', 'pending')
+    // Update Offer Status
+    supabase.from('market_offers').update({ status: 'accepted' }).eq('id', offer.id),
 
-  // F. Record history
-  await supabase.from('market_history').insert({
-    player_id: offer.player_id,
-    from_club_id: offer.seller_club_id,
-    to_club_id: offer.buyer_club_id,
-    amount: amount,
-    type: 'sale'
-  })
+    // Invalidate other pending offers
+    supabase
+      .from('market_offers')
+      .update({ status: 'cancelled' })
+      .eq('player_id', offer.player_id)
+      .neq('id', offer.id)
+      .eq('status', 'pending')
+  ])
+
+  // 3. Post-transfer logistics in parallel
+  await Promise.all([
+    // Record history
+    supabase.from('market_history').insert({
+      player_id: offer.player_id,
+      from_club_id: offer.seller_club_id,
+      to_club_id: offer.buyer_club_id,
+      amount: amount,
+      type: 'sale'
+    }),
+
+    // Notify both
+    supabase.from('notifications').insert([
+      {
+        club_id: offer.buyer_club_id,
+        title: 'Fichaje Completado',
+        message: `¡Has fichado a ${player.name} de ${offer.seller_club?.name} por $${amount.toLocaleString()}!`,
+        type: 'transfer_complete',
+        data: { player_id: offer.player_id, player_name: player.name, seller_name: offer.seller_club?.name }
+      },
+      {
+        club_id: offer.seller_club_id,
+        title: 'Jugador Vendido',
+        message: `Has vendido a ${player.name} a ${offer.buyer_club?.name} por $${amount.toLocaleString()}.`,
+        type: 'transfer_complete',
+        data: { player_id: offer.player_id, player_name: player.name, buyer_name: offer.buyer_club?.name }
+      }
+    ])
+  ])
 
   // G. Notify both
   await supabase.from('notifications').insert([
