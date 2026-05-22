@@ -36,8 +36,12 @@ import { PlayerInbox } from '@/components/pifa/player-inbox'
 import { LatestAnnouncement } from '@/components/pifa/latest-announcement'
 import { AnnouncementsList } from '@/components/pifa/announcements-list'
 import { HallOfFame } from '@/components/pifa/hall-of-fame'
+import { DashboardSkeleton } from '@/components/pifa/dashboard-skeleton'
+import { ConnectionErrorScreen } from '@/components/pifa/connection-error-screen'
 import { getSeasonState, payAllSalaries } from '@/lib/contract-engine'
 import type { User, Club, Player, AuthSession, Competition, Match, Standing, PlayerCompetitionStats, MatchAnnotation, Season, Notification } from '@/lib/types'
+
+type ClubLoadState = 'loading' | 'loaded' | 'error' | 'no-club'
 
 const positionColors: Record<string, string> = {
   GK: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
@@ -79,7 +83,7 @@ interface CompetitionFull extends Competition {
 
 export default function DashboardPage() {
   const router = useRouter()
-  const [isLoading, setIsLoading] = useState(true)
+  const [clubLoadState, setClubLoadState] = useState<ClubLoadState>('loading')
   const [user, setUser] = useState<User | null>(null)
   const [club, setClub] = useState<Club | null>(null)
   const [players, setPlayers] = useState<Player[]>([])
@@ -201,6 +205,21 @@ export default function DashboardPage() {
     }
   }
 
+  // Fetches the club row with up to 3 retries (1s/2s/4s backoff) so a transient
+  // network failure doesn't get classified as "Sin Club Asignado".
+  const fetchClubWithRetry = async (clubId: string): Promise<{ data: Club | null; error: any }> => {
+    let lastError: any = null
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const { data, error } = await supabase.from('clubs').select('*').eq('id', clubId).maybeSingle()
+      if (!error && data) return { data: data as Club, error: null }
+      lastError = error
+      if (attempt < 2) {
+        await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)))
+      }
+    }
+    return { data: null, error: lastError }
+  }
+
   const refreshData = async () => {
     const stored = localStorage.getItem('pifa_auth_session')
     if (!stored) {
@@ -208,138 +227,155 @@ export default function DashboardPage() {
       return
     }
 
-    try {
-      const session: AuthSession = JSON.parse(stored)
+    setClubLoadState('loading')
 
-      if (!session.user || session.user.role !== 'user') {
-        router.replace('/login')
+    let session: AuthSession
+    try {
+      session = JSON.parse(stored)
+    } catch {
+      router.replace('/login')
+      return
+    }
+
+    if (!session.user || session.user.role !== 'user') {
+      router.replace('/login')
+      return
+    }
+
+    setUser(session.user)
+
+    // User has no club_id at all → genuine "Sin Club Asignado" state.
+    if (!session.user.club_id) {
+      setClubLoadState('no-club')
+      return
+    }
+
+    const clubId = session.user.club_id
+
+    try {
+      // TIER 1 (critical): club only. Retry on transient failures so we don't
+      // fall back to the error/no-club screens because of one slow request.
+      const clubRes = await fetchClubWithRetry(clubId)
+      if (!clubRes.data) {
+        // No row for that club_id and no transient error → genuine "no club".
+        // Real fetch errors leave error set; differentiate.
+        if (clubRes.error) {
+          console.error('[Dashboard] Club fetch failed after retries:', clubRes.error)
+          setClubLoadState('error')
+        } else {
+          setClubLoadState('no-club')
+        }
         return
       }
+      setClub(clubRes.data)
+      setClubLoadState('loaded')
 
-      setUser(session.user)
+      // TIER 2 (background): rest of the data. Errors here don't block the
+      // dashboard — each section shows its own skeleton until it arrives.
+      const [playersRes, allActiveCompsRes, enrolledRes, nextMatchRes, allMatchesRes, unreadRes, newsRes] = await Promise.all([
+        supabase.from('players').select('*').eq('club_id', clubId).order('position', { ascending: true }).order('number', { ascending: true }),
+        supabase.from('competitions').select('*, season:seasons!inner(*)').eq('season.status', 'active'),
+        supabase.from('competition_clubs').select('competition_id').eq('club_id', clubId),
+        getNextMatchForClub(clubId),
+        supabase.from('matches').select('id, status, home_score, away_score, scheduled_date, deadline, match_order, matchday, group_name, round_name, leg, competition_id, home_club_id, away_club_id, notes, home_club:clubs!matches_home_club_id_fkey(id, name, shield_url), away_club:clubs!matches_away_club_id_fkey(id, name, shield_url), competition:competitions!inner(id, name, type, config, season:seasons!inner(id, status, name))').or(`home_club_id.eq.${clubId},away_club_id.eq.${clubId}`).order('match_order', { ascending: true }),
+        supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('club_id', clubId).eq('is_read', false),
+        supabase.from('news').select('id, title, content, emoji, category, created_at').order('created_at', { ascending: false }).limit(2)
+      ])
 
-      if (session.user.club_id) {
-        const clubId = session.user.club_id
+      if (playersRes.data) setPlayers(playersRes.data as Player[])
+      setMatchResult(nextMatchRes)
+      if (unreadRes.count && unreadRes.count > 0) setHasNewNotifications(true)
+      if (newsRes.data) setTopNews(newsRes.data)
 
-        // Removido auto-news generation por cliente (causaba spam por múltiples usuarios logueados simultáneamente)
+      const allMatchData: MatchWithDetails[] = (allMatchesRes.data || []) as MatchWithDetails[]
+      setAllTimeMatches(allMatchData)
+      setUpcomingMatches(allMatchData.filter(m => m.competition?.season?.status === 'active'))
 
-        // OPTIMIZACIÓN: Lanzar todas las consultas base en paralelo
-        // Ahora obtenemos TODAS las competencias de temporadas activas para la vista global
-        const [clubRes, playersRes, allActiveCompsRes, enrolledRes, nextMatchRes, allMatchesRes, unreadRes, newsRes] = await Promise.all([
-          supabase.from('clubs').select('*').eq('id', clubId).single(),
-          supabase.from('players').select('*').eq('club_id', clubId).order('position', { ascending: true }).order('number', { ascending: true }),
-          supabase.from('competitions').select('*, season:seasons!inner(*)').eq('season.status', 'active'),
-          supabase.from('competition_clubs').select('competition_id').eq('club_id', clubId),
-          getNextMatchForClub(clubId),
-          supabase.from('matches').select('*, home_club:clubs!matches_home_club_id_fkey(*), away_club:clubs!matches_away_club_id_fkey(*), competition:competitions!inner(*, season:seasons!inner(*))').or(`home_club_id.eq.${clubId},away_club_id.eq.${clubId}`).order('match_order', { ascending: true }),
-          supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('club_id', clubId).eq('is_read', false),
-          supabase.from('news').select('*').order('created_at', { ascending: false }).limit(2)
+      // Identify which competitions the club is actually enrolled in
+      const myCompIds = new Set((enrolledRes.data || []).map((ec: any) => ec.competition_id))
+
+      const compsToLoad = (allActiveCompsRes.data || []) as Competition[]
+
+      if (compsToLoad.length > 0) {
+        const compIds = compsToLoad.map((c: any) => c.id)
+
+        // TIER 3: standings + per-player stats for active competitions.
+        // Matches for the comp pages are derived locally from allMatchData
+        // (which already has the joins via Tier 2), so we don't re-fetch them.
+        const [standingsRes, statsRes] = await Promise.all([
+          supabase.from('standings').select('competition_id, club_id, played, won, drawn, lost, goals_for, goals_against, goal_difference, points, club:clubs(id, name, shield_url)').in('competition_id', compIds).order('points', { ascending: false }),
+          supabase.from('player_competition_stats').select('competition_id, player_id, club_id, goals, assists, mvp_count, matches_played, player:players(id, name, position, photo_url), club:clubs(id, name, shield_url)').in('competition_id', compIds)
         ])
 
-        if (clubRes.data) {
-          setClub(clubRes.data as Club)
-          if (playersRes.data) setPlayers(playersRes.data as Player[])
-          setMatchResult(nextMatchRes)
-          if (unreadRes.count && unreadRes.count > 0) setHasNewNotifications(true)
-          if (newsRes.data) setTopNews(newsRes.data)
-          
-          if (allMatchesRes.data) {
-            const allMatchData = allMatchesRes.data as MatchWithDetails[]
-            setAllTimeMatches(allMatchData)
-            setUpcomingMatches(allMatchData.filter(m => m.competition?.season?.status === 'active'))
+        const activeComps: CompetitionFull[] = []
+        const allTimeComps: CompetitionFull[] = []
+
+        for (const comp of compsToLoad as any[]) {
+          const compStandings = (standingsRes.data || []).filter((s: any) => s.competition_id === comp.id)
+          const compStats = (statsRes.data || []).filter((s: any) => s.competition_id === comp.id)
+          const compMatches = allMatchData.filter((m: any) => m.competition_id === comp.id)
+
+          const sortedStandings = [...compStandings].sort((a: any, b: any) => {
+            if (b.points !== a.points) return b.points - a.points
+            if (b.goal_difference !== a.goal_difference) return b.goal_difference - a.goal_difference
+            return b.goals_for - a.goals_for
+          })
+
+          const isParticipant = myCompIds.has(comp.id)
+          const myStandingIndex = isParticipant ? sortedStandings.findIndex((s: any) => s.club_id === clubId) : -1
+          const myStanding = myStandingIndex >= 0 ? sortedStandings[myStandingIndex] : null
+
+          const compFull: CompetitionFull = {
+            ...comp,
+            standings: compStandings,
+            playerStats: compStats,
+            matches: compMatches as any[],
+            myPosition: myStandingIndex >= 0 ? myStandingIndex + 1 : undefined,
+            myPoints: myStanding ? (myStanding as any).points : undefined,
           }
 
-          // Identificar en qué competencias está realmente el club
-          const myCompIds = new Set((enrolledRes.data || []).map((ec: any) => ec.competition_id))
-          
-          // Todas las competencias a cargar (activas actuales + las que el club tenga históricamente)
-          // Para simplificar y cumplir el pedido, cargamos todas las activas
-          const compsToLoad = (allActiveCompsRes.data || []) as Competition[]
-          
-          if (compsToLoad.length > 0) {
-            const compIds = compsToLoad.map((c: any) => c.id)
+          if (comp.season?.status === 'active') activeComps.push(compFull)
+          allTimeComps.push(compFull)
+        }
 
-            // OPTIMIZACIÓN: Cargar todo el sub-detalle de las competencias en 3 queries globales
-            const [standingsRes, statsRes, compMatchesRes] = await Promise.all([
-              supabase.from('standings').select('*, club:clubs(*)').in('competition_id', compIds).order('points', { ascending: false }),
-              supabase.from('player_competition_stats').select('*, player:players(*), club:clubs(*)').in('competition_id', compIds),
-              supabase.from('matches').select('*, home_club:clubs!matches_home_club_id_fkey(*), away_club:clubs!matches_away_club_id_fkey(*)').in('competition_id', compIds).order('match_order', { ascending: true })
-            ])
+        activeComps.sort((a, b) => {
+          const aMine = myCompIds.has(a.id) ? 1 : 0
+          const bMine = myCompIds.has(b.id) ? 1 : 0
+          return bMine - aMine
+        })
 
-            const activeComps: CompetitionFull[] = []
-            const allTimeComps: CompetitionFull[] = []
+        setCompetitions(activeComps)
+        setAllTimeComps(allTimeComps)
 
-            for (const comp of compsToLoad as any[]) {
-              const compStandings = (standingsRes.data || []).filter((s: any) => s.competition_id === comp.id)
-              const compStats = (statsRes.data || []).filter((s: any) => s.competition_id === comp.id)
-              const compMatches = (compMatchesRes.data || []).filter((m: any) => m.competition_id === comp.id)
-
-              const sortedStandings = [...compStandings].sort((a: any, b: any) => {
-                if (b.points !== a.points) return b.points - a.points
-                if (b.goal_difference !== a.goal_difference) return b.goal_difference - a.goal_difference
-                return b.goals_for - a.goals_for
-              })
-
-              const isParticipant = myCompIds.has(comp.id)
-              const myStandingIndex = isParticipant ? sortedStandings.findIndex((s: any) => s.club_id === clubId) : -1
-              const myStanding = myStandingIndex >= 0 ? sortedStandings[myStandingIndex] : null
-
-              const compFull: CompetitionFull = {
-                ...comp,
-                standings: compStandings,
-                playerStats: compStats,
-                matches: compMatches as any[],
-                myPosition: myStandingIndex >= 0 ? myStandingIndex + 1 : undefined,
-                myPoints: myStanding ? (myStanding as any).points : undefined,
-              }
-
-              if (comp.season?.status === 'active') activeComps.push(compFull)
-              allTimeComps.push(compFull)
-            }
-
-            // Ordenar para que mis competencias aparezcan arriba
-            activeComps.sort((a, b) => {
-              const aMine = myCompIds.has(a.id) ? 1 : 0
-              const bMine = myCompIds.has(b.id) ? 1 : 0
-              return bMine - aMine
-            })
-
-            setCompetitions(activeComps)
-            setAllTimeComps(allTimeComps)
-            
-            if (activeComps.length > 0 && expandedCompetitions.size === 0) {
-              const firstMine = activeComps.find(c => myCompIds.has(c.id))
-              setExpandedCompetitions(new Set([firstMine?.id || activeComps[0].id]))
-            }
-          }
-
-          // Ejecución no bloqueante via API (throttled - max once per 30s)
-          const lastResolveCall = sessionStorage.getItem('lastResolveCall')
-          const now = Date.now()
-          if (!lastResolveCall || now - parseInt(lastResolveCall) > 30000) {
-            sessionStorage.setItem('lastResolveCall', now.toString())
-            fetch('/api/cron/resolve-expired').catch(() => {})
-          }
-
-          const token = localStorage.getItem('expoPushToken')
-          if (token) {
-            syncPushToken(session.user.id, session.user.full_name, 'login')
-          }
-
-          // Load season state for contract features
-          try {
-            const seasonState = await getSeasonState()
-            setIsPreseason(seasonState.isPreseason)
-            setTransferWindowOpen(seasonState.transferWindowOpen)
-          } catch (e) {
-            console.warn('Error loading season state:', e)
-          }
+        if (activeComps.length > 0 && expandedCompetitions.size === 0) {
+          const firstMine = activeComps.find(c => myCompIds.has(c.id))
+          setExpandedCompetitions(new Set([firstMine?.id || activeComps[0].id]))
         }
       }
+
+      // Non-blocking — fire and forget
+      const lastResolveCall = sessionStorage.getItem('lastResolveCall')
+      const now = Date.now()
+      if (!lastResolveCall || now - parseInt(lastResolveCall) > 30000) {
+        sessionStorage.setItem('lastResolveCall', now.toString())
+        fetch('/api/cron/resolve-expired').catch(() => {})
+      }
+
+      const token = localStorage.getItem('expoPushToken')
+      if (token) {
+        syncPushToken(session.user.id, session.user.full_name, 'login')
+      }
+
+      try {
+        const seasonState = await getSeasonState()
+        setIsPreseason(seasonState.isPreseason)
+        setTransferWindowOpen(seasonState.transferWindowOpen)
+      } catch (e) {
+        console.warn('Error loading season state:', e)
+      }
     } catch (e) {
-      console.error('Error refreshing data:', e)
-    } finally {
-      setIsLoading(false)
+      console.error('Error refreshing background data:', e)
+      // Background failure — keep the dashboard usable. clubLoadState stays 'loaded'.
     }
   }
   useEffect(() => {
@@ -361,17 +397,6 @@ export default function DashboardPage() {
       supabase.removeChannel(newsChannel)
     }
   }, [])
-
-  // Failsafe for loading state
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (isLoading) {
-        console.warn('Dashboard loading timeout reached, forcing unlock.')
-        setIsLoading(false)
-      }
-    }, 5000)
-    return () => clearTimeout(timer)
-  }, [isLoading])
 
   const handleLogout = async () => {
     if (user) {
@@ -454,25 +479,15 @@ export default function DashboardPage() {
 
   const recentResults = upcomingMatches.filter(m => m.status === 'finished').slice(-5).reverse()
 
-  if (isLoading) {
-    return (
-      <div className="min-h-dvh flex flex-col items-center justify-center bg-loading-gradient animate-fade-in">
-        <div className="relative">
-          <PifaLogo size="xl" showText={false} className="animate-logo-pulse" />
-        </div>
-        <div className="mt-10 flex flex-col items-center space-y-2">
-          <p className="text-[10px] font-black text-[#00FF85] uppercase tracking-[0.4em] animate-pulse">
-            Sincronizando Club
-          </p>
-          <div className="w-32 h-1 bg-[#141414] rounded-full overflow-hidden border border-white/5">
-            <div className="h-full bg-gradient-to-r from-[#FF3131] to-[#00FF85] animate-progress" style={{ width: '100%' }} />
-          </div>
-        </div>
-      </div>
-    )
+  if (clubLoadState === 'loading') {
+    return <DashboardSkeleton />
   }
 
-  if (!club) {
+  if (clubLoadState === 'error') {
+    return <ConnectionErrorScreen onRetry={refreshData} onLogout={handleLogout} />
+  }
+
+  if (clubLoadState === 'no-club' || !club) {
     return (
       <div className="min-h-dvh flex flex-col bg-background safe-area-top safe-area-bottom">
         <header className="flex items-center justify-between px-5 py-4">

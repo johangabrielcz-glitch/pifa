@@ -48,7 +48,7 @@ export function PlayerInbox({ clubId }: PlayerInboxProps) {
     setLoading(true)
     const { data } = await supabase
       .from('player_emails')
-      .select('*, player:players(name, position, photo_url)')
+      .select('id, player_id, club_id, subject, body, email_type, is_read, created_at, action_data, action_taken, player:players(name, position, photo_url)')
       .eq('club_id', clubId)
       .order('created_at', { ascending: false })
       .limit(20)
@@ -96,8 +96,17 @@ export function PlayerInbox({ clubId }: PlayerInboxProps) {
       {/* Email List */}
       <div className="space-y-2 max-h-[300px] overflow-y-auto">
         {loading ? (
-          <div className="py-6 text-center">
-            <div className="w-6 h-6 border-2 border-[#FF3131] border-t-transparent rounded-full animate-spin mx-auto" />
+          <div className="space-y-2">
+            {[0, 1, 2].map(i => (
+              <div key={i} className="p-3 rounded-xl bg-[#141414]/50 border border-white/[0.04] flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-white/[0.06] animate-pulse shrink-0" />
+                <div className="flex-1 space-y-1.5">
+                  <div className="h-2.5 w-32 rounded bg-white/[0.06] animate-pulse" />
+                  <div className="h-2 w-48 rounded bg-white/[0.04] animate-pulse" />
+                </div>
+                <div className="h-2 w-8 rounded bg-white/[0.04] animate-pulse" />
+              </div>
+            ))}
           </div>
         ) : emails.length === 0 ? (
           <div className="py-8 text-center border border-white/[0.04] rounded-xl bg-[#141414]/30">

@@ -56,8 +56,9 @@ export function NewsTab({ club }: { club: Club }) {
     try {
       const { data, error } = await supabase
         .from('news')
-        .select('*')
+        .select('id, title, content, category, emoji, summary, created_at, image_url')
         .order('created_at', { ascending: false })
+        .limit(50)
 
       if (error) throw error
       setNews(data || [])
@@ -106,12 +107,22 @@ export function NewsTab({ club }: { club: Club }) {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-[#00FF85]/5 to-transparent blur-3xl" />
-        <Loader2 className="w-10 h-10 text-[#00FF85] animate-spin mb-6 relative z-10" />
-        <p className="text-[10px] text-[#00FF85] font-black uppercase tracking-[0.3em] animate-pulse relative z-10">
-          Sincronizando con Groq News Network...
-        </p>
+      <div className="space-y-4 pb-20 max-w-2xl mx-auto px-1">
+        <div className="h-14 rounded-xl bg-[#111111]/80 border border-white/5 animate-pulse" />
+        {[0, 1].map(i => (
+          <div key={i} className="rounded-2xl bg-[#111111]/80 border border-white/5 overflow-hidden">
+            <div className="h-40 bg-white/[0.04] animate-pulse" />
+            <div className="p-4 space-y-3">
+              <div className="h-3 w-20 rounded bg-white/[0.05] animate-pulse" />
+              <div className="h-4 w-3/4 rounded bg-white/[0.08] animate-pulse" />
+              <div className="space-y-1.5">
+                <div className="h-2.5 w-full rounded bg-white/[0.04] animate-pulse" />
+                <div className="h-2.5 w-5/6 rounded bg-white/[0.04] animate-pulse" />
+                <div className="h-2.5 w-4/6 rounded bg-white/[0.04] animate-pulse" />
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
     )
   }

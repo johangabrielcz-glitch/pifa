@@ -179,9 +179,10 @@ export function NotificationsDrawer({ clubId, isOpen, onClose, onActionComplete 
     if (!silent) setLoading(true)
     const { data, error } = await supabase
       .from('notifications')
-      .select('*')
+      .select('id, club_id, title, message, type, data, is_read, created_at')
       .eq('club_id', clubId)
       .order('created_at', { ascending: false })
+      .limit(50)
 
     if (!error && data) setNotifications(data)
     if (!silent) setLoading(false)
@@ -289,9 +290,17 @@ export function NotificationsDrawer({ clubId, isOpen, onClose, onActionComplete 
 
             <div className="overflow-y-auto flex-1 p-6 space-y-4 bg-gradient-to-b from-[#0A0A0A] to-[#0E0E0E] custom-scrollbar">
               {loading ? (
-                <div className="flex flex-col items-center justify-center py-32 text-[#6A6C6E]">
-                  <RefreshCw className="w-8 h-8 animate-spin text-[#00FF85]/40 mb-6" />
-                  <p className="text-[10px] font-black uppercase tracking-widest">Sincronizando...</p>
+                <div className="space-y-3">
+                  {[0, 1, 2].map(i => (
+                    <div key={i} className="p-4 rounded-2xl bg-[#141414]/60 border border-white/[0.04] flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-white/[0.06] animate-pulse shrink-0" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-3 w-32 rounded bg-white/[0.08] animate-pulse" />
+                        <div className="h-2.5 w-full rounded bg-white/[0.04] animate-pulse" />
+                        <div className="h-2.5 w-2/3 rounded bg-white/[0.04] animate-pulse" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : notifications.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-32 text-[#6A6C6E] opacity-20">
