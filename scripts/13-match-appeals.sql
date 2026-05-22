@@ -45,3 +45,6 @@ CREATE INDEX IF NOT EXISTS idx_match_appeals_match
     ON public.match_appeals (match_id);
 
 ALTER PUBLICATION supabase_realtime ADD TABLE public.match_appeals;
+
+-- RLS disabled (auth is custom, not Supabase Auth — same pattern as the other tables)
+ALTER TABLE public.match_appeals DISABLE ROW LEVEL SECURITY;
