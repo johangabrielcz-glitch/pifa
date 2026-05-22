@@ -1396,25 +1396,38 @@ export interface NextMatchResult {
  * hasn't expired yet, returns waiting=true with the countdown target.
  */
 export async function getNextMatchForClub(
-  clubId: string
+  clubId: string,
+  preloadedMatches?: any[]
 ): Promise<NextMatchResult> {
-  // Get matches for this club that are scheduled or postponed (not finished)
-  const { data: matches } = await supabase
-    .from('matches')
-    .select(`
-      *,
-      home_club:clubs!matches_home_club_id_fkey(*),
-      away_club:clubs!matches_away_club_id_fkey(*),
-      competition:competitions!inner(
+  // If the caller already fetched the club's matches with the same joins
+  // (dashboard's Tier 2 query does exactly this), reuse them to avoid an
+  // extra round-trip with deep joins.
+  let matches: any[] | null
+  if (preloadedMatches) {
+    matches = preloadedMatches.filter((m: any) =>
+      (m.home_club_id === clubId || m.away_club_id === clubId) &&
+      m.home_club_id != null && m.away_club_id != null &&
+      (m.status === 'scheduled' || m.status === 'postponed')
+    )
+  } else {
+    const { data } = await supabase
+      .from('matches')
+      .select(`
         *,
-        season:seasons!inner(*)
-      )
-    `)
-    .or(`home_club_id.eq.${clubId},away_club_id.eq.${clubId}`)
-    .in('status', ['scheduled', 'postponed'])
-    .not('home_club_id', 'is', null)
-    .not('away_club_id', 'is', null)
-    .order('match_order', { ascending: true })
+        home_club:clubs!matches_home_club_id_fkey(*),
+        away_club:clubs!matches_away_club_id_fkey(*),
+        competition:competitions!inner(
+          *,
+          season:seasons!inner(*)
+        )
+      `)
+      .or(`home_club_id.eq.${clubId},away_club_id.eq.${clubId}`)
+      .in('status', ['scheduled', 'postponed'])
+      .not('home_club_id', 'is', null)
+      .not('away_club_id', 'is', null)
+      .order('match_order', { ascending: true })
+    matches = data
+  }
 
   if (!matches || matches.length === 0) {
     return { match: null, allPlayableMatches: [], waiting: false, waiting_until: null }

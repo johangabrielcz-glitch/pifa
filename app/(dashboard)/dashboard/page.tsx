@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import {
   Shield, Users, LogOut, Loader2, AlertCircle, Wallet,
@@ -29,17 +30,27 @@ import { Bell, LayoutGrid } from 'lucide-react'
 import { MatchDetailsDrawer } from '@/components/pifa/match-details-drawer'
 import { MatchAppealDrawer } from '@/components/pifa/match-appeal-drawer'
 import { PlayerManagementDialog } from '@/components/pifa/player-management-dialog'
-import MarketPage from './market/page'
-import { NewsTab } from '@/components/pifa/news-tab'
-import { GlobalChat } from '@/components/pifa/global-chat'
 import { PlayerInbox } from '@/components/pifa/player-inbox'
 import { LatestAnnouncement } from '@/components/pifa/latest-announcement'
-import { AnnouncementsList } from '@/components/pifa/announcements-list'
-import { HallOfFame } from '@/components/pifa/hall-of-fame'
 import { DashboardSkeleton } from '@/components/pifa/dashboard-skeleton'
 import { ConnectionErrorScreen } from '@/components/pifa/connection-error-screen'
 import { getSeasonState, payAllSalaries } from '@/lib/contract-engine'
 import type { User, Club, Player, AuthSession, Competition, Match, Standing, PlayerCompetitionStats, MatchAnnotation, Season, Notification } from '@/lib/types'
+
+// Tabs grandes — lazy-loaded para reducir el bundle inicial. Cada uno se
+// descarga solo cuando el DT activa la tab por primera vez.
+const TabFallback = () => (
+  <div className="flex flex-col gap-3 p-6 animate-pulse">
+    <div className="h-8 w-40 rounded-lg bg-white/[0.06]" />
+    <div className="h-32 rounded-2xl bg-white/[0.04]" />
+    <div className="h-32 rounded-2xl bg-white/[0.04]" />
+  </div>
+)
+const MarketPage = dynamic(() => import('./market/page'), { ssr: false, loading: TabFallback })
+const NewsTab = dynamic(() => import('@/components/pifa/news-tab').then(m => ({ default: m.NewsTab })), { ssr: false, loading: TabFallback })
+const GlobalChat = dynamic(() => import('@/components/pifa/global-chat').then(m => ({ default: m.GlobalChat })), { ssr: false, loading: TabFallback })
+const AnnouncementsList = dynamic(() => import('@/components/pifa/announcements-list').then(m => ({ default: m.AnnouncementsList })), { ssr: false, loading: TabFallback })
+const HallOfFame = dynamic(() => import('@/components/pifa/hall-of-fame').then(m => ({ default: m.HallOfFame })), { ssr: false, loading: TabFallback })
 
 type ClubLoadState = 'loading' | 'loaded' | 'error' | 'no-club'
 
@@ -272,18 +283,19 @@ export default function DashboardPage() {
 
       // TIER 2 (background): rest of the data. Errors here don't block the
       // dashboard — each section shows its own skeleton until it arrives.
-      const [playersRes, allActiveCompsRes, enrolledRes, nextMatchRes, allMatchesRes, unreadRes, newsRes] = await Promise.all([
+      // Note: getNextMatchForClub is NOT in this Promise.all because it would
+      // duplicate the matches fetch with deep joins; we run it right after
+      // and pass it the matches we just loaded.
+      const [playersRes, allActiveCompsRes, enrolledRes, allMatchesRes, unreadRes, newsRes] = await Promise.all([
         supabase.from('players').select('*').eq('club_id', clubId).order('position', { ascending: true }).order('number', { ascending: true }),
         supabase.from('competitions').select('*, season:seasons!inner(*)').eq('season.status', 'active'),
         supabase.from('competition_clubs').select('competition_id').eq('club_id', clubId),
-        getNextMatchForClub(clubId),
         supabase.from('matches').select('id, status, home_score, away_score, scheduled_date, deadline, match_order, matchday, group_name, round_name, leg, competition_id, home_club_id, away_club_id, notes, home_club:clubs!matches_home_club_id_fkey(id, name, shield_url), away_club:clubs!matches_away_club_id_fkey(id, name, shield_url), competition:competitions!inner(id, name, type, config, season:seasons!inner(id, status, name))').or(`home_club_id.eq.${clubId},away_club_id.eq.${clubId}`).order('match_order', { ascending: true }),
         supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('club_id', clubId).eq('is_read', false),
         supabase.from('news').select('id, title, content, emoji, category, created_at').order('created_at', { ascending: false }).limit(2)
       ])
 
       if (playersRes.data) setPlayers(playersRes.data as Player[])
-      setMatchResult(nextMatchRes)
       if (unreadRes.count && unreadRes.count > 0) setHasNewNotifications(true)
       if (newsRes.data) setTopNews(newsRes.data)
 
@@ -291,66 +303,89 @@ export default function DashboardPage() {
       setAllTimeMatches(allMatchData)
       setUpcomingMatches(allMatchData.filter(m => m.competition?.season?.status === 'active'))
 
+      // Compute the next playable match using the matches we already have.
+      // The function still issues a small globalPending query + an annotations
+      // lookup, but skips the duplicate deep-joined matches query.
+      getNextMatchForClub(clubId, allMatchData).then(setMatchResult).catch(e => {
+        console.warn('[Dashboard] next match calc failed:', e)
+      })
+
       // Identify which competitions the club is actually enrolled in
       const myCompIds = new Set((enrolledRes.data || []).map((ec: any) => ec.competition_id))
 
       const compsToLoad = (allActiveCompsRes.data || []) as Competition[]
 
       if (compsToLoad.length > 0) {
-        const compIds = compsToLoad.map((c: any) => c.id)
-
-        // TIER 3: standings + per-player stats for active competitions.
-        // Matches for the comp pages are derived locally from allMatchData
-        // (which already has the joins via Tier 2), so we don't re-fetch them.
-        const [standingsRes, statsRes] = await Promise.all([
-          supabase.from('standings').select('competition_id, club_id, played, won, drawn, lost, goals_for, goals_against, goal_difference, points, club:clubs(id, name, shield_url)').in('competition_id', compIds).order('points', { ascending: false }),
-          supabase.from('player_competition_stats').select('competition_id, player_id, club_id, goals, assists, mvp_count, matches_played, player:players(id, name, position, photo_url), club:clubs(id, name, shield_url)').in('competition_id', compIds)
-        ])
-
-        const activeComps: CompetitionFull[] = []
-        const allTimeComps: CompetitionFull[] = []
-
-        for (const comp of compsToLoad as any[]) {
-          const compStandings = (standingsRes.data || []).filter((s: any) => s.competition_id === comp.id)
-          const compStats = (statsRes.data || []).filter((s: any) => s.competition_id === comp.id)
+        // First pass: render competitions immediately with empty
+        // standings/playerStats. Matches come from allMatchData locally.
+        // The home tab only needs metadata to render; standings/stats are
+        // for the Competencias / Stats tabs and are filled in below.
+        const buildCompFull = (comp: any, standings: any[] = [], stats: any[] = []): CompetitionFull => {
           const compMatches = allMatchData.filter((m: any) => m.competition_id === comp.id)
-
-          const sortedStandings = [...compStandings].sort((a: any, b: any) => {
+          const sortedStandings = [...standings].sort((a: any, b: any) => {
             if (b.points !== a.points) return b.points - a.points
             if (b.goal_difference !== a.goal_difference) return b.goal_difference - a.goal_difference
             return b.goals_for - a.goals_for
           })
-
           const isParticipant = myCompIds.has(comp.id)
           const myStandingIndex = isParticipant ? sortedStandings.findIndex((s: any) => s.club_id === clubId) : -1
           const myStanding = myStandingIndex >= 0 ? sortedStandings[myStandingIndex] : null
-
-          const compFull: CompetitionFull = {
+          return {
             ...comp,
-            standings: compStandings,
-            playerStats: compStats,
+            standings,
+            playerStats: stats,
             matches: compMatches as any[],
             myPosition: myStandingIndex >= 0 ? myStandingIndex + 1 : undefined,
             myPoints: myStanding ? (myStanding as any).points : undefined,
           }
-
-          if (comp.season?.status === 'active') activeComps.push(compFull)
-          allTimeComps.push(compFull)
         }
 
-        activeComps.sort((a, b) => {
+        const sortByMine = (a: CompetitionFull, b: CompetitionFull) => {
           const aMine = myCompIds.has(a.id) ? 1 : 0
           const bMine = myCompIds.has(b.id) ? 1 : 0
           return bMine - aMine
-        })
-
-        setCompetitions(activeComps)
-        setAllTimeComps(allTimeComps)
-
-        if (activeComps.length > 0 && expandedCompetitions.size === 0) {
-          const firstMine = activeComps.find(c => myCompIds.has(c.id))
-          setExpandedCompetitions(new Set([firstMine?.id || activeComps[0].id]))
         }
+
+        const initialActive: CompetitionFull[] = []
+        const initialAllTime: CompetitionFull[] = []
+        for (const comp of compsToLoad as any[]) {
+          const compFull = buildCompFull(comp)
+          if (comp.season?.status === 'active') initialActive.push(compFull)
+          initialAllTime.push(compFull)
+        }
+        initialActive.sort(sortByMine)
+
+        setCompetitions(initialActive)
+        setAllTimeComps(initialAllTime)
+
+        if (initialActive.length > 0 && expandedCompetitions.size === 0) {
+          const firstMine = initialActive.find(c => myCompIds.has(c.id))
+          setExpandedCompetitions(new Set([firstMine?.id || initialActive[0].id]))
+        }
+
+        // TIER 3 (deferred, doesn't block first paint): standings +
+        // per-player stats for active competitions. Section-level skeletons
+        // in components/pifa/standings-table.tsx etc. cover the gap.
+        const compIds = compsToLoad.map((c: any) => c.id)
+        Promise.all([
+          supabase.from('standings').select('competition_id, club_id, played, won, drawn, lost, goals_for, goals_against, goal_difference, points, club:clubs(id, name, shield_url)').in('competition_id', compIds).order('points', { ascending: false }),
+          supabase.from('player_competition_stats').select('competition_id, player_id, club_id, goals, assists, mvp_count, matches_played, player:players(id, name, position, photo_url), club:clubs(id, name, shield_url)').in('competition_id', compIds)
+        ]).then(([standingsRes, statsRes]) => {
+          const refreshed: CompetitionFull[] = []
+          const refreshedAll: CompetitionFull[] = []
+          for (const comp of compsToLoad as any[]) {
+            const compStandings = (standingsRes.data || []).filter((s: any) => s.competition_id === comp.id)
+            const compStats = (statsRes.data || []).filter((s: any) => s.competition_id === comp.id)
+            const compFull = buildCompFull(comp, compStandings, compStats)
+            if (comp.season?.status === 'active') refreshed.push(compFull)
+            refreshedAll.push(compFull)
+          }
+          refreshed.sort(sortByMine)
+          setCompetitions(refreshed)
+          setAllTimeComps(refreshedAll)
+        }).catch(e => {
+          console.warn('[Dashboard] competitions detail fetch failed:', e)
+        })
       }
 
       // Non-blocking — fire and forget
