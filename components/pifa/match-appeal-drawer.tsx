@@ -164,7 +164,9 @@ export function MatchAppealDrawer({
   const awayGoalTotal = awayAnnotation.goals.reduce((s, a) => s + a.count, 0)
   const scoreValid = homeGoalTotal === homeScore && awayGoalTotal === awayScore
   const reasonValid = reason.trim().length > 0
-  const canSubmit = !isSubmitting && !isLoading && scoreValid && reasonValid && !!match
+  // Only block submit while loading / already submitting — surface the rest
+  // as toast errors on click so the DT understands why it didn't go through.
+  const canSubmit = !isSubmitting && !isLoading && !!match
 
   async function handleSubmit() {
     if (!match || !matchId) return

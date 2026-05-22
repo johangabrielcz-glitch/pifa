@@ -165,9 +165,9 @@ export function MatchDetailsDrawer({ matchId, isOpen, onClose, currentClubId, on
       }
 
       // 7. Check for pending appeal by the viewing club.
-      // Failsafe: if the query errors (e.g. RLS misconfigured) we treat it as "pending"
-      // so the appeal button stays hidden — the server-side check in /api/appeals/create
-      // is the real source of truth and would 409 anyway.
+      // If the query errors (e.g. RLS misconfigured) we keep the button visible —
+      // the server-side check in /api/appeals/create is the real source of truth
+      // and will return 409 if a pending appeal already exists.
       if (currentClubId && (currentClubId === m.home_club_id || currentClubId === m.away_club_id)) {
         const { data: appealData, error: appealErr } = await supabase
           .from('match_appeals')
@@ -178,7 +178,7 @@ export function MatchDetailsDrawer({ matchId, isOpen, onClose, currentClubId, on
           .maybeSingle()
         if (appealErr) {
           console.error('[MatchDetailsDrawer] pending-appeal check failed:', appealErr)
-          setHasPendingAppeal(true)
+          setHasPendingAppeal(false)
         } else {
           setHasPendingAppeal(!!appealData)
         }
