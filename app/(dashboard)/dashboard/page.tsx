@@ -101,6 +101,7 @@ export default function DashboardPage() {
   const [competitions, setCompetitions] = useState<CompetitionFull[]>([])
   const [upcomingMatches, setUpcomingMatches] = useState<MatchWithDetails[]>([])
   const [matchResult, setMatchResult] = useState<NextMatchResult>({ match: null, allPlayableMatches: [], waiting: false, waiting_until: null })
+  const [matchResultLoading, setMatchResultLoading] = useState(true)
   const [matchIndex, setMatchIndex] = useState(0)
   const [activeTab, setActiveTab] = useState<DtTab>('home')
   const [filterCompetition, setFilterCompetition] = useState<string>('all')
@@ -108,6 +109,7 @@ export default function DashboardPage() {
   const [statsFilter, setStatsFilter] = useState<string>('all')
   const [allTimeComps, setAllTimeComps] = useState<CompetitionFull[]>([])
   const [allTimeMatches, setAllTimeMatches] = useState<MatchWithDetails[]>([])
+  const [competitionsDetailsLoading, setCompetitionsDetailsLoading] = useState(true)
   const [squadTab, setSquadTab] = useState<'lista' | 'alineacion'>('lista')
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
   const [hasNewNotifications, setHasNewNotifications] = useState(false)
@@ -281,11 +283,27 @@ export default function DashboardPage() {
       setClub(clubRes.data)
       setClubLoadState('loaded')
 
+      // FAST PATH: lightweight query just for the "next match" card.
+      // Pulls only scheduled/postponed matches with the minimal joins the
+      // card needs — runs in parallel with everything else and lets us set
+      // matchResult well before the heavier allMatchesRes resolves.
+      setMatchResultLoading(true)
+      supabase
+        .from('matches')
+        .select('id, status, deadline, match_order, matchday, group_name, round_name, leg, competition_id, home_club_id, away_club_id, home_club:clubs!matches_home_club_id_fkey(id, name, shield_url), away_club:clubs!matches_away_club_id_fkey(id, name, shield_url), competition:competitions!inner(id, name, type, season_id, season:seasons!inner(id, status))')
+        .or(`home_club_id.eq.${clubId},away_club_id.eq.${clubId}`)
+        .in('status', ['scheduled', 'postponed'])
+        .not('home_club_id', 'is', null)
+        .not('away_club_id', 'is', null)
+        .order('match_order', { ascending: true })
+        .limit(10)
+        .then(({ data }) => getNextMatchForClub(clubId, data || []))
+        .then(setMatchResult)
+        .catch(e => console.warn('[Dashboard] next match (fast path) failed:', e))
+        .finally(() => setMatchResultLoading(false))
+
       // TIER 2 (background): rest of the data. Errors here don't block the
       // dashboard — each section shows its own skeleton until it arrives.
-      // Note: getNextMatchForClub is NOT in this Promise.all because it would
-      // duplicate the matches fetch with deep joins; we run it right after
-      // and pass it the matches we just loaded.
       const [playersRes, allActiveCompsRes, enrolledRes, allMatchesRes, unreadRes, newsRes] = await Promise.all([
         supabase.from('players').select('*').eq('club_id', clubId).order('position', { ascending: true }).order('number', { ascending: true }),
         supabase.from('competitions').select('*, season:seasons!inner(*)').eq('season.status', 'active'),
@@ -302,13 +320,6 @@ export default function DashboardPage() {
       const allMatchData: MatchWithDetails[] = (allMatchesRes.data || []) as MatchWithDetails[]
       setAllTimeMatches(allMatchData)
       setUpcomingMatches(allMatchData.filter(m => m.competition?.season?.status === 'active'))
-
-      // Compute the next playable match using the matches we already have.
-      // The function still issues a small globalPending query + an annotations
-      // lookup, but skips the duplicate deep-joined matches query.
-      getNextMatchForClub(clubId, allMatchData).then(setMatchResult).catch(e => {
-        console.warn('[Dashboard] next match calc failed:', e)
-      })
 
       // Identify which competitions the club is actually enrolled in
       const myCompIds = new Set((enrolledRes.data || []).map((ec: any) => ec.competition_id))
@@ -367,6 +378,7 @@ export default function DashboardPage() {
         // per-player stats for active competitions. Section-level skeletons
         // in components/pifa/standings-table.tsx etc. cover the gap.
         const compIds = compsToLoad.map((c: any) => c.id)
+        setCompetitionsDetailsLoading(true)
         Promise.all([
           supabase.from('standings').select('competition_id, club_id, played, won, drawn, lost, goals_for, goals_against, goal_difference, points, club:clubs(id, name, shield_url)').in('competition_id', compIds).order('points', { ascending: false }),
           supabase.from('player_competition_stats').select('competition_id, player_id, club_id, goals, assists, mvp_count, matches_played, player:players(id, name, position, photo_url), club:clubs(id, name, shield_url)').in('competition_id', compIds)
@@ -385,7 +397,11 @@ export default function DashboardPage() {
           setAllTimeComps(refreshedAll)
         }).catch(e => {
           console.warn('[Dashboard] competitions detail fetch failed:', e)
+        }).finally(() => {
+          setCompetitionsDetailsLoading(false)
         })
+      } else {
+        setCompetitionsDetailsLoading(false)
       }
 
       // Non-blocking — fire and forget
@@ -832,21 +848,28 @@ export default function DashboardPage() {
 
               {/* WAITING STATE & NO MATCHES */}
               <div className="grid grid-cols-1 gap-4">
+                {matchResultLoading && !nextPlayableMatch && !matchResult.waiting && (
+                  <div className="rounded-xl border border-white/[0.04] bg-[#141414] p-6 animate-pulse">
+                    <div className="h-3 w-32 rounded bg-white/[0.05] mb-3" />
+                    <div className="h-16 rounded bg-white/[0.03]" />
+                  </div>
+                )}
+
                 {matchResult.waiting && matchResult.waiting_until && (
                   <div className="rounded-xl border border-[#00FF85]/20 bg-[#00FF85]/5 p-5">
                     <div className="flex items-center gap-3 mb-3">
                       <Hourglass className="w-5 h-5 text-[#00FF85]" />
                       <span className="text-[11px] font-bold text-[#00FF85] uppercase tracking-wider">Siguiente Jornada</span>
                     </div>
-                    <CountdownTimer 
-                      deadline={matchResult.waiting_until} 
-                      size="md" 
+                    <CountdownTimer
+                      deadline={matchResult.waiting_until}
+                      size="md"
                       onExpired={refreshData}
                     />
                   </div>
                 )}
 
-                {!nextPlayableMatch && !matchResult.waiting && competitions.length > 0 && (
+                {!matchResultLoading && !nextPlayableMatch && !matchResult.waiting && competitions.length > 0 && (
                   <div className="rounded-xl border border-[#00FF85]/20 bg-[#00FF85]/5 p-6 text-center">
                     <Check className="w-6 h-6 text-[#00FF85] mx-auto mb-2" />
                     <p className="text-sm font-black uppercase text-white tracking-wide">Fixture al día</p>
@@ -1032,7 +1055,14 @@ export default function DashboardPage() {
                             {(compSubTabs[comp.id] || 'standings') === 'standings' && (
                               <div className="space-y-4 pt-1">
                                 {/* League / Group Standings */}
-                                {(comp.type === 'league' || comp.type === 'groups_knockout') && (comp.standings?.length ?? 0) === 0 && (
+                                {(comp.type === 'league' || comp.type === 'groups_knockout') && (comp.standings?.length ?? 0) === 0 && competitionsDetailsLoading && (
+                                  <div className="space-y-2 py-2">
+                                    {[0, 1, 2, 3].map(i => (
+                                      <div key={i} className="h-10 rounded-xl bg-white/[0.03] border border-white/[0.04] animate-pulse" />
+                                    ))}
+                                  </div>
+                                )}
+                                {(comp.type === 'league' || comp.type === 'groups_knockout') && (comp.standings?.length ?? 0) === 0 && !competitionsDetailsLoading && (
                                   <div className="py-8 text-center bg-white/[0.02] border border-dashed border-white/[0.05] rounded-2xl">
                                     <Trophy className="w-8 h-8 text-[#2D2D2D] mx-auto mb-2" />
                                     <p className="text-[10px] text-[#2D2D2D] font-black uppercase tracking-widest">Clasificacion no disponible</p>
@@ -1383,6 +1413,20 @@ export default function DashboardPage() {
                 }
 
                 if (rankings.scorers.length === 0 && rankings.assists.length === 0 && rankings.mvps.length === 0) {
+                  if (competitionsDetailsLoading) {
+                    return (
+                      <div className="space-y-3">
+                        {[0, 1, 2].map(i => (
+                          <div key={i} className="rounded-xl border border-[#202020] bg-[#141414] p-4 space-y-2">
+                            <div className="h-3 w-24 rounded bg-white/[0.06] animate-pulse" />
+                            {[0, 1, 2].map(j => (
+                              <div key={j} className="h-8 rounded bg-white/[0.03] animate-pulse" />
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  }
                   return (
                     <div className="rounded-xl border border-[#202020] bg-[#141414] p-8 text-center">
                       <BarChart3 className="w-8 h-8 text-[#6A6C6E]/50 mx-auto mb-2" />
