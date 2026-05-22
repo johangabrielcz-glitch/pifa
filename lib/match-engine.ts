@@ -1530,6 +1530,141 @@ async function enrichMatchesWithAnnotations(
 // =============================================
 
 /**
+ * Apply a finalized-match edit: revert old standings + player stats, then reapply
+ * with new scores/annotations. Does NOT re-trigger the post-match cascade
+ * (morale, injuries, fatigue, etc.). Used by both the admin edit-match route
+ * and the appeal accept route — keeping parity behavior across both surfaces.
+ */
+export async function applyMatchEdit(opts: {
+  matchId: string
+  homeScore: number
+  awayScore: number
+  homeAnnotation?: {
+    goals: GoalEntry[]
+    assists: AssistEntry[]
+    mvp_player_id: string | null
+    starting_xi: string[]
+    substitutes_in: any[]
+  }
+  awayAnnotation?: {
+    goals: GoalEntry[]
+    assists: AssistEntry[]
+    mvp_player_id: string | null
+    starting_xi: string[]
+    substitutes_in: any[]
+  }
+  notes: string
+}): Promise<{ oldHomeScore: number; oldAwayScore: number }> {
+  const { matchId, homeScore, awayScore, homeAnnotation, awayAnnotation, notes } = opts
+
+  if (homeScore < 0 || awayScore < 0) {
+    throw new Error('Los scores no pueden ser negativos')
+  }
+
+  // 1. Load match + competition
+  const { data: matchData, error: matchError } = await supabase
+    .from('matches')
+    .select('*, competition:competitions(*)')
+    .eq('id', matchId)
+    .single() as any
+
+  if (matchError || !matchData) {
+    throw new Error('Partido no encontrado')
+  }
+  const match = matchData as Match & { competition: Competition }
+  if (match.status !== 'finished') {
+    throw new Error('Solo se pueden editar partidos finalizados')
+  }
+
+  const oldHomeScore = match.home_score ?? 0
+  const oldAwayScore = match.away_score ?? 0
+  const competition = match.competition
+
+  // 2. Load old annotations
+  const { data: oldAnnotations } = await supabase
+    .from('match_annotations')
+    .select('*')
+    .eq('match_id', matchId)
+  const oldAnnotationsList = (oldAnnotations || []) as MatchAnnotation[]
+
+  // 3. Determine if standings need update (league or group stage)
+  const isGroupStage = (match as any).group_name !== null
+  const hasStandings = competition.type === 'league' ||
+    (competition.type === 'groups_knockout' && isGroupStage)
+
+  // 4. Revert old standings
+  if (hasStandings) {
+    await revertStandings(match, oldHomeScore, oldAwayScore, competition)
+  }
+
+  // 5. Revert old player stats
+  const hasNewAnnotations = !!(homeAnnotation && awayAnnotation)
+  if (hasNewAnnotations && oldAnnotationsList.length > 0) {
+    await revertPlayerStats(oldAnnotationsList, (match as any).competition_id)
+  }
+
+  // 6. Upsert new annotations + apply new stats
+  if (hasNewAnnotations) {
+    await supabase
+      .from('match_annotations')
+      .upsert({
+        match_id: matchId,
+        club_id: (match as any).home_club_id,
+        goals: homeAnnotation!.goals,
+        assists: homeAnnotation!.assists,
+        mvp_player_id: homeAnnotation!.mvp_player_id,
+        starting_xi: homeAnnotation!.starting_xi,
+        substitutes_in: homeAnnotation!.substitutes_in,
+        updated_at: new Date().toISOString(),
+      } as any, { onConflict: 'match_id,club_id' })
+
+    await supabase
+      .from('match_annotations')
+      .upsert({
+        match_id: matchId,
+        club_id: (match as any).away_club_id,
+        goals: awayAnnotation!.goals,
+        assists: awayAnnotation!.assists,
+        mvp_player_id: awayAnnotation!.mvp_player_id,
+        starting_xi: awayAnnotation!.starting_xi,
+        substitutes_in: awayAnnotation!.substitutes_in,
+        updated_at: new Date().toISOString(),
+      } as any, { onConflict: 'match_id,club_id' })
+
+    const { data: newAnnotations } = await supabase
+      .from('match_annotations')
+      .select('*')
+      .eq('match_id', matchId)
+
+    if (newAnnotations && newAnnotations.length > 0) {
+      await updatePlayerStats(
+        newAnnotations as MatchAnnotation[],
+        (match as any).competition_id,
+        matchId,
+        true
+      )
+    }
+  }
+
+  // 7. Apply new standings
+  if (hasStandings) {
+    await updateStandings(match, homeScore, awayScore, competition)
+  }
+
+  // 8. Update match row
+  await (supabase.from('matches') as any)
+    .update({
+      home_score: homeScore,
+      away_score: awayScore,
+      notes,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', matchId)
+
+  return { oldHomeScore, oldAwayScore }
+}
+
+/**
  * Revert standings for a match — subtracts the delta that the old result contributed.
  * This is the exact inverse of updateStandings().
  */

@@ -3,9 +3,9 @@
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { 
+import {
   Home, Pencil, Shield, UserCog,
-  Users, Megaphone, Calendar, Award, MoreHorizontal 
+  Users, Megaphone, Calendar, Award, MoreHorizontal, Gavel
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -22,6 +22,7 @@ const mainTabs = [
 // Las opciones ocultas en "Más"
 const moreTabs = [
   { id: '/admin/broadcasting', label: 'Difusión', icon: Megaphone },
+  { id: '/admin/appeals', label: 'Apelaciones', icon: Gavel },
   { id: '/admin/seasons', label: 'Temporadas', icon: Calendar },
   { id: '/admin/trophies', label: 'Palmarés', icon: Award },
   { id: '/admin/users', label: 'Usuarios', icon: Users },

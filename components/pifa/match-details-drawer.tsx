@@ -9,7 +9,7 @@ import {
   SheetDescription 
 } from '@/components/ui/sheet'
 import { supabase } from '@/lib/supabase'
-import { Loader2, Shield, Goal, HandHelping, Star, Trophy, Calendar, Users, XCircle, ArrowRightLeft } from 'lucide-react'
+import { Loader2, Shield, Goal, HandHelping, Star, Trophy, Calendar, Users, XCircle, ArrowRightLeft, Gavel, Clock } from 'lucide-react'
 import type { Match, Club, MatchAnnotation, Player, SubstitutionEntry } from '@/lib/types'
 import { normalizeSubstitutions } from '@/lib/injury-engine'
 
@@ -17,6 +17,8 @@ interface MatchDetailsDrawerProps {
   matchId: string | null
   isOpen: boolean
   onClose: () => void
+  currentClubId?: string
+  onRequestAppeal?: () => void
 }
 
 interface MatchWithClubs extends Match {
@@ -37,13 +39,14 @@ interface SubEntry {
   clubId: string
 }
 
-export function MatchDetailsDrawer({ matchId, isOpen, onClose }: MatchDetailsDrawerProps) {
+export function MatchDetailsDrawer({ matchId, isOpen, onClose, currentClubId, onRequestAppeal }: MatchDetailsDrawerProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [match, setMatch] = useState<MatchWithClubs | null>(null)
   const [goals, setGoals] = useState<StatEntry[]>([])
   const [assists, setAssists] = useState<StatEntry[]>([])
   const [subs, setSubs] = useState<SubEntry[]>([])
   const [mvp, setMvp] = useState<{ player: Player; club: Club } | null>(null)
+  const [hasPendingAppeal, setHasPendingAppeal] = useState(false)
 
   useEffect(() => {
     if (matchId && isOpen) {
@@ -54,6 +57,7 @@ export function MatchDetailsDrawer({ matchId, isOpen, onClose }: MatchDetailsDra
       setAssists([])
       setSubs([])
       setMvp(null)
+      setHasPendingAppeal(false)
     }
   }, [matchId, isOpen])
 
@@ -158,6 +162,28 @@ export function MatchDetailsDrawer({ matchId, isOpen, onClose }: MatchDetailsDra
         const p = playersMap[mvpId]
         const club = p.club_id === m.home_club_id ? m.home_club : m.away_club
         setMvp({ player: p, club })
+      }
+
+      // 7. Check for pending appeal by the viewing club.
+      // If the query errors (e.g. RLS misconfigured) we keep the button visible —
+      // the server-side check in /api/appeals/create is the real source of truth
+      // and will return 409 if a pending appeal already exists.
+      if (currentClubId && (currentClubId === m.home_club_id || currentClubId === m.away_club_id)) {
+        const { data: appealData, error: appealErr } = await supabase
+          .from('match_appeals')
+          .select('id')
+          .eq('match_id', matchId)
+          .eq('club_id', currentClubId)
+          .eq('status', 'pending')
+          .maybeSingle()
+        if (appealErr) {
+          console.error('[MatchDetailsDrawer] pending-appeal check failed:', appealErr)
+          setHasPendingAppeal(false)
+        } else {
+          setHasPendingAppeal(!!appealData)
+        }
+      } else {
+        setHasPendingAppeal(false)
       }
 
     } catch (e) {
@@ -357,8 +383,25 @@ export function MatchDetailsDrawer({ matchId, isOpen, onClose }: MatchDetailsDra
               )}
             </div>
             
-            <div className="p-6 border-t border-white/5">
-              <button 
+            <div className="p-6 border-t border-white/5 space-y-2">
+              {currentClubId && match.status === 'finished' &&
+               (currentClubId === match.home_club_id || currentClubId === match.away_club_id) && (
+                hasPendingAppeal ? (
+                  <div className="w-full flex items-center justify-center gap-2 h-11 bg-amber-400/10 border border-amber-400/30 text-amber-400 font-black uppercase tracking-widest text-[9px] rounded-xl">
+                    <Clock className="w-3.5 h-3.5" />
+                    Apelación Pendiente
+                  </div>
+                ) : onRequestAppeal ? (
+                  <button
+                    onClick={onRequestAppeal}
+                    className="w-full flex items-center justify-center gap-2 h-11 bg-[#FF3131]/10 hover:bg-[#FF3131]/20 border border-[#FF3131]/30 text-[#FF3131] font-black uppercase tracking-widest text-[9px] rounded-xl transition-all active:scale-[0.98]"
+                  >
+                    <Gavel className="w-3.5 h-3.5" />
+                    Apelar Resultado
+                  </button>
+                ) : null
+              )}
+              <button
                 onClick={onClose}
                 className="w-full h-11 bg-white/[0.05] hover:bg-white/[0.1] text-[#6A6C6E] hover:text-white font-black uppercase tracking-widest text-[9px] rounded-xl transition-all"
               >
