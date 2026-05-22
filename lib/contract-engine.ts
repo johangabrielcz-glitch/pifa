@@ -1,6 +1,17 @@
 import { supabaseAdmin as supabase } from './supabase'
 import { Player, Club, Season } from './types'
 import { sendPushToClub, sendPushToAll } from './push-notifications'
+import { memoized, invalidate as invalidateCache } from './cache'
+
+/**
+ * Drop all season-related cached values. Call when something that affects
+ * season/transfer-window state changes (admin activated season, toggled window,
+ * etc.). Currently fired manually from places that mutate this state.
+ */
+export function invalidateSeasonCache() {
+  invalidateCache('season')
+  invalidateCache('transferWindow')
+}
 
 // =============================================
 // CONTRACT ENGINE — Salarios, Contratos, Ventana de Mercado
@@ -27,7 +38,9 @@ export function canUsePlayer(player: Player): { available: boolean; reason: stri
 }
 
 /**
- * Obtiene el estado actual de la temporada (si hay activa y si la ventana está abierta)
+ * Obtiene el estado actual de la temporada (si hay activa y si la ventana está abierta).
+ * Memoized for 5 minutes — this changes infrequently (admin actions only) and was
+ * being called dozens of times per session by the dashboard and market pages.
  */
 export async function getSeasonState(): Promise<{
   hasActiveSeason: boolean
@@ -35,37 +48,38 @@ export async function getSeasonState(): Promise<{
   transferWindowOpen: boolean
   isPreseason: boolean
 }> {
-  const { data: activeSeason } = await supabase
-    .from('seasons')
-    .select('*')
-    .eq('status', 'active')
-    .single()
+  return memoized('seasonState', async () => {
+    const { data: activeSeason } = await supabase
+      .from('seasons')
+      .select('*')
+      .eq('status', 'active')
+      .maybeSingle()
 
-  if (activeSeason) {
-    return {
-      hasActiveSeason: true,
-      activeSeason: activeSeason as Season,
-      transferWindowOpen: (activeSeason as Season).transfer_window_open ?? false,
-      isPreseason: false
+    if (activeSeason) {
+      return {
+        hasActiveSeason: true,
+        activeSeason: activeSeason as Season,
+        transferWindowOpen: (activeSeason as Season).transfer_window_open ?? false,
+        isPreseason: false
+      }
     }
-  }
 
-  // No hay temporada activa — verificar si existe alguna en draft (pretemporada)
-  const { data: draftSeasons } = await supabase
-    .from('seasons')
-    .select('*')
-    .eq('status', 'draft')
-    .order('created_at', { ascending: false })
-    .limit(1)
+    const { data: draftSeasons } = await supabase
+      .from('seasons')
+      .select('*')
+      .eq('status', 'draft')
+      .order('created_at', { ascending: false })
+      .limit(1)
 
-  const draftSeason = draftSeasons?.[0] as Season | undefined
+    const draftSeason = draftSeasons?.[0] as Season | undefined
 
-  return {
-    hasActiveSeason: false,
-    activeSeason: null,
-    transferWindowOpen: draftSeason ? draftSeason.transfer_window_open ?? false : false,
-    isPreseason: true
-  }
+    return {
+      hasActiveSeason: false,
+      activeSeason: null,
+      transferWindowOpen: draftSeason ? draftSeason.transfer_window_open ?? false : false,
+      isPreseason: true
+    }
+  })
 }
 
 /**
@@ -355,17 +369,19 @@ export async function toggleTransferWindow(seasonId: string, open: boolean): Pro
 
 /**
  * Verifica si la ventana de transferencias está abierta.
+ * Memoized for 5 minutes — same rationale as getSeasonState.
  */
 export async function isTransferWindowOpen(): Promise<boolean> {
-  // Buscar cualquier temporada (activa o draft) con ventana abierta
-  const { data } = await supabase
-    .from('seasons')
-    .select('transfer_window_open')
-    .in('status', ['active', 'draft'])
-    .eq('transfer_window_open', true)
-    .limit(1)
+  return memoized('transferWindow', async () => {
+    const { data } = await supabase
+      .from('seasons')
+      .select('transfer_window_open')
+      .in('status', ['active', 'draft'])
+      .eq('transfer_window_open', true)
+      .limit(1)
 
-  return (data && data.length > 0) ?? false
+    return (data && data.length > 0) ?? false
+  })
 }
 
 /**

@@ -72,55 +72,77 @@ export default function MarketPage() {
       const authSession = JSON.parse(sessionStr || '{}')
       if (authSession.club) setCurrentUserClub(authSession.club)
 
-      // Lanzar todas las consultas iniciales en paralelo
-      const [psRes, clbsRes, histRes, offersRes, negRes] = await Promise.all([
-        supabase.from('players').select('*, club:clubs(*)').eq('is_on_sale', true).order('sale_price', { ascending: true }),
-        supabase.from('clubs').select('*, users(full_name)').order('name', { ascending: true }),
-        supabase.from('market_history').select('*, player:players(*), from_club:clubs!from_club_fk(*), to_club:clubs!to_club_fk(*)').order('created_at', { ascending: false }).limit(20),
-        authSession.club ? supabase.from('market_offers').select('*, player:players(*), seller_club:clubs!seller_club_fk(*)').eq('buyer_club_id', authSession.club.id).order('created_at', { ascending: false }) : Promise.resolve({ data: [] }),
-        authSession.club ? supabase.from('clause_negotiations').select('*').eq('buyer_club_id', authSession.club.id) : Promise.resolve({ data: [] })
-      ])
+      // Fire all initial queries in parallel, each setting state independently
+      // so the market page becomes usable as each section's data arrives.
+      // Limits + specific selects to cap payload.
 
-      if (psRes.data) setPlayersOnSale(psRes.data)
-      if (clbsRes.data) setAllClubs(clbsRes.data)
-      if (histRes.data) setHistory(histRes.data)
-      if (offersRes.data) setMyOffers(offersRes.data)
-      if (negRes.data) setMyNegotiations(negRes.data)
+      supabase.from('players')
+        .select('id, name, position, number, photo_url, salary, club_id, is_on_sale, sale_price, release_clause, contract_status, club:clubs(id, name, shield_url)')
+        .eq('is_on_sale', true)
+        .order('sale_price', { ascending: true })
+        .limit(100)
+        .then(({ data }) => { if (data) setPlayersOnSale(data as any) })
 
-      // Fetch transfer window status
-      try {
-        const windowOpen = await isTransferWindowOpen()
-        setTransferWindowStatus(windowOpen)
-      } catch (e) {
-        setTransferWindowStatus(false)
+      supabase.from('clubs')
+        .select('id, name, shield_url, budget, users(full_name)')
+        .order('name', { ascending: true })
+        .then(({ data }) => { if (data) setAllClubs(data as any) })
+
+      supabase.from('market_history')
+        .select('*, player:players(id, name, position, photo_url), from_club:clubs!from_club_fk(id, name, shield_url), to_club:clubs!to_club_fk(id, name, shield_url)')
+        .order('created_at', { ascending: false })
+        .limit(20)
+        .then(({ data }) => { if (data) setHistory(data as any) })
+
+      if (authSession.club) {
+        supabase.from('market_offers')
+          .select('*, player:players(id, name, position, photo_url), seller_club:clubs!seller_club_fk(id, name, shield_url)')
+          .eq('buyer_club_id', authSession.club.id)
+          .order('created_at', { ascending: false })
+          .then(({ data }) => { if (data) setMyOffers(data as any) })
+
+        supabase.from('clause_negotiations')
+          .select('*')
+          .eq('buyer_club_id', authSession.club.id)
+          .then(({ data }) => { if (data) setMyNegotiations(data as any) })
       }
 
-      // Fetch free agents
-      const { data: freeAgentData } = await supabase
-        .from('players')
-        .select('*, club:clubs(*)')
+      // Transfer window status (memoized in contract-engine)
+      isTransferWindowOpen()
+        .then(setTransferWindowStatus)
+        .catch(() => setTransferWindowStatus(false))
+
+      // Free agents
+      supabase.from('players')
+        .select('id, name, position, number, photo_url, salary, club_id, contract_status, club:clubs(id, name, shield_url)')
         .eq('contract_status', 'free_agent')
         .order('name', { ascending: true })
-      if (freeAgentData) setFreeAgents(freeAgentData)
+        .limit(50)
+        .then(({ data }) => { if (data) setFreeAgents(data as any) })
 
-      // Fetch my recent releases (block re-signing)
+      // My recent releases (block re-signing within same season)
       if (authSession.club) {
-        const { data: season } = await supabase.from('seasons').select('created_at').eq('status', 'active').single()
-        if (season) {
-          const { data: releases } = await supabase
-            .from('market_history')
-            .select('player_id')
-            .eq('from_club_id', authSession.club.id)
-            .eq('type', 'release')
-            .gte('created_at', season.created_at)
-          
-          if (releases) setMyReleases(releases.map(r => r.player_id))
-        }
+        supabase.from('seasons').select('created_at').eq('status', 'active').maybeSingle()
+          .then(({ data: season }) => {
+            if (!season) return
+            return supabase
+              .from('market_history')
+              .select('player_id')
+              .eq('from_club_id', authSession.club.id)
+              .eq('type', 'release')
+              .gte('created_at', (season as any).created_at)
+          })
+          .then(res => {
+            if (res?.data) setMyReleases(res.data.map((r: any) => r.player_id))
+          })
+          .catch(() => {})
       }
 
+      // Mark loading false immediately — each section shows its own placeholder
+      // while its data is still in flight.
+      setLoading(false)
     } catch (err) {
       console.error('Error fetching market data:', err)
-    } finally {
       setLoading(false)
     }
   }

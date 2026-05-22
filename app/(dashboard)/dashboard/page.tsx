@@ -35,6 +35,7 @@ import { LatestAnnouncement } from '@/components/pifa/latest-announcement'
 import { DashboardSkeleton } from '@/components/pifa/dashboard-skeleton'
 import { ConnectionErrorScreen } from '@/components/pifa/connection-error-screen'
 import { getSeasonState, payAllSalaries } from '@/lib/contract-engine'
+import { invalidate as invalidateCache } from '@/lib/cache'
 import type { User, Club, Player, AuthSession, Competition, Match, Standing, PlayerCompetitionStats, MatchAnnotation, Season, Notification } from '@/lib/types'
 
 // Tabs grandes — lazy-loaded para reducir el bundle inicial. Cada uno se
@@ -108,7 +109,6 @@ export default function DashboardPage() {
   const [expandedCompetitions, setExpandedCompetitions] = useState<Set<string>>(new Set())
   const [statsFilter, setStatsFilter] = useState<string>('all')
   const [allTimeComps, setAllTimeComps] = useState<CompetitionFull[]>([])
-  const [allTimeMatches, setAllTimeMatches] = useState<MatchWithDetails[]>([])
   const [competitionsDetailsLoading, setCompetitionsDetailsLoading] = useState(true)
   const [squadTab, setSquadTab] = useState<'lista' | 'alineacion'>('lista')
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
@@ -302,35 +302,57 @@ export default function DashboardPage() {
         .catch(e => console.warn('[Dashboard] next match (fast path) failed:', e))
         .finally(() => setMatchResultLoading(false))
 
-      // TIER 2 (background): rest of the data. Errors here don't block the
-      // dashboard — each section shows its own skeleton until it arrives.
-      const [playersRes, allActiveCompsRes, enrolledRes, allMatchesRes, unreadRes, newsRes] = await Promise.all([
-        supabase.from('players').select('*').eq('club_id', clubId).order('position', { ascending: true }).order('number', { ascending: true }),
-        supabase.from('competitions').select('*, season:seasons!inner(*)').eq('season.status', 'active'),
-        supabase.from('competition_clubs').select('competition_id').eq('club_id', clubId),
-        supabase.from('matches').select('id, status, home_score, away_score, scheduled_date, deadline, match_order, matchday, group_name, round_name, leg, competition_id, home_club_id, away_club_id, notes, home_club:clubs!matches_home_club_id_fkey(id, name, shield_url), away_club:clubs!matches_away_club_id_fkey(id, name, shield_url), competition:competitions!inner(id, name, type, config, season:seasons!inner(id, status, name))').or(`home_club_id.eq.${clubId},away_club_id.eq.${clubId}`).order('match_order', { ascending: true }),
-        supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('club_id', clubId).eq('is_read', false),
-        supabase.from('news').select('id, title, content, emoji, category, created_at').order('created_at', { ascending: false }).limit(2)
-      ])
+      // TIER 2 (background, INDEPENDENT): each query sets its own state as soon
+      // as it resolves. No Promise.all — a slow query no longer blocks the rest
+      // of the dashboard from rendering. Errors here don't block anything.
 
-      if (playersRes.data) setPlayers(playersRes.data as Player[])
-      if (unreadRes.count && unreadRes.count > 0) setHasNewNotifications(true)
-      if (newsRes.data) setTopNews(newsRes.data)
+      // --- players (squad tab depends on this) ---
+      supabase.from('players')
+        .select('*')
+        .eq('club_id', clubId)
+        .order('position', { ascending: true }).order('number', { ascending: true })
+        .then(({ data }) => { if (data) setPlayers(data as Player[]) })
 
-      const allMatchData: MatchWithDetails[] = (allMatchesRes.data || []) as MatchWithDetails[]
-      setAllTimeMatches(allMatchData)
-      setUpcomingMatches(allMatchData.filter(m => m.competition?.season?.status === 'active'))
+      // --- unread notifications badge ---
+      supabase.from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('club_id', clubId).eq('is_read', false)
+        .then(({ count }) => { if (count && count > 0) setHasNewNotifications(true) })
 
-      // Identify which competitions the club is actually enrolled in
-      const myCompIds = new Set((enrolledRes.data || []).map((ec: any) => ec.competition_id))
+      // --- top news widget ---
+      supabase.from('news')
+        .select('id, title, content, emoji, category, created_at')
+        .order('created_at', { ascending: false }).limit(2)
+        .then(({ data }) => { if (data) setTopNews(data) })
 
-      const compsToLoad = (allActiveCompsRes.data || []) as Competition[]
+      // --- active season state (memoized in lib/contract-engine) ---
+      getSeasonState().then(seasonState => {
+        setIsPreseason(seasonState.isPreseason)
+        setTransferWindowOpen(seasonState.transferWindowOpen)
+      }).catch(e => console.warn('Error loading season state:', e))
 
-      if (compsToLoad.length > 0) {
-        // First pass: render competitions immediately with empty
-        // standings/playerStats. Matches come from allMatchData locally.
-        // The home tab only needs metadata to render; standings/stats are
-        // for the Competencias / Stats tabs and are filled in below.
+      // --- competitions + enrolled + matches (active season only) ---
+      // These three together build the `competitions` array used by the home
+      // tab badge ("Mis competencias") and the Competencias tab. We need them
+      // together but they resolve independently of players/news/etc.
+      const compsP = supabase.from('competitions')
+        .select('*, season:seasons!inner(*)')
+        .eq('season.status', 'active')
+      const enrolledP = supabase.from('competition_clubs')
+        .select('competition_id').eq('club_id', clubId)
+      const activeMatchesP = supabase.from('matches')
+        .select('id, status, home_score, away_score, scheduled_date, deadline, match_order, matchday, group_name, round_name, leg, competition_id, home_club_id, away_club_id, notes, home_club:clubs!matches_home_club_id_fkey(id, name, shield_url), away_club:clubs!matches_away_club_id_fkey(id, name, shield_url), competition:competitions!inner(id, name, type, config, season:seasons!inner(id, status, name))')
+        .or(`home_club_id.eq.${clubId},away_club_id.eq.${clubId}`)
+        .eq('competition.season.status', 'active')
+        .order('match_order', { ascending: true })
+
+      Promise.all([compsP, enrolledP, activeMatchesP]).then(([allActiveCompsRes, enrolledRes, allMatchesRes]) => {
+        const allMatchData: MatchWithDetails[] = (allMatchesRes.data || []) as MatchWithDetails[]
+        setUpcomingMatches(allMatchData)
+
+        const myCompIds = new Set((enrolledRes.data || []).map((ec: any) => ec.competition_id))
+        const compsToLoad = (allActiveCompsRes.data || []) as Competition[]
+
         const buildCompFull = (comp: any, standings: any[] = [], stats: any[] = []): CompetitionFull => {
           const compMatches = allMatchData.filter((m: any) => m.competition_id === comp.id)
           const sortedStandings = [...standings].sort((a: any, b: any) => {
@@ -357,6 +379,11 @@ export default function DashboardPage() {
           return bMine - aMine
         }
 
+        if (compsToLoad.length === 0) {
+          setCompetitionsDetailsLoading(false)
+          return
+        }
+
         const initialActive: CompetitionFull[] = []
         const initialAllTime: CompetitionFull[] = []
         for (const comp of compsToLoad as any[]) {
@@ -375,8 +402,7 @@ export default function DashboardPage() {
         }
 
         // TIER 3 (deferred, doesn't block first paint): standings +
-        // per-player stats for active competitions. Section-level skeletons
-        // in components/pifa/standings-table.tsx etc. cover the gap.
+        // per-player stats for active competitions.
         const compIds = compsToLoad.map((c: any) => c.id)
         setCompetitionsDetailsLoading(true)
         Promise.all([
@@ -400,9 +426,10 @@ export default function DashboardPage() {
         }).finally(() => {
           setCompetitionsDetailsLoading(false)
         })
-      } else {
+      }).catch(e => {
+        console.warn('[Dashboard] competitions+matches fetch failed:', e)
         setCompetitionsDetailsLoading(false)
-      }
+      })
 
       // Non-blocking — fire and forget
       const lastResolveCall = sessionStorage.getItem('lastResolveCall')
@@ -415,14 +442,6 @@ export default function DashboardPage() {
       const token = localStorage.getItem('expoPushToken')
       if (token) {
         syncPushToken(session.user.id, session.user.full_name, 'login')
-      }
-
-      try {
-        const seasonState = await getSeasonState()
-        setIsPreseason(seasonState.isPreseason)
-        setTransferWindowOpen(seasonState.transferWindowOpen)
-      } catch (e) {
-        console.warn('Error loading season state:', e)
       }
     } catch (e) {
       console.error('Error refreshing background data:', e)
@@ -453,6 +472,7 @@ export default function DashboardPage() {
     if (user) {
       await syncPushToken(user.id, user.full_name, 'logout')
     }
+    invalidateCache()
     localStorage.removeItem('pifa_auth_session')
     toast.success('Sesión cerrada correctamente')
     router.replace('/login')
@@ -502,8 +522,10 @@ export default function DashboardPage() {
     return 'D'
   }
 
-  // Computed stats from real matches data
-  const finishedMatches = allTimeMatches.filter(m => m.status === 'finished' && m.home_score !== null && m.away_score !== null)
+  // Computed stats from real matches data. upcomingMatches now contains all matches
+  // of the active season (the historical archive is only loaded on demand by
+  // components that actually need it, e.g. Hall of Fame's own fetch).
+  const finishedMatches = upcomingMatches.filter(m => m.status === 'finished' && m.home_score !== null && m.away_score !== null)
   
   let clubWins = 0
   let clubLosses = 0

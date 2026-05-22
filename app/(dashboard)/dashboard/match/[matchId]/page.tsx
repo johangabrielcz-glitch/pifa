@@ -70,77 +70,72 @@ export default function MatchAnnotationPage({ params }: { params: Promise<{ matc
     const userClubId = session.user.club_id
     setClubId(userClubId)
 
-    // Load match
-    const { data: matchData, error } = await supabase
+    // Fire the four independent queries in parallel.
+    // (match, my players, club default lineup, annotations).
+    // The "all match players" query depends on match.home/away_club_id and
+    // is fired right after match resolves.
+    const matchP = supabase
       .from('matches')
-      .select(`
-        *,
-        home_club:clubs!matches_home_club_id_fkey(*),
-        away_club:clubs!matches_away_club_id_fkey(*),
-        competition:competitions(*)
-      `)
+      .select('id, status, home_score, away_score, scheduled_date, deadline, matchday, group_name, round_name, leg, competition_id, home_club_id, away_club_id, notes, home_club:clubs!matches_home_club_id_fkey(id, name, shield_url), away_club:clubs!matches_away_club_id_fkey(id, name, shield_url), competition:competitions(id, name, type, config)')
       .eq('id', matchId)
       .single()
 
-    if (error || !matchData) {
-      toast.error('Partido no encontrado')
-      router.back()
-      return
-    }
-
-    const mData = matchData as any
-
-    setMatch(mData)
-    setMatchFinished(mData.status === 'finished')
-
-    // Load my players
-    const { data: players } = await supabase
+    const myPlayersP = supabase
       .from('players')
       .select('*')
       .eq('club_id', userClubId)
-      .order('position')
-      .order('number')
+      .order('position').order('number')
 
-    if (players) setMyPlayers(players)
-
-    // Load all players from both teams (for MVP selection)
-    const bothClubIds = [mData.home_club_id, mData.away_club_id].filter(Boolean)
-    const { data: allPlayers } = await supabase
-      .from('players')
-      .select('*')
-      .in('club_id', bothClubIds)
-      .order('club_id')
-      .order('name')
-
-    if (allPlayers) setAllMatchPlayers(allPlayers)
-
-    // Load club's default lineup to pre-fill startingXi
-    const { data: clubData } = await supabase
+    const clubLineupP = supabase
       .from('clubs')
       .select('default_lineup')
       .eq('id', userClubId)
       .single()
 
-    const defLineup = (clubData as any)?.default_lineup
+    const annotationsP = supabase
+      .from('match_annotations')
+      .select('*')
+      .eq('match_id', matchId)
+
+    const [matchRes, playersRes, clubRes, annRes] = await Promise.all([
+      matchP, myPlayersP, clubLineupP, annotationsP
+    ])
+
+    if (matchRes.error || !matchRes.data) {
+      toast.error('Partido no encontrado')
+      router.back()
+      return
+    }
+    const mData = matchRes.data as any
+    setMatch(mData)
+    setMatchFinished(mData.status === 'finished')
+
+    const players = playersRes.data as Player[] | null
+    if (players) setMyPlayers(players)
+
+    // Fire the opponent-players fetch in background; it's only needed for the MVP
+    // selector which is rarely the first thing the DT interacts with.
+    const bothClubIds = [mData.home_club_id, mData.away_club_id].filter(Boolean)
+    supabase
+      .from('players')
+      .select('id, name, position, number, photo_url, club_id')
+      .in('club_id', bothClubIds)
+      .order('club_id').order('name')
+      .then(({ data }) => { if (data) setAllMatchPlayers(data as any) })
+
+    const defLineup = (clubRes.data as any)?.default_lineup
     if (defLineup?.players) {
       const initial11 = Object.values(defLineup.players).filter(Boolean) as string[]
-      
-      // FILTRO ANALÍTICO: Solo incluimos a los jugadores DISPONIBLES del 11 ideal
       const availableInitial11 = initial11.filter(id => {
         const p = (players as Player[])?.find(player => player.id === id)
         if (!p) return false
         const isUnavailable = (p.injury_matches_left ?? 0) > 0 || (p.red_card_matches_left ?? 0) > 0 || !canUsePlayer(p).available || (p.stamina ?? 100) <= 20
         return !isUnavailable
       })
-      
       setStartingXi(availableInitial11)
     }
 
-    // Load existing annotations
-    const { data: annotations } = await supabase
-      .from('match_annotations')
-      .select('*')
-      .eq('match_id', matchId)
+    const annotations = annRes.data
 
     if (annotations) {
       const mine = annotations.find((a: MatchAnnotation) => a.club_id === userClubId)
