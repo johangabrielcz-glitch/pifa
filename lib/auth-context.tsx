@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import type { User, Club, AuthSession } from './types'
+import { invalidate as invalidateCache } from './cache'
 
 interface AuthContextType {
   user: User | null
@@ -45,6 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = () => {
+    invalidateCache()
     localStorage.removeItem(AUTH_STORAGE_KEY)
     setUser(null)
     setClub(null)
