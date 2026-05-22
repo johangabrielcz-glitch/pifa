@@ -77,6 +77,11 @@ export interface Database {
         Insert: UserPushTokenInsert
         Update: UserPushTokenUpdate
       }
+      match_appeals: {
+        Row: MatchAppeal
+        Insert: MatchAppealInsert
+        Update: Partial<MatchAppeal>
+      }
     }
   }
 }
@@ -278,6 +283,9 @@ export type NotificationType =
   | 'player_unhappy'
   | 'player_seeking_transfer'
   | 'season_active'
+  | 'appeal_accepted'
+  | 'appeal_rejected'
+  | 'appeal_resolved'
 
 export interface MarketOffer {
   id: string
@@ -368,6 +376,62 @@ export interface MarketHistoryInsert {
   to_club_id?: string | null
   amount: number
   type?: string
+}
+
+// =============================================
+// MATCH APPEALS TYPES
+// =============================================
+
+export type MatchAppealStatus = 'pending' | 'accepted' | 'rejected'
+
+export interface AppealAnnotationPayload {
+  goals: GoalEntry[]
+  assists: AssistEntry[]
+  mvp_player_id: string | null
+  starting_xi: string[]
+  substitutes_in: SubstitutionEntry[] | string[]
+}
+
+export interface MatchAppeal {
+  id: string
+  match_id: string
+  club_id: string
+  submitted_by: string | null
+  original_home_score: number
+  original_away_score: number
+  original_home_annotation: AppealAnnotationPayload | null
+  original_away_annotation: AppealAnnotationPayload | null
+  proposed_home_score: number
+  proposed_away_score: number
+  proposed_home_annotation: AppealAnnotationPayload
+  proposed_away_annotation: AppealAnnotationPayload
+  reason: string
+  status: MatchAppealStatus
+  admin_notes: string | null
+  resolved_by: string | null
+  resolved_at: string | null
+  created_at: string
+  updated_at: string
+  // Relations
+  match?: Match & { home_club?: Club; away_club?: Club; competition?: Competition }
+  club?: Club
+}
+
+export interface MatchAppealInsert {
+  id?: string
+  match_id: string
+  club_id: string
+  submitted_by?: string | null
+  original_home_score: number
+  original_away_score: number
+  original_home_annotation?: AppealAnnotationPayload | null
+  original_away_annotation?: AppealAnnotationPayload | null
+  proposed_home_score: number
+  proposed_away_score: number
+  proposed_home_annotation: AppealAnnotationPayload
+  proposed_away_annotation: AppealAnnotationPayload
+  reason: string
+  status?: MatchAppealStatus
 }
 
 // =============================================

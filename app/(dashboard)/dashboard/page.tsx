@@ -27,6 +27,7 @@ import { PitchLineup, LineupData } from '@/components/pifa/pitch-lineup'
 import { NotificationsDrawer } from '@/components/pifa/notifications-drawer'
 import { Bell, LayoutGrid } from 'lucide-react'
 import { MatchDetailsDrawer } from '@/components/pifa/match-details-drawer'
+import { MatchAppealDrawer } from '@/components/pifa/match-appeal-drawer'
 import { PlayerManagementDialog } from '@/components/pifa/player-management-dialog'
 import MarketPage from './market/page'
 import { NewsTab } from '@/components/pifa/news-tab'
@@ -99,6 +100,8 @@ export default function DashboardPage() {
   const [compSubTabs, setCompSubTabs] = useState<Record<string, 'standings' | 'calendar'>>({})
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null)
   const [isMatchDetailsOpen, setIsMatchDetailsOpen] = useState(false)
+  const [appealMatchId, setAppealMatchId] = useState<string | null>(null)
+  const [isAppealOpen, setIsAppealOpen] = useState(false)
   const [selectedRounds, setSelectedRounds] = useState<Record<string, string>>({})
   const [calendarPage, setCalendarPage] = useState(0)
   const [scorersPage, setScorersPage] = useState(0)
@@ -1728,13 +1731,32 @@ export default function DashboardPage() {
         onActionComplete={refreshData}
       />
 
-      <MatchDetailsDrawer 
+      <MatchDetailsDrawer
         matchId={selectedMatchId}
         isOpen={isMatchDetailsOpen}
         onClose={() => {
           setIsMatchDetailsOpen(false)
           setSelectedMatchId(null)
         }}
+        currentClubId={club?.id}
+        onRequestAppeal={() => {
+          if (!selectedMatchId) return
+          setAppealMatchId(selectedMatchId)
+          setIsMatchDetailsOpen(false)
+          setIsAppealOpen(true)
+        }}
+      />
+
+      <MatchAppealDrawer
+        isOpen={isAppealOpen}
+        onClose={() => {
+          setIsAppealOpen(false)
+          setAppealMatchId(null)
+        }}
+        matchId={appealMatchId}
+        currentClubId={club?.id || ''}
+        userId={user?.id || null}
+        onSubmitted={refreshData}
       />
 
       <PlayerManagementDialog 
@@ -1750,7 +1772,7 @@ export default function DashboardPage() {
       />
 
       {/* Bottom Navigation */}
-      {!isNotificationsOpen && !isMatchDetailsOpen && !selectedManagePlayer && activeTab !== 'chat' && (
+      {!isNotificationsOpen && !isMatchDetailsOpen && !isAppealOpen && !selectedManagePlayer && activeTab !== 'chat' && (
         <DtNavigation
           activeTab={activeTab}
           onTabChange={setActiveTab}
