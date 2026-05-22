@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   Home, Pencil, Shield, UserCog,
-  Users, Megaphone, Calendar, Award, MoreHorizontal, Gavel
+  Users, Megaphone, Calendar, Award, MoreHorizontal, Gavel, ArrowLeftRight
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -22,6 +22,7 @@ const mainTabs = [
 // Las opciones ocultas en "Más"
 const moreTabs = [
   { id: '/admin/broadcasting', label: 'Difusión', icon: Megaphone },
+  { id: '/admin/transfers', label: 'Traspasos', icon: ArrowLeftRight },
   { id: '/admin/appeals', label: 'Apelaciones', icon: Gavel },
   { id: '/admin/seasons', label: 'Temporadas', icon: Calendar },
   { id: '/admin/trophies', label: 'Palmarés', icon: Award },

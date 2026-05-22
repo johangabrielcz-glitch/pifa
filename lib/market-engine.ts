@@ -703,3 +703,66 @@ export async function firePlayer(playerId: string, clubId: string): Promise<{ su
     return { success: false, error: err.message || 'Error desconocido al despedir al jugador' }
   }
 }
+
+/**
+ * Operación administrativa: mueve un jugador a un club (o lo resetea en su club actual)
+ * dejándolo "limpio": morale/stamina al 100, sin lesiones/rojas, sin ofertas pendientes,
+ * sin negociaciones de cláusula, sin emails del club anterior, salario marcado como pagado.
+ *
+ * Gratis (sin tocar saldos), silenciosa (sin push ni notifs ni news ni market_history).
+ * Si el jugador era free agent, además recibe contrato fresco con defaults (3 temp / 25k / rotation).
+ */
+export async function adminTransferPlayer(
+  playerId: string,
+  toClubId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { data: player } = await supabase
+      .from('players')
+      .select('id, club_id, contract_status, name')
+      .eq('id', playerId)
+      .single()
+    if (!player) return { success: false, error: 'Jugador no encontrado' }
+
+    const { data: club } = await supabase.from('clubs').select('id').eq('id', toClubId).single()
+    if (!club) return { success: false, error: 'Club destino no encontrado' }
+
+    const wasFreeAgent = (player as any).contract_status === 'free_agent'
+
+    const updates: any = {
+      club_id: toClubId,
+      morale: 100,
+      stamina: 100,
+      injury_matches_left: 0,
+      injury_reason: null,
+      red_card_matches_left: 0,
+      red_card_reason: null,
+      wants_to_leave: false,
+      is_on_sale: false,
+      sale_price: null,
+      salary_paid_this_season: true,
+      contract_status: 'active',
+      updated_at: new Date().toISOString()
+    }
+    if (wasFreeAgent) {
+      updates.contract_seasons_left = 3
+      updates.salary = 25000
+      updates.squad_role = 'rotation'
+    }
+
+    await Promise.all([
+      supabase.from('players').update(updates).eq('id', playerId),
+      supabase.from('market_offers')
+        .update({ status: 'cancelled' })
+        .eq('player_id', playerId)
+        .eq('status', 'pending'),
+      supabase.from('clause_negotiations').delete().eq('player_id', playerId),
+      supabase.from('player_emails').delete().eq('player_id', playerId),
+    ])
+
+    return { success: true }
+  } catch (err: any) {
+    console.error('Error in adminTransferPlayer:', err)
+    return { success: false, error: err.message || 'Error desconocido al transferir' }
+  }
+}
