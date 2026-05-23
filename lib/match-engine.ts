@@ -1959,3 +1959,197 @@ export async function revertPlayerStats(
     }
   }
 }
+
+/**
+ * Revierte un partido finalizado a estado `postponed`, restaurando standings
+ * y player stats al estado previo. Borra match_annotations. NO toca morale,
+ * fatiga, lesiones ni rojas (esos efectos no se rastrean por match).
+ * Si es K.O., limpia el slot del siguiente match del bracket; si el siguiente
+ * ya estaba finished, lo revierte también de forma recursiva.
+ */
+export async function revertFinishedMatch(
+  matchId: string,
+  opts: { _depth?: number } = {}
+): Promise<{ matchId: string; cascadedMatchIds: string[] }> {
+  const depth = opts._depth ?? 0
+  if (depth > 6) {
+    throw new Error('Cascada de reversión excede límite (6 niveles)')
+  }
+
+  // 1. Cargar match + competition
+  const { data: matchData } = await supabase
+    .from('matches')
+    .select('*, competition:competitions(*)')
+    .eq('id', matchId)
+    .single() as any
+  if (!matchData) throw new Error('Partido no encontrado')
+
+  const match = matchData as Match & { competition: Competition }
+  if (match.status !== 'finished') {
+    throw new Error('Solo se pueden aplazar partidos finalizados')
+  }
+
+  const competition = match.competition
+  const oldHomeScore = match.home_score ?? 0
+  const oldAwayScore = match.away_score ?? 0
+  const cascadedMatchIds: string[] = []
+
+  // 2. Detectar tipo de competición
+  const isGroupStage = (match as any).group_name !== null
+  const hasStandings = competition.type === 'league' ||
+    (competition.type === 'groups_knockout' && isGroupStage)
+  const isKnockout = competition.type === 'cup' ||
+    (competition.type === 'groups_knockout' && !isGroupStage)
+
+  // 3. CASCADA K.O. — revertir dependientes ANTES de tocar standings/stats locales
+  if (isKnockout && (match as any).home_club_id && (match as any).away_club_id) {
+    const config = competition.config as CupConfig | GroupsKnockoutConfig
+    const totalLegs = 'legs' in config ? config.legs
+      : ('knockout_legs' in config ? config.knockout_legs : 1)
+
+    const homeId = (match as any).home_club_id
+    const awayId = (match as any).away_club_id
+
+    // 3a. Two-leg: si este es leg 1 y leg 2 ya está finished, revertir leg 2 primero
+    if (totalLegs === 2 && match.leg === 1) {
+      const { data: leg2Matches } = await supabase
+        .from('matches')
+        .select('*')
+        .eq('competition_id', (match as any).competition_id)
+        .eq('leg', 2)
+        .eq('status', 'finished')
+        .or(
+          `and(home_club_id.eq.${homeId},away_club_id.eq.${awayId}),` +
+          `and(home_club_id.eq.${awayId},away_club_id.eq.${homeId})`
+        )
+      const leg2 = (leg2Matches as any[] | null)?.[0]
+      if (leg2) {
+        const sub = await revertFinishedMatch(leg2.id, { _depth: depth + 1 })
+        cascadedMatchIds.push(leg2.id, ...sub.cascadedMatchIds)
+      }
+    }
+
+    // 3b. Solo el partido que avanzó al siguiente (leg 1 single-leg, leg 2 two-leg)
+    //     limpia el slot del siguiente match. Mismo patrón que advanceWinner.
+    const triggersAdvance = totalLegs === 1 || (totalLegs === 2 && match.leg === 2)
+    if (triggersAdvance) {
+      const currentMatchday = match.matchday ?? 1
+
+      const { data: currentRoundMatches } = await supabase
+        .from('matches')
+        .select('*')
+        .eq('competition_id', (match as any).competition_id)
+        .eq('matchday', currentMatchday)
+        .eq('leg', 1)
+        .order('match_order', { ascending: true })
+
+      const matchIndex = (currentRoundMatches as any[] | null)?.findIndex(m =>
+        m.id === match.id ||
+        (m.home_club_id === homeId && m.away_club_id === awayId) ||
+        (m.home_club_id === awayId && m.away_club_id === homeId)
+      ) ?? -1
+
+      if (matchIndex >= 0) {
+        const nextMatchIndex = Math.floor(matchIndex / 2)
+        const nextMatchday = currentMatchday + 1
+
+        const { data: nextLeg1 } = await supabase
+          .from('matches')
+          .select('*')
+          .eq('competition_id', (match as any).competition_id)
+          .eq('matchday', nextMatchday)
+          .eq('leg', 1)
+          .order('match_order', { ascending: true })
+        const target1 = (nextLeg1 as any[] | null)?.[nextMatchIndex]
+
+        if (target1) {
+          // Si el siguiente ya estaba finished → cascada recursiva
+          if (target1.status === 'finished') {
+            const sub = await revertFinishedMatch(target1.id, { _depth: depth + 1 })
+            cascadedMatchIds.push(target1.id, ...sub.cascadedMatchIds)
+          }
+
+          // Releer estado del target tras la posible cascada
+          const { data: target1Fresh } = await supabase
+            .from('matches').select('*').eq('id', target1.id).single() as any
+          if (target1Fresh) {
+            const cleanup: any = { updated_at: new Date().toISOString() }
+            if (target1Fresh.home_club_id === homeId || target1Fresh.home_club_id === awayId) {
+              cleanup.home_club_id = null
+            }
+            if (target1Fresh.away_club_id === homeId || target1Fresh.away_club_id === awayId) {
+              cleanup.away_club_id = null
+            }
+            if (cleanup.home_club_id !== undefined || cleanup.away_club_id !== undefined) {
+              await (supabase.from('matches') as any).update(cleanup).eq('id', target1.id)
+            }
+          }
+
+          // Two-leg: también limpiar leg 2 del siguiente match (mismo nextMatchIndex)
+          if (totalLegs === 2) {
+            const { data: nextLeg2 } = await supabase
+              .from('matches')
+              .select('*')
+              .eq('competition_id', (match as any).competition_id)
+              .eq('matchday', nextMatchday)
+              .eq('leg', 2)
+              .order('match_order', { ascending: true })
+            const target2 = (nextLeg2 as any[] | null)?.[nextMatchIndex]
+            if (target2) {
+              if (target2.status === 'finished') {
+                const sub = await revertFinishedMatch(target2.id, { _depth: depth + 1 })
+                cascadedMatchIds.push(target2.id, ...sub.cascadedMatchIds)
+              }
+              const { data: target2Fresh } = await supabase
+                .from('matches').select('*').eq('id', target2.id).single() as any
+              if (target2Fresh) {
+                const cleanup2: any = { updated_at: new Date().toISOString() }
+                if (target2Fresh.home_club_id === homeId || target2Fresh.home_club_id === awayId) {
+                  cleanup2.home_club_id = null
+                }
+                if (target2Fresh.away_club_id === homeId || target2Fresh.away_club_id === awayId) {
+                  cleanup2.away_club_id = null
+                }
+                if (cleanup2.home_club_id !== undefined || cleanup2.away_club_id !== undefined) {
+                  await (supabase.from('matches') as any).update(cleanup2).eq('id', target2.id)
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // 4. Revert standings + stats locales
+  const { data: oldAnnotations } = await supabase
+    .from('match_annotations')
+    .select('*')
+    .eq('match_id', matchId)
+  const oldList = (oldAnnotations || []) as MatchAnnotation[]
+
+  if (hasStandings) {
+    await revertStandings(match, oldHomeScore, oldAwayScore, competition)
+  }
+  if (oldList.length > 0) {
+    await revertPlayerStats(oldList, (match as any).competition_id)
+  }
+
+  // 5. Borrar annotations
+  await supabase.from('match_annotations').delete().eq('match_id', matchId)
+
+  // 6. Resetear match a postponed
+  await (supabase.from('matches') as any)
+    .update({
+      status: 'postponed',
+      home_score: null,
+      away_score: null,
+      played_at: null,
+      notes: null,
+      deadline: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', matchId)
+
+  return { matchId, cascadedMatchIds }
+}

@@ -11,6 +11,7 @@ import {
   Pencil,
   Check,
   CheckCircle,
+  RotateCcw,
   Trophy,
   Swords,
   Users,
@@ -20,6 +21,16 @@ import {
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
 import type { Competition, Match, Club, Player, GoalEntry, AssistEntry, MatchAnnotation } from '@/lib/types'
@@ -67,6 +78,10 @@ export default function AdminMatchesPage() {
   const [koAwayClubId, setKoAwayClubId] = useState<string>('')
   const [allClubs, setAllClubs] = useState<Club[]>([])
   const [savingClubs, setSavingClubs] = useState(false)
+
+  // Revert (postpone-from-finished) confirmation
+  const [revertConfirm, setRevertConfirm] = useState<MatchWithClubs | null>(null)
+  const [isReverting, setIsReverting] = useState(false)
 
   // Load competitions
   useEffect(() => {
@@ -281,6 +296,34 @@ export default function AdminMatchesPage() {
     }
   }
 
+  async function handleRevert() {
+    if (!revertConfirm) return
+    setIsReverting(true)
+    try {
+      const res = await fetch('/api/admin/revert-match', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matchId: revertConfirm.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error || 'Error al revertir')
+        return
+      }
+      toast.success(
+        (data.cascadedCount ?? 0) > 0
+          ? `Partido revertido (+ ${data.cascadedCount} en cascada del bracket)`
+          : 'Partido revertido y aplazado'
+      )
+      setRevertConfirm(null)
+      fetchMatches(matchPage)
+    } catch {
+      toast.error('Error de conexión')
+    } finally {
+      setIsReverting(false)
+    }
+  }
+
   const totalPages = Math.max(1, Math.ceil(totalMatches / PAGE_SIZE))
   const selectedComp = competitions.find(c => c.id === selectedCompId)
 
@@ -486,13 +529,22 @@ export default function AdminMatchesPage() {
                     {/* Action buttons */}
                     <div className="flex justify-center gap-2 mt-2.5">
                       {match.status === 'finished' && (
-                        <button
-                          onClick={() => openEditModal(match)}
-                          className="flex items-center gap-2 px-4 py-2 bg-[#FF3131]/10 hover:bg-[#FF3131]/20 border border-[#FF3131]/20 rounded-xl text-[8px] font-black text-[#FF3131] uppercase tracking-widest transition-all"
-                        >
-                          <Pencil className="w-3 h-3" />
-                          Editar Resultado
-                        </button>
+                        <>
+                          <button
+                            onClick={() => openEditModal(match)}
+                            className="flex items-center gap-2 px-4 py-2 bg-[#FF3131]/10 hover:bg-[#FF3131]/20 border border-[#FF3131]/20 rounded-xl text-[8px] font-black text-[#FF3131] uppercase tracking-widest transition-all"
+                          >
+                            <Pencil className="w-3 h-3" />
+                            Editar Resultado
+                          </button>
+                          <button
+                            onClick={() => setRevertConfirm(match)}
+                            className="flex items-center gap-2 px-4 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-500/40 rounded-xl text-[8px] font-black text-red-300 uppercase tracking-widest transition-all"
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                            Revertir y Aplazar
+                          </button>
+                        </>
                       )}
                       {match.status === 'scheduled' && (
                         <>
@@ -542,14 +594,23 @@ export default function AdminMatchesPage() {
                         </>
                       )}
                       {match.status === 'postponed' && (
-                        <button
-                          disabled={!match.home_club_id || !match.away_club_id}
-                          onClick={() => openFinalizeModal(match)}
-                          className="flex items-center gap-2 px-4 py-2 bg-[#FF3131]/10 hover:bg-[#FF3131]/20 border border-[#FF3131]/20 rounded-xl text-[8px] font-black text-[#FF3131] uppercase tracking-widest transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                        >
-                          <CheckCircle className="w-3 h-3" />
-                          Finalizar Manualmente
-                        </button>
+                        <>
+                          <button
+                            onClick={() => openClubEditModal(match)}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 rounded-xl text-[8px] font-black text-blue-400 uppercase tracking-widest transition-all"
+                          >
+                            <Users className="w-3 h-3" />
+                            Editar Clubs
+                          </button>
+                          <button
+                            disabled={!match.home_club_id || !match.away_club_id}
+                            onClick={() => openFinalizeModal(match)}
+                            className="flex items-center gap-2 px-4 py-2 bg-[#FF3131]/10 hover:bg-[#FF3131]/20 border border-[#FF3131]/20 rounded-xl text-[8px] font-black text-[#FF3131] uppercase tracking-widest transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                          >
+                            <CheckCircle className="w-3 h-3" />
+                            Finalizar Manualmente
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -726,6 +787,56 @@ export default function AdminMatchesPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Revert (postpone-from-finished) confirmation */}
+      <AlertDialog open={!!revertConfirm} onOpenChange={(open) => { if (!open && !isReverting) setRevertConfirm(null) }}>
+        <AlertDialogContent className="bg-[#0F0F0F] border-white/[0.08]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white uppercase tracking-tighter">
+              Revertir y aplazar partido
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-[#6A6C6E] text-xs leading-relaxed">
+              {revertConfirm && (
+                <>
+                  <div className="text-white font-black text-sm mt-2 mb-3">
+                    {revertConfirm.home_club?.name} {revertConfirm.home_score ?? 0}
+                    {' – '}
+                    {revertConfirm.away_score ?? 0} {revertConfirm.away_club?.name}
+                  </div>
+                  Esto revertirá el resultado, restaurará la tabla y las estadísticas
+                  de jugadores, y dejará el partido aplazado para que ambos DTs lo
+                  anoten de nuevo.
+                  <br />
+                  <br />
+                  Las anotaciones se borrarán. La moral, lesiones y fatiga de los
+                  jugadores <span className="text-red-300 font-bold">no se revertirán</span>
+                  {' '}(esos datos no se rastrean por partido).
+                  <br />
+                  <br />
+                  <span className="text-[#FF3131] text-[10px] font-black uppercase tracking-widest">
+                    Si es K.O. y la siguiente ronda ya se jugó, también se aplazará automáticamente.
+                  </span>
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              disabled={isReverting}
+              className="bg-[#141414] border-[#202020] text-white hover:bg-[#1A1A1A]"
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isReverting}
+              onClick={(e) => { e.preventDefault(); handleRevert() }}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {isReverting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Revertir partido'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
