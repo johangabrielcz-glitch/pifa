@@ -342,7 +342,6 @@ export default function DashboardPage() {
         .select('competition_id').eq('club_id', clubId)
       const activeMatchesP = supabase.from('matches')
         .select('id, status, home_score, away_score, scheduled_date, deadline, match_order, matchday, group_name, round_name, leg, competition_id, home_club_id, away_club_id, notes, home_club:clubs!matches_home_club_id_fkey(id, name, shield_url), away_club:clubs!matches_away_club_id_fkey(id, name, shield_url), competition:competitions!inner(id, name, type, config, season:seasons!inner(id, status, name))')
-        .or(`home_club_id.eq.${clubId},away_club_id.eq.${clubId}`)
         .eq('competition.season.status', 'active')
         .order('match_order', { ascending: true })
 
@@ -508,9 +507,16 @@ export default function DashboardPage() {
     setClub({ ...club, default_lineup: lineupData })
   }
 
+  // upcomingMatches contains ALL matches of active competitions (for the
+  // Competencias tab calendar). For the user's own dashboard views (calendar
+  // tab, recent results, win rate, etc.) we derive `myMatches` filtered by club.
+  const myMatches = club
+    ? upcomingMatches.filter(m => m.home_club_id === club.id || m.away_club_id === club.id)
+    : []
+
   const filteredMatches = filterCompetition === 'all'
-    ? upcomingMatches
-    : upcomingMatches.filter(m => m.competition_id === filterCompetition)
+    ? myMatches
+    : myMatches.filter(m => m.competition_id === filterCompetition)
 
   const getMatchResult = (match: Match) => {
     if (match.status !== 'finished' || match.home_score === null || match.away_score === null) return null
@@ -522,10 +528,9 @@ export default function DashboardPage() {
     return 'D'
   }
 
-  // Computed stats from real matches data. upcomingMatches now contains all matches
-  // of the active season (the historical archive is only loaded on demand by
-  // components that actually need it, e.g. Hall of Fame's own fetch).
-  const finishedMatches = upcomingMatches.filter(m => m.status === 'finished' && m.home_score !== null && m.away_score !== null)
+  // Stats from the user's matches in the active season (historical archive
+  // is loaded on demand by Hall of Fame's own fetch).
+  const finishedMatches = myMatches.filter(m => m.status === 'finished' && m.home_score !== null && m.away_score !== null)
   
   let clubWins = 0
   let clubLosses = 0
@@ -550,7 +555,7 @@ export default function DashboardPage() {
   // Win rate percentage
   const winRate = totalMatches > 0 ? Math.round((clubWins / totalMatches) * 100) : 0
 
-  const recentResults = upcomingMatches.filter(m => m.status === 'finished').slice(-5).reverse()
+  const recentResults = myMatches.filter(m => m.status === 'finished').slice(-5).reverse()
 
   if (clubLoadState === 'loading') {
     return <DashboardSkeleton />
