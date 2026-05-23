@@ -1678,6 +1678,131 @@ export async function applyMatchEdit(opts: {
 }
 
 /**
+ * Finaliza manualmente un partido que aún no se jugó (status='scheduled' o 'postponed').
+ * Aplica standings + player stats + K.O. advancement. NO corre cascada de
+ * morale, fatiga, lesiones, suspensions, recovery, red cards, ni dispara news/push.
+ * Marca status='finished' y notes='[ADMIN-FINALIZED][STATS-DONE]' para auditoría.
+ */
+export async function finalizePendingMatch(opts: {
+  matchId: string
+  homeScore: number
+  awayScore: number
+  homeAnnotation: {
+    goals: GoalEntry[]
+    assists: AssistEntry[]
+    mvp_player_id: string | null
+    starting_xi: string[]
+    substitutes_in: any[]
+  }
+  awayAnnotation: {
+    goals: GoalEntry[]
+    assists: AssistEntry[]
+    mvp_player_id: string | null
+    starting_xi: string[]
+    substitutes_in: any[]
+  }
+}): Promise<{ matchId: string }> {
+  const { matchId, homeScore, awayScore, homeAnnotation, awayAnnotation } = opts
+
+  if (homeScore < 0 || awayScore < 0) {
+    throw new Error('Los scores no pueden ser negativos')
+  }
+
+  // 1. Cargar match + competition
+  const { data: matchData } = await supabase
+    .from('matches')
+    .select('*, competition:competitions(*)')
+    .eq('id', matchId)
+    .single() as any
+  if (!matchData) throw new Error('Partido no encontrado')
+
+  const match = matchData as Match & { competition: Competition }
+  if (match.status === 'finished') {
+    throw new Error('Este partido ya está finalizado; usá Editar Resultado.')
+  }
+  if (!(match as any).home_club_id || !(match as any).away_club_id) {
+    throw new Error('El partido aún no tiene clubes asignados.')
+  }
+  const competition = match.competition
+
+  // 2. Upsert annotations de ambos clubes (igual patrón que applyMatchEdit)
+  await supabase
+    .from('match_annotations')
+    .upsert({
+      match_id: matchId,
+      club_id: (match as any).home_club_id,
+      goals: homeAnnotation.goals,
+      assists: homeAnnotation.assists,
+      mvp_player_id: homeAnnotation.mvp_player_id,
+      starting_xi: homeAnnotation.starting_xi,
+      substitutes_in: homeAnnotation.substitutes_in,
+      updated_at: new Date().toISOString(),
+    } as any, { onConflict: 'match_id,club_id' })
+
+  await supabase
+    .from('match_annotations')
+    .upsert({
+      match_id: matchId,
+      club_id: (match as any).away_club_id,
+      goals: awayAnnotation.goals,
+      assists: awayAnnotation.assists,
+      mvp_player_id: awayAnnotation.mvp_player_id,
+      starting_xi: awayAnnotation.starting_xi,
+      substitutes_in: awayAnnotation.substitutes_in,
+      updated_at: new Date().toISOString(),
+    } as any, { onConflict: 'match_id,club_id' })
+
+  // 3. Marcar match como finished antes de standings/stats (paridad con finalizeMatch)
+  await (supabase.from('matches') as any)
+    .update({
+      status: 'finished',
+      home_score: homeScore,
+      away_score: awayScore,
+      played_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', matchId)
+
+  // 4. Standings (solo league / group stage)
+  const isGroupStage = (match as any).group_name !== null
+  const hasStandings = competition.type === 'league' ||
+    (competition.type === 'groups_knockout' && isGroupStage)
+  if (hasStandings) {
+    await updateStandings(match, homeScore, awayScore, competition)
+    if (competition.type === 'groups_knockout' && isGroupStage) {
+      await checkAndAdvanceGroupsToKnockout((match as any).competition_id)
+    }
+  }
+
+  // 5. Player stats
+  const { data: annotations } = await supabase
+    .from('match_annotations')
+    .select('*')
+    .eq('match_id', matchId)
+  if (annotations && annotations.length > 0) {
+    await updatePlayerStats(
+      annotations as MatchAnnotation[],
+      (match as any).competition_id,
+      matchId
+    )
+  }
+
+  // 6. K.O. advancement
+  const isKnockout = competition.type === 'cup' ||
+    (competition.type === 'groups_knockout' && !isGroupStage)
+  if (isKnockout) {
+    await advanceWinner(match as any, homeScore, awayScore, competition as any)
+  }
+
+  // 7. Marcar idempotencia + auditoría
+  await (supabase.from('matches') as any)
+    .update({ notes: '[ADMIN-FINALIZED][STATS-DONE]' })
+    .eq('id', matchId)
+
+  return { matchId }
+}
+
+/**
  * Revert standings for a match — subtracts the delta that the old result contributed.
  * This is the exact inverse of updateStandings().
  */
