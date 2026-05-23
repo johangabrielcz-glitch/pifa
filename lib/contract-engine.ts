@@ -268,6 +268,90 @@ export async function decrementContracts(seasonId: string): Promise<{ success: b
 }
 
 /**
+ * Finaliza y ARCHIVA una temporada activa:
+ *   - Borra news, player_emails, notifications y ofertas/negociaciones activas
+ *   - Resetea morale, stamina, suspensiones y flags de mercado de todos los jugadores
+ *     (NO toca lesiones — se arrastran al nuevo ciclo)
+ *   - Resetea red_card_check_counter de todos los clubes
+ *   - Llama decrementContracts (cierra mercado, marca expirados, reset salarios)
+ *   - Marca seasons.status='finished' + archived_at=now
+ *
+ * Idempotente: si la temporada ya tiene archived_at, retorna sin tocar nada.
+ */
+export async function finalizeAndArchiveSeason(seasonId: string): Promise<{
+  success: boolean
+  expired: number
+  cleaned: { news: number; emails: number; notifs: number; offers: number; negotiations: number }
+  error?: string
+}> {
+  const emptyCleaned = { news: 0, emails: 0, notifs: 0, offers: 0, negotiations: 0 }
+  try {
+    const { data: season } = await supabase
+      .from('seasons')
+      .select('id, name, status, archived_at')
+      .eq('id', seasonId)
+      .single() as any
+    if (!season) return { success: false, expired: 0, cleaned: emptyCleaned, error: 'Temporada no encontrada' }
+    if (season.archived_at) {
+      return { success: false, expired: 0, cleaned: emptyCleaned, error: 'Temporada ya archivada' }
+    }
+
+    // 1) Limpieza comunicativa — ANTES de decrementContracts para que las nuevas
+    //    notifs "Contrato Expirado" sobrevivan como primeras del nuevo ciclo.
+    const [newsRes, emailsRes, notifsRes, offersRes, negsRes] = await Promise.all([
+      supabase.from('news').delete({ count: 'exact' }).gte('created_at', '1970-01-01'),
+      supabase.from('player_emails').delete({ count: 'exact' }).gte('created_at', '1970-01-01'),
+      supabase.from('notifications').delete({ count: 'exact' }).gte('created_at', '1970-01-01'),
+      supabase.from('market_offers').delete({ count: 'exact' }).in('status', ['pending', 'countered']),
+      supabase.from('clause_negotiations').delete({ count: 'exact' }).eq('status', 'active'),
+    ])
+
+    // 2) Reset masivo de jugadores (NO toca injury_matches_left / injury_reason)
+    await (supabase.from('players') as any).update({
+      morale: 100,
+      stamina: 100,
+      red_card_matches_left: 0,
+      red_card_reason: null,
+      wants_to_leave: false,
+      is_on_sale: false,
+      sale_price: null,
+      updated_at: new Date().toISOString(),
+    }).gte('morale', 0)
+
+    // 3) Reset contadores de clubes
+    await (supabase.from('clubs') as any).update({
+      red_card_check_counter: 0,
+      updated_at: new Date().toISOString(),
+    }).gte('red_card_check_counter', 0)
+
+    // 4) Decrementa contratos + cierra mercado + reset salary_paid_this_season
+    const decrementRes = await decrementContracts(seasonId)
+
+    // 5) Marca archivado
+    await (supabase.from('seasons') as any).update({
+      status: 'finished',
+      archived_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }).eq('id', seasonId)
+
+    return {
+      success: true,
+      expired: decrementRes.expired,
+      cleaned: {
+        news: (newsRes as any).count ?? 0,
+        emails: (emailsRes as any).count ?? 0,
+        notifs: (notifsRes as any).count ?? 0,
+        offers: (offersRes as any).count ?? 0,
+        negotiations: (negsRes as any).count ?? 0,
+      },
+    }
+  } catch (err: any) {
+    console.error('Error finalizing and archiving season:', err)
+    return { success: false, expired: 0, cleaned: emptyCleaned, error: err.message || 'Error interno' }
+  }
+}
+
+/**
  * Revierte el decremento de contratos (cuando se BORRA una temporada que ya fue finalizada).
  * Incrementa en 1 el contrato de todos los jugadores.
  * Reestablece renewal_pending → active para los que tenían 0.

@@ -453,6 +453,7 @@ export interface Season {
   start_date: string | null
   end_date: string | null
   activated_at: string | null
+  archived_at: string | null
   transfer_window_open: boolean
   contracts_decremented: boolean
   created_at: string
@@ -474,6 +475,7 @@ export interface SeasonUpdate {
   start_date?: string | null
   end_date?: string | null
   activated_at?: string | null
+  archived_at?: string | null
   transfer_window_open?: boolean
   contracts_decremented?: boolean
   updated_at?: string
