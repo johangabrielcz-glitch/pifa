@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Plus, Calendar, Trophy, Loader2, ChevronRight, Play, CheckCircle, Pencil, Trash2, Clock, Zap, Archive, ChevronLeft } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { calculateMatchDeadlines } from '@/lib/match-engine'
-import { revertContractDecrement, resetSalaryPayments, decrementContracts, toggleTransferWindow } from '@/lib/contract-engine'
+import { revertContractDecrement, resetSalaryPayments, decrementContracts, toggleTransferWindow, finalizeAndArchiveSeason } from '@/lib/contract-engine'
 import { sendPushToAll } from '@/lib/push-notifications'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -26,6 +26,8 @@ export default function SeasonsPage() {
   const [deletingSeason, setDeletingSeason] = useState<Season | null>(null)
   const [formData, setFormData] = useState({ name: '', status: 'draft' as SeasonStatus })
   const [isSaving, setIsSaving] = useState(false)
+  const [finalizeConfirm, setFinalizeConfirm] = useState<Season | null>(null)
+  const [isFinalizing, setIsFinalizing] = useState(false)
 
   const loadSeasons = async () => {
     setIsLoading(true)
@@ -108,6 +110,34 @@ export default function SeasonsPage() {
       toast.error('Fallo en la purga del ciclo') 
     } finally { 
       setIsDeleteOpen(false); setDeletingSeason(null) 
+    }
+  }
+
+  const handleFinalize = async (season: Season) => {
+    setIsFinalizing(true)
+    try {
+      const res = await finalizeAndArchiveSeason(season.id)
+      if (!res.success) throw new Error(res.error || 'Error al finalizar ciclo')
+
+      try {
+        await sendPushToAll(
+          '🏆 FIN DE UNA ERA',
+          `El telón cae sobre ${season.name}. Las gestas quedan grabadas en el palmarés y los rivales caídos no se olvidan. La moral renace, la fatiga se disuelve, los contratos se cierran. Un nuevo ciclo se aproxima — afila tus armas, ajusta tu plantilla, prepara tu táctica. La gloria espera a quien la merezca.`,
+          { type: 'season_end', season_id: season.id, season_name: season.name }
+        )
+      } catch (pushErr) {
+        console.error('Push fail:', pushErr)
+      }
+
+      toast.success(
+        `Ciclo ${season.name} archivado. ${res.expired} contratos expirados · ${res.cleaned.news} noticias · ${res.cleaned.notifs} notificaciones purgadas.`
+      )
+      setFinalizeConfirm(null)
+      loadSeasons()
+    } catch (err: any) {
+      toast.error(err.message || 'Error al finalizar ciclo')
+    } finally {
+      setIsFinalizing(false)
     }
   }
 
@@ -288,17 +318,8 @@ export default function SeasonsPage() {
                       </button>
                     )}
                     {season.status === 'active' && (
-                      <button 
-                        onClick={async () => {
-                          try {
-                            const result = await decrementContracts(season.id)
-                            await supabase.from('seasons').update({ status: 'finished', updated_at: new Date().toISOString() }).eq('id', season.id)
-                            toast.success(`Temporada finalizada. ${result.expired} contratos expirados.`)
-                            loadSeasons()
-                          } catch (err) {
-                            toast.error('Error al finalizar temporada')
-                          }
-                        }}
+                      <button
+                        onClick={() => setFinalizeConfirm(season)}
                         className="flex-1 h-9.5 bg-emerald-500/5 hover:bg-emerald-500 text-emerald-500 hover:text-white border border-emerald-500/10 rounded-xl font-black uppercase tracking-widest text-[8px] transition-all flex items-center justify-center gap-2"
                       >
                         <CheckCircle className="w-3 h-3" />
@@ -386,6 +407,49 @@ export default function SeasonsPage() {
           <div className="flex gap-2">
             <AlertDialogCancel className="flex-1 h-10 bg-[#0A0A0A] border border-[#202020] text-[#2D2D2D] hover:text-white rounded-xl font-black uppercase tracking-widest text-[8px] m-0">No</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="flex-1 h-10 bg-red-600 hover:bg-red-700 text-white rounded-xl font-black uppercase tracking-widest text-[8px] shadow-[0_0_15px_rgba(220,38,38,0.2)] m-0">Purgar</AlertDialogAction>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!finalizeConfirm} onOpenChange={(open) => { if (!open && !isFinalizing) setFinalizeConfirm(null) }}>
+        <AlertDialogContent className="max-w-sm w-full rounded-[24px] bg-[#141414] border-white/[0.08] p-6 shadow-2xl fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+          <AlertDialogHeader className="mb-4">
+            <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-4">
+              <CheckCircle className="w-6 h-6 text-emerald-500" />
+            </div>
+            <AlertDialogTitle className="text-lg font-black text-white uppercase tracking-tighter text-center">
+              FINALIZAR Y <span className="text-emerald-500">ARCHIVAR</span>
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-center text-[9px] text-[#6A6C6E] font-medium mt-3 px-2 leading-relaxed">
+              Vas a cerrar <span className="text-white font-black uppercase">{finalizeConfirm?.name}</span> definitivamente. Esto:
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <ul className="text-[9px] text-[#6A6C6E] font-medium leading-relaxed list-disc pl-5 space-y-1 mb-4">
+            <li>Decrementa contratos y marca expirados</li>
+            <li>Resetea moral, stamina, suspensiones y flags de mercado de <span className="text-white">todos los jugadores</span></li>
+            <li>Resetea contadores de tarjetas en los clubes</li>
+            <li>Borra <span className="text-white font-black">todas las noticias, emails de jugadores, notificaciones</span> y ofertas/negociaciones activas</li>
+            <li>Cierra la ventana de fichajes</li>
+            <li>Envía push global de fin de temporada</li>
+            <li>Archiva la temporada (la data de competencias y partidos permanece accesible)</li>
+          </ul>
+          <p className="text-[9px] text-amber-400/80 font-bold uppercase tracking-wider text-center mb-4 px-2">
+            Las lesiones NO se resetean — los jugadores lesionados arrastran su recuperación al nuevo ciclo.
+          </p>
+          <div className="flex gap-2">
+            <AlertDialogCancel
+              disabled={isFinalizing}
+              className="flex-1 h-10 bg-[#0A0A0A] border border-[#202020] text-[#2D2D2D] hover:text-white rounded-xl font-black uppercase tracking-widest text-[8px] m-0 disabled:opacity-50"
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isFinalizing}
+              onClick={(e) => { e.preventDefault(); if (finalizeConfirm) handleFinalize(finalizeConfirm) }}
+              className="flex-1 h-10 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black uppercase tracking-widest text-[8px] shadow-[0_0_15px_rgba(16,185,129,0.25)] m-0 disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {isFinalizing ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Finalizar y Archivar'}
+            </AlertDialogAction>
           </div>
         </AlertDialogContent>
       </AlertDialog>
