@@ -406,7 +406,7 @@ export default function DashboardPage() {
         const compIds = compsToLoad.map((c: any) => c.id)
         setCompetitionsDetailsLoading(true)
         Promise.all([
-          supabase.from('standings').select('competition_id, club_id, played, won, drawn, lost, goals_for, goals_against, goal_difference, points, club:clubs(id, name, shield_url)').in('competition_id', compIds).order('points', { ascending: false }),
+          supabase.from('standings').select('competition_id, club_id, group_name, played, won, drawn, lost, goals_for, goals_against, goal_difference, points, club:clubs(id, name, shield_url)').in('competition_id', compIds).order('points', { ascending: false }),
           supabase.from('player_competition_stats').select('competition_id, player_id, club_id, goals, assists, mvp_count, matches_played, player:players(id, name, position, photo_url), club:clubs(id, name, shield_url)').in('competition_id', compIds)
         ]).then(([standingsRes, statsRes]) => {
           const refreshed: CompetitionFull[] = []
