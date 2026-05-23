@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Pencil,
   Check,
+  CheckCircle,
   Trophy,
   Swords,
   Users,
@@ -48,8 +49,9 @@ export default function AdminMatchesPage() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'finished' | 'scheduled' | 'postponed'>('finished')
   const [postponingId, setPostponingId] = useState<string | null>(null)
 
-  // Edit modal
+  // Edit / Finalize modal
   const [editingMatch, setEditingMatch] = useState<MatchWithClubs | null>(null)
+  const [editMode, setEditMode] = useState<'edit' | 'finalize'>('edit')
   const [editHomeScore, setEditHomeScore] = useState(0)
   const [editAwayScore, setEditAwayScore] = useState(0)
   const [homeAnnotation, setHomeAnnotation] = useState<AnnotationEdit>({ goals: [], assists: [], mvp_player_id: null, starting_xi: [], substitutes_in: [] })
@@ -135,8 +137,19 @@ export default function AdminMatchesPage() {
     setLoadingMatches(false)
   }
 
+  // Open finalize modal for a scheduled/postponed match
+  async function openFinalizeModal(match: MatchWithClubs) {
+    setEditMode('finalize')
+    await loadMatchIntoModal(match)
+  }
+
   // Open edit modal for a finished match
   async function openEditModal(match: MatchWithClubs) {
+    setEditMode('edit')
+    await loadMatchIntoModal(match)
+  }
+
+  async function loadMatchIntoModal(match: MatchWithClubs) {
     setEditingMatch(match)
     setEditHomeScore(match.home_score ?? 0)
     setEditAwayScore(match.away_score ?? 0)
@@ -195,7 +208,11 @@ export default function AdminMatchesPage() {
         return
       }
 
-      const res = await fetch('/api/admin/edit-match', {
+      const endpoint = editMode === 'finalize'
+        ? '/api/admin/finalize-match'
+        : '/api/admin/edit-match'
+
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -209,7 +226,9 @@ export default function AdminMatchesPage() {
 
       const data = await res.json()
       if (data.success) {
-        toast.success(`Resultado actualizado: ${data.oldResult} → ${data.newResult}`)
+        toast.success(editMode === 'finalize'
+          ? `Partido finalizado: ${editHomeScore}-${editAwayScore}`
+          : `Resultado actualizado: ${data.oldResult} → ${data.newResult}`)
         setEditingMatch(null)
         fetchMatches(matchPage)
       } else {
@@ -485,6 +504,14 @@ export default function AdminMatchesPage() {
                             Editar Clubs
                           </button>
                           <button
+                            disabled={!match.home_club_id || !match.away_club_id}
+                            onClick={() => openFinalizeModal(match)}
+                            className="flex items-center gap-2 px-4 py-2 bg-[#FF3131]/10 hover:bg-[#FF3131]/20 border border-[#FF3131]/20 rounded-xl text-[8px] font-black text-[#FF3131] uppercase tracking-widest transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                          >
+                            <CheckCircle className="w-3 h-3" />
+                            Finalizar Manualmente
+                          </button>
+                          <button
                             disabled={postponingId === match.id}
                             onClick={async () => {
                               setPostponingId(match.id)
@@ -516,11 +543,12 @@ export default function AdminMatchesPage() {
                       )}
                       {match.status === 'postponed' && (
                         <button
-                          onClick={() => openEditModal(match)}
-                          className="flex items-center gap-2 px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 rounded-xl text-[8px] font-black text-amber-400 uppercase tracking-widest transition-all"
+                          disabled={!match.home_club_id || !match.away_club_id}
+                          onClick={() => openFinalizeModal(match)}
+                          className="flex items-center gap-2 px-4 py-2 bg-[#FF3131]/10 hover:bg-[#FF3131]/20 border border-[#FF3131]/20 rounded-xl text-[8px] font-black text-[#FF3131] uppercase tracking-widest transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                         >
-                          <Pencil className="w-3 h-3" />
-                          Ver Detalles
+                          <CheckCircle className="w-3 h-3" />
+                          Finalizar Manualmente
                         </button>
                       )}
                     </div>
@@ -541,7 +569,11 @@ export default function AdminMatchesPage() {
           <div className="px-6 pt-6 pb-4 border-b border-white/[0.04] bg-[#141414]/50">
             <DialogHeader>
               <DialogTitle className="text-lg font-black text-white uppercase tracking-tighter text-center">
-                Editar <span className="text-[#FF3131]">Resultado</span>
+                {editMode === 'finalize' ? (
+                  <>Finalizar <span className="text-[#FF3131]">Manualmente</span></>
+                ) : (
+                  <>Editar <span className="text-[#FF3131]">Resultado</span></>
+                )}
               </DialogTitle>
             </DialogHeader>
             {editingMatch && (
@@ -554,6 +586,13 @@ export default function AdminMatchesPage() {
                   {editingMatch.away_club?.name}
                 </span>
               </div>
+            )}
+            {editMode === 'finalize' && (
+              <p className="mt-3 text-[8px] text-[#6A6C6E] font-bold uppercase tracking-widest text-center leading-relaxed">
+                Registra el resultado como jugado. Actualiza tabla, estadísticas y avance K.O.
+                <br />
+                <span className="text-[#FF3131]">Sin moral, lesiones, fatiga ni noticias.</span>
+              </p>
             )}
           </div>
 
@@ -624,7 +663,7 @@ export default function AdminMatchesPage() {
               className="flex-1 h-12 bg-[#FF3131] hover:bg-[#D32F2F] text-white rounded-2xl font-black uppercase text-[9px] tracking-widest shadow-[0_0_20px_rgba(255,49,49,0.3)] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-              Guardar Cambios
+              {editMode === 'finalize' ? 'Finalizar Partido' : 'Guardar Cambios'}
             </button>
           </div>
         </DialogContent>
