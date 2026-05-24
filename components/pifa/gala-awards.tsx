@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Crown, Trophy, Goal, Star, HandHelping, Shield, User as UserIcon, ChevronDown,
   Plus, X, ArrowUp, ArrowDown, SlidersHorizontal, Loader2, Gem, Award, Wallet,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { toast } from 'sonner'
 import {
   computeAwards, defaultWeight,
   type AwardCompBlock, type Nominee, type PlayerNominee, type ClubNominee, type DtNominee,
@@ -113,7 +114,8 @@ export default function GalaAwards({ season, blocks, clubMatchCounts }: {
   const [saved, setSaved] = useState<Record<string, SavedAward>>({})
   const [showWeights, setShowWeights] = useState(false)
   const [addingFor, setAddingFor] = useState<AwardKey | null>(null)
-  const weightTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const [needsMigration, setNeedsMigration] = useState(false)
+  const [savingWeights, setSavingWeights] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -124,6 +126,8 @@ export default function GalaAwards({ season, blocks, clubMatchCounts }: {
         supabase.from('season_awards').select('*').eq('season_id', season.id),
         supabase.from('season_award_weights').select('*').eq('season_id', season.id),
       ])
+
+      if (awardsRes.error || weightsRes.error) setNeedsMigration(true)
 
       const cById: Record<string, Club> = {}
       for (const c of (clubsRes.data ?? []) as Club[]) cById[c.id] = c
@@ -182,18 +186,23 @@ export default function GalaAwards({ season, blocks, clubMatchCounts }: {
   // -------- persistencia --------
 
   const persistAward = async (key: AwardKey, patch: Partial<SavedAward>) => {
-    setSaved((prev) => {
-      const next = { ...prev, [key]: { winner_id: patch.winner_id !== undefined ? patch.winner_id : (prev[key]?.winner_id ?? null), nominees: patch.nominees ?? prev[key]?.nominees ?? [] } }
-      return next
-    })
     const cur = saved[key] ?? { winner_id: null, nominees: [] }
-    await supabase.from('season_awards').upsert({
+    const next: SavedAward = {
+      winner_id: patch.winner_id !== undefined ? patch.winner_id : cur.winner_id,
+      nominees: patch.nominees !== undefined ? patch.nominees : cur.nominees,
+    }
+    setSaved((prev) => ({ ...prev, [key]: next }))
+    const { error } = await supabase.from('season_awards').upsert({
       season_id: season.id,
       award_key: key,
       winner_type: awardType(key),
-      winner_id: patch.winner_id !== undefined ? patch.winner_id : cur.winner_id,
-      nominees: patch.nominees ?? cur.nominees,
+      winner_id: next.winner_id,
+      nominees: next.nominees,
     } as any, { onConflict: 'season_id,award_key' })
+    if (error) {
+      setNeedsMigration(true)
+      toast.error('No se pudo guardar. ¿Ejecutaste la migración 17?')
+    }
   }
 
   const setWinner = (key: AwardKey, id: string) => persistAward(key, { winner_id: id })
@@ -215,26 +224,31 @@ export default function GalaAwards({ season, blocks, clubMatchCounts }: {
     setNominees(key, refs)
   }
 
+  // El recálculo es en vivo (useMemo); guardar persiste la jerarquía.
   const setWeight = (compId: string, value: number) => {
     setWeights((prev) => ({ ...prev, [compId]: value }))
-    clearTimeout(weightTimers.current[compId])
-    weightTimers.current[compId] = setTimeout(() => {
-      supabase.from('season_award_weights').upsert(
-        { season_id: season.id, competition_id: compId, weight: value } as any,
-        { onConflict: 'season_id,competition_id' }
-      )
-    }, 400)
   }
 
   const resetWeights = () => {
     const w: Record<string, number> = {}
     for (const b of blocks) w[b.competition.id] = defaultWeight(b.competition)
     setWeights(w)
-    for (const b of blocks) {
-      supabase.from('season_award_weights').upsert(
-        { season_id: season.id, competition_id: b.competition.id, weight: defaultWeight(b.competition) } as any,
-        { onConflict: 'season_id,competition_id' }
-      )
+  }
+
+  const saveWeights = async () => {
+    setSavingWeights(true)
+    const rows = blocks.map((b) => ({
+      season_id: season.id,
+      competition_id: b.competition.id,
+      weight: weights[b.competition.id] ?? defaultWeight(b.competition),
+    }))
+    const { error } = await supabase.from('season_award_weights').upsert(rows as any, { onConflict: 'season_id,competition_id' })
+    setSavingWeights(false)
+    if (error) {
+      setNeedsMigration(true)
+      toast.error('No se pudo guardar la jerarquía. ¿Ejecutaste la migración 17?')
+    } else {
+      toast.success('Jerarquía guardada')
     }
   }
 
@@ -244,6 +258,15 @@ export default function GalaAwards({ season, blocks, clubMatchCounts }: {
 
   return (
     <div className="space-y-5">
+      {needsMigration && (
+        <div className="rounded-[18px] border border-amber-500/30 bg-amber-500/[0.07] p-4">
+          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-amber-300 leading-relaxed">
+            Las elecciones no se están guardando. Ejecuta la migración{' '}
+            <span className="text-white">scripts/17-season-awards.sql</span> en Supabase para habilitar el guardado de premios y jerarquía.
+          </p>
+        </div>
+      )}
+
       {/* Panel de jerarquía */}
       <div className="bg-[#141414]/50 rounded-[20px] border border-white/[0.05] overflow-hidden">
         <button onClick={() => setShowWeights((v) => !v)} className="w-full flex items-center justify-between gap-2 px-4 h-11">
@@ -268,9 +291,20 @@ export default function GalaAwards({ season, blocks, clubMatchCounts }: {
                     <span className="text-[10px] font-black text-[#FF3131] tabular-nums w-8 text-right">{(weights[b.competition.id] ?? defaultWeight(b.competition)).toFixed(1)}</span>
                   </div>
                 ))}
-                <button onClick={resetWeights} className="text-[8px] font-black uppercase tracking-widest text-[#6A6C6E] hover:text-white transition-colors">
-                  Restablecer defaults
-                </button>
+                <div className="flex items-center gap-3 pt-1">
+                  <button
+                    onClick={saveWeights}
+                    disabled={savingWeights}
+                    className="h-8 px-4 bg-[#FF3131] hover:bg-[#D32F2F] text-white rounded-lg font-black uppercase tracking-widest text-[8px] transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {savingWeights ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                    Guardar jerarquía
+                  </button>
+                  <button onClick={resetWeights} className="text-[8px] font-black uppercase tracking-widest text-[#6A6C6E] hover:text-white transition-colors">
+                    Restablecer defaults
+                  </button>
+                  <span className="text-[8px] font-bold text-[#2D2D2D] tracking-wide ml-auto">Los rankings se recalculan al instante</span>
+                </div>
               </div>
             </motion.div>
           )}
