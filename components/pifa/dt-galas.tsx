@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   Sparkles, Crown, Trophy, Shield, User as UserIcon, ChevronLeft, ChevronRight,
@@ -11,21 +11,25 @@ import { toast } from 'sonner'
 import type { GalaPayload, Nominee } from '@/lib/award-engine'
 import type { User, Club, AwardKey } from '@/lib/types'
 
-const AWARDS: { key: AwardKey; label: string; icon: React.ReactNode; accent: string }[] = [
-  { key: 'ballon_dor', label: 'Balón de Oro', icon: <Gem className="w-4 h-4" />, accent: '#fbbf24' },
-  { key: 'the_best', label: 'The Best', icon: <Star className="w-4 h-4" />, accent: '#FF3131' },
-  { key: 'best_playmaker', label: 'The Best Playmaker', icon: <HandHelping className="w-4 h-4" />, accent: '#38bdf8' },
-  { key: 'golden_boot', label: 'Bota de Oro', icon: <Goal className="w-4 h-4" />, accent: '#fbbf24' },
-  { key: 'oliver_kahn', label: 'Premio Oliver Kahn', icon: <Shield className="w-4 h-4" />, accent: '#34d399' },
-  { key: 'club_year', label: 'Club del Año', icon: <Trophy className="w-4 h-4" />, accent: '#FF3131' },
-  { key: 'dt_year', label: 'DT del Año', icon: <Award className="w-4 h-4" />, accent: '#a78bfa' },
+const AWARDS: { key: AwardKey; label: string; short: string; icon: React.ReactNode; accent: string; desc: string }[] = [
+  { key: 'ballon_dor', label: 'Balón de Oro', short: 'Balón de Oro', icon: <Gem className="w-4 h-4" />, accent: '#fbbf24', desc: 'El mejor del año' },
+  { key: 'the_best', label: 'The Best', short: 'The Best', icon: <Star className="w-4 h-4" />, accent: '#FF3131', desc: 'Impacto y títulos' },
+  { key: 'best_playmaker', label: 'The Best Playmaker', short: 'Playmaker', icon: <HandHelping className="w-4 h-4" />, accent: '#38bdf8', desc: 'El mejor creador' },
+  { key: 'golden_boot', label: 'Bota de Oro', short: 'Bota de Oro', icon: <Goal className="w-4 h-4" />, accent: '#fbbf24', desc: 'El máximo goleador' },
+  { key: 'oliver_kahn', label: 'Premio Oliver Kahn', short: 'Oliver Kahn', icon: <Shield className="w-4 h-4" />, accent: '#34d399', desc: 'El mejor portero' },
+  { key: 'club_year', label: 'Club del Año', short: 'Club', icon: <Trophy className="w-4 h-4" />, accent: '#FF3131', desc: 'El mejor club' },
+  { key: 'dt_year', label: 'DT del Año', short: 'DT', icon: <Award className="w-4 h-4" />, accent: '#a78bfa', desc: 'El mejor entrenador' },
 ]
 
-const SLOT_LABEL = ['1º', '2º', '3º']
-const SLOT_COLOR = ['text-amber-300', 'text-zinc-300', 'text-amber-700']
+const MEDAL = [
+  { color: '#fbbf24', label: '1º' },
+  { color: '#d4d4d8', label: '2º' },
+  { color: '#cd7f32', label: '3º' },
+]
 
 interface PublishedSeason { season_id: string; season_name: string; is_open: boolean }
 interface MyVote { first_id: string | null; second_id: string | null; third_id: string | null }
+type GalaTab = AwardKey | 'champions'
 
 function nName(n: Nominee): string {
   if (n.type === 'player') return n.player?.name ?? 'Jugador'
@@ -37,20 +41,44 @@ function nSub(n: Nominee): string {
   if (n.type === 'club') return 'Club'
   return n.club?.name ?? ''
 }
+function nImage(n: Nominee): string | null {
+  if (n.type === 'player') return n.player?.photo_url ?? null
+  return n.club?.shield_url ?? null
+}
 
-function NomineeMedia({ n, size = 40 }: { n: Nominee; size?: number }) {
+function StatChips({ n }: { n: Nominee }) {
   if (n.type === 'player') {
     return (
-      <div style={{ width: size, height: size }} className="rounded-full bg-[#0A0A0A] border border-[#202020] flex items-center justify-center overflow-hidden shrink-0">
-        {n.player?.photo_url ? <img src={n.player.photo_url} alt="" className="w-full h-full object-cover" /> : <UserIcon style={{ width: size * 0.5, height: size * 0.5 }} className="text-[#6A6C6E]" />}
+      <div className="flex items-center gap-1 flex-wrap">
+        {n.goals > 0 && <Chip color="#fbbf24" label={`${n.goals} G`} />}
+        {n.assists > 0 && <Chip color="#38bdf8" label={`${n.assists} A`} />}
+        {n.mvp > 0 && <Chip color="#FF3131" label={`${n.mvp} MVP`} />}
+        {n.apps > 0 && <Chip color="#6A6C6E" label={`${n.apps} PJ`} />}
+        {n.titles > 0 && <Chip color="#fbbf24" label={`🏆 ${n.titles}`} />}
+        {n.goals === 0 && n.assists === 0 && n.mvp === 0 && <span className="text-[7px] text-[#3a3a3a] font-black uppercase tracking-widest">{n.apps} PJ</span>}
       </div>
     )
   }
-  const shield = n.club?.shield_url
+  if (n.type === 'club') {
+    return (
+      <div className="flex items-center gap-1 flex-wrap">
+        {n.titles > 0 && <Chip color="#fbbf24" label={`🏆 ${n.titles}`} />}
+        <Chip color="#6A6C6E" label={`${n.points} PTS`} />
+        <Chip color="#38bdf8" label={`${n.gd >= 0 ? '+' : ''}${n.gd} DG`} />
+      </div>
+    )
+  }
   return (
-    <div style={{ width: size, height: size }} className="rounded-xl bg-[#0A0A0A] border border-[#202020] flex items-center justify-center overflow-hidden shrink-0">
-      {shield ? <img src={shield} alt="" className="w-full h-full object-contain p-1" /> : <Shield style={{ width: size * 0.45, height: size * 0.45 }} className="text-[#6A6C6E]" />}
+    <div className="flex items-center gap-1 flex-wrap">
+      {n.titles > 0 && <Chip color="#fbbf24" label={`🏆 ${n.titles}`} />}
+      <Chip color="#a78bfa" label="Entrenador" />
     </div>
+  )
+}
+
+function Chip({ color, label }: { color: string; label: string }) {
+  return (
+    <span className="text-[7.5px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md" style={{ color, background: `${color}1A` }}>{label}</span>
   )
 }
 
@@ -62,6 +90,7 @@ export default function DtGalas({ user, club }: { user: User | null; club: Club 
   const [myVotes, setMyVotes] = useState<Record<string, MyVote>>({})
   const [loadingGala, setLoadingGala] = useState(false)
   const [champIndex, setChampIndex] = useState(0)
+  const [galaTab, setGalaTab] = useState<GalaTab>('ballon_dor')
 
   useEffect(() => {
     const load = async () => {
@@ -83,6 +112,7 @@ export default function DtGalas({ user, club }: { user: User | null; club: Club 
     setSelected(s)
     setLoadingGala(true)
     setChampIndex(0)
+    setGalaTab('ballon_dor')
     const [pubRes, votesRes] = await Promise.all([
       supabase.from('season_gala_publish').select('payload, is_open').eq('season_id', s.season_id).maybeSingle(),
       user ? supabase.from('award_votes').select('*').eq('season_id', s.season_id).eq('voter_user_id', user.id) : Promise.resolve({ data: [] as any }),
@@ -122,6 +152,17 @@ export default function DtGalas({ user, club }: { user: User | null; club: Club 
       first_id: next.first_id, second_id: next.second_id, third_id: next.third_id, updated_at: new Date().toISOString(),
     } as any, { onConflict: 'season_id,award_key,voter_user_id' })
     if (error) toast.error('No se pudo guardar el voto')
+  }
+
+  const removePick = async (key: AwardKey, id: string) => {
+    if (!user || !selected?.is_open) return
+    const picks = picksOf(key).filter((p) => p !== id)
+    const next: MyVote = { first_id: picks[0] ?? null, second_id: picks[1] ?? null, third_id: picks[2] ?? null }
+    setMyVotes((prev) => ({ ...prev, [key]: next }))
+    await supabase.from('award_votes').upsert({
+      season_id: selected.season_id, award_key: key, voter_user_id: user.id, voter_name: user.full_name,
+      first_id: next.first_id, second_id: next.second_id, third_id: next.third_id, updated_at: new Date().toISOString(),
+    } as any, { onConflict: 'season_id,award_key,voter_user_id' })
   }
 
   // ----- season selector -----
@@ -169,31 +210,66 @@ export default function DtGalas({ user, club }: { user: User | null; club: Club 
 
   // ----- gala view -----
   const champ = payload?.champions?.[champIndex]
+  const activeAward = galaTab !== 'champions' ? AWARDS.find((a) => a.key === galaTab)! : null
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-5 space-y-6">
-      <div className="flex items-center gap-3">
-        <button onClick={() => { setSelected(null); setPayload(null) }} className="w-9 h-9 rounded-xl bg-[#141414] border border-[#202020] flex items-center justify-center text-[#6A6C6E] hover:text-white transition-all active:scale-95 shrink-0">
-          <ChevronLeft className="w-4 h-4" />
-        </button>
-        <div className="min-w-0">
-          <h2 className="text-sm font-black text-white uppercase tracking-tight truncate">Gala · {selected.season_name}</h2>
-          <span className={`text-[8px] font-black uppercase tracking-widest ${selected.is_open ? 'text-emerald-400' : 'text-[#6A6C6E]'}`}>
-            {selected.is_open ? 'Votación abierta · elige tu top 3' : 'Votación cerrada'}
-          </span>
+    <div className="flex-1 overflow-y-auto">
+      {/* Header */}
+      <div className="sticky top-0 z-20 bg-[#0A0A0A]/90 backdrop-blur-xl border-b border-white/[0.04] px-4 pt-4 pb-2">
+        <div className="flex items-center gap-3 mb-3">
+          <button onClick={() => { setSelected(null); setPayload(null) }} className="w-9 h-9 rounded-xl bg-[#141414] border border-[#202020] flex items-center justify-center text-[#6A6C6E] hover:text-white transition-all active:scale-95 shrink-0">
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <div className="min-w-0">
+            <h2 className="text-sm font-black text-white uppercase tracking-tight truncate">Gala · {selected.season_name}</h2>
+            <span className={`text-[8px] font-black uppercase tracking-widest ${selected.is_open ? 'text-emerald-400' : 'text-[#6A6C6E]'}`}>
+              {selected.is_open ? 'Votación abierta · elige tu top 3' : 'Votación cerrada'}
+            </span>
+          </div>
         </div>
+
+        {/* Barra de pestañas */}
+        {payload && (
+          <div className="flex gap-1.5 overflow-x-auto pb-1.5 -mx-1 px-1 scrollbar-hide">
+            {AWARDS.map((a) => {
+              const active = galaTab === a.key
+              const voted = !!myVotes[a.key]?.first_id
+              return (
+                <button
+                  key={a.key}
+                  onClick={() => setGalaTab(a.key)}
+                  className={`relative shrink-0 px-3 h-8 rounded-lg border flex items-center gap-1.5 transition-all ${active ? 'border-transparent' : 'border-white/[0.05] bg-white/[0.02]'}`}
+                  style={active ? { background: `${a.accent}1F`, borderColor: `${a.accent}55` } : undefined}
+                >
+                  <span style={{ color: active ? a.accent : '#6A6C6E' }}>{a.icon}</span>
+                  <span className={`text-[8px] font-black uppercase tracking-widest ${active ? 'text-white' : 'text-[#6A6C6E]'}`}>{a.short}</span>
+                  {voted && <span className="w-3.5 h-3.5 rounded-full bg-emerald-500 flex items-center justify-center shrink-0"><Check className="w-2.5 h-2.5 text-white" /></span>}
+                </button>
+              )
+            })}
+            <button
+              onClick={() => setGalaTab('champions')}
+              className={`shrink-0 px-3 h-8 rounded-lg border flex items-center gap-1.5 transition-all ${galaTab === 'champions' ? 'bg-amber-400/15 border-amber-400/40' : 'border-white/[0.05] bg-white/[0.02]'}`}
+            >
+              <Crown className={`w-4 h-4 ${galaTab === 'champions' ? 'text-amber-300' : 'text-[#6A6C6E]'}`} />
+              <span className={`text-[8px] font-black uppercase tracking-widest ${galaTab === 'champions' ? 'text-white' : 'text-[#6A6C6E]'}`}>Campeones</span>
+            </button>
+          </div>
+        )}
       </div>
 
-      {loadingGala ? (
-        <div className="flex justify-center py-20"><Loader2 className="w-7 h-7 animate-spin text-amber-400" /></div>
-      ) : !payload ? (
-        <p className="text-[#6A6C6E] font-black uppercase tracking-widest text-[10px] text-center py-10">Gala no disponible</p>
-      ) : (
-        <>
-          {/* Campeones + plantillas */}
-          {payload.champions?.length > 0 && champ && (
-            <section className="space-y-3">
-              <div className="flex items-center justify-between">
+      <div className="px-4 py-5 pb-24">
+        {loadingGala ? (
+          <div className="flex justify-center py-20"><Loader2 className="w-7 h-7 animate-spin text-amber-400" /></div>
+        ) : !payload ? (
+          <p className="text-[#6A6C6E] font-black uppercase tracking-widest text-[10px] text-center py-10">Gala no disponible</p>
+        ) : galaTab === 'champions' ? (
+          /* ---------- CAMPEONES (carrusel) ---------- */
+          !champ ? (
+            <p className="text-[#6A6C6E] font-black uppercase tracking-widest text-[10px] text-center py-10">Sin campeones</p>
+          ) : (
+            <motion.div key={champIndex} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
+              <div className="flex items-center justify-between mb-3">
                 <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-[#6A6C6E] flex items-center gap-2"><Crown className="w-3.5 h-3.5 text-amber-300" /> Campeones</h3>
                 {payload.champions.length > 1 && (
                   <div className="flex items-center gap-1">
@@ -203,107 +279,148 @@ export default function DtGalas({ user, club }: { user: User | null; club: Club 
                   </div>
                 )}
               </div>
-              <div className="rounded-[20px] border border-amber-400/15 bg-gradient-to-br from-amber-400/[0.06] to-transparent p-4">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="relative">
-                    <div className="w-14 h-14 rounded-xl bg-[#0A0A0A] border border-[#202020] flex items-center justify-center overflow-hidden">
-                      {champ.clubShield ? <img src={champ.clubShield} alt="" className="w-full h-full object-contain p-1" /> : <Shield className="w-6 h-6 text-[#6A6C6E]" />}
+              <div className="relative rounded-[24px] border border-amber-400/20 bg-gradient-to-br from-amber-400/[0.08] to-transparent p-5 overflow-hidden">
+                <div className="absolute -top-16 -right-16 w-44 h-44 bg-amber-400/15 rounded-full blur-[70px] pointer-events-none animate-medal-shine" />
+                <div className="flex flex-col items-center text-center mb-5 relative z-10">
+                  <div className="relative mb-2">
+                    <div className="w-20 h-20 rounded-2xl bg-[#0A0A0A] border border-amber-400/30 flex items-center justify-center overflow-hidden shadow-[0_0_25px_rgba(251,191,36,0.25)]">
+                      {champ.clubShield ? <img src={champ.clubShield} alt="" className="w-full h-full object-contain p-1.5" /> : <Shield className="w-9 h-9 text-[#6A6C6E]" />}
                     </div>
-                    <Crown className="w-5 h-5 text-amber-300 absolute -top-3 left-1/2 -translate-x-1/2" />
+                    <Crown className="w-7 h-7 text-amber-300 absolute -top-4 left-1/2 -translate-x-1/2 drop-shadow-[0_0_8px_rgba(252,211,77,0.7)]" />
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-[8px] font-black uppercase tracking-[0.25em] text-[#6A6C6E]">{champ.competitionName}</p>
-                    <p className="text-lg font-black text-white uppercase tracking-tight truncate leading-none">{champ.clubName}</p>
-                    <p className="text-[8px] font-black uppercase tracking-widest text-amber-300 mt-0.5">Campeón</p>
-                  </div>
+                  <p className="text-[8px] font-black uppercase tracking-[0.3em] text-[#6A6C6E]">{champ.competitionName}</p>
+                  <p className="text-xl font-black text-white uppercase tracking-tight leading-none mt-0.5">{champ.clubName}</p>
+                  <p className="text-[8px] font-black uppercase tracking-[0.3em] text-amber-300 mt-1">Campeón</p>
                 </div>
-                <div className="grid gap-2 grid-cols-2">
+                <div className="grid gap-2 grid-cols-2 relative z-10">
                   {champ.roster.map((p) => (
-                    <div key={p.id} className="flex items-center gap-2 p-2 rounded-xl bg-white/[0.02] border border-white/[0.04]">
-                      <div className="w-8 h-8 rounded-full bg-[#0A0A0A] border border-[#202020] flex items-center justify-center overflow-hidden shrink-0">
+                    <div key={p.id} className="flex items-center gap-2 p-2 rounded-xl bg-white/[0.03] border border-white/[0.05]">
+                      <div className="w-9 h-9 rounded-full bg-[#0A0A0A] border border-[#202020] flex items-center justify-center overflow-hidden shrink-0">
                         {p.photo_url ? <img src={p.photo_url} alt="" className="w-full h-full object-cover" /> : <UserIcon className="w-4 h-4 text-[#6A6C6E]" />}
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-[10px] font-bold text-white truncate leading-tight">{p.number != null ? <span className="text-[#6A6C6E]">{p.number} · </span> : null}{p.name}</p>
-                        <div className="flex items-center gap-1.5 text-[7px] font-black uppercase tracking-widest text-[#6A6C6E]">
+                        <div className="flex items-center gap-1 text-[7px] font-black uppercase tracking-widest text-[#6A6C6E]">
                           <span>{p.position}</span>
                           {p.goals > 0 && <span className="text-amber-300">{p.goals}G</span>}
                           {p.assists > 0 && <span className="text-sky-400">{p.assists}A</span>}
+                          {p.matches > 0 && <span>{p.matches}PJ</span>}
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
-            </section>
-          )}
-
-          {/* Premios */}
-          {AWARDS.map((a) => {
-            const nominees = [...((payload.awards as any)?.[a.key] ?? []) as Nominee[]].sort((x, y) => nName(x).localeCompare(nName(y)))
-            if (nominees.length === 0) return null
-            const picks = picksOf(a.key)
+            </motion.div>
+          )
+        ) : activeAward ? (
+          /* ---------- PREMIO ---------- */
+          (() => {
+            const key = activeAward.key
+            const accent = activeAward.accent
+            const nominees = [...((payload.awards as any)?.[key] ?? []) as Nominee[]].sort((x, y) => nName(x).localeCompare(nName(y)))
+            const picks = picksOf(key)
+            const showPodium = selected.is_open || picks.length > 0
             return (
-              <section key={a.key} className="bg-[#141414]/40 rounded-[20px] border border-white/[0.05] p-4 space-y-3">
-                <div className="flex items-center gap-2">
-                  <span style={{ color: a.accent }}>{a.icon}</span>
-                  <h3 className="text-sm font-black text-white uppercase tracking-tight">{a.label}</h3>
-                </div>
-
-                {/* Top 3 elegido */}
-                {selected.is_open && (
-                  <div className="flex items-center gap-2">
-                    {[0, 1, 2].map((slot) => {
-                      const id = picks[slot]
-                      const n = id ? nominees.find((x) => x.id === id) : null
-                      return (
-                        <div key={slot} className={`flex-1 h-9 rounded-lg border flex items-center justify-center gap-1 px-2 ${id ? 'bg-white/[0.04] border-white/10' : 'bg-white/[0.02] border-dashed border-white/[0.06]'}`}>
-                          <span className={`text-[9px] font-black ${SLOT_COLOR[slot]}`}>{SLOT_LABEL[slot]}</span>
-                          <span className="text-[9px] font-bold text-white truncate">{n ? nName(n) : '—'}</span>
-                        </div>
-                      )
-                    })}
+              <motion.div key={key} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }} className="space-y-4">
+                {/* Encabezado premium */}
+                <div className="flex flex-col items-center text-center py-2">
+                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-2" style={{ background: `${accent}1A`, border: `1px solid ${accent}40`, boxShadow: `0 0 25px ${accent}33` }}>
+                    <span style={{ color: accent }}>{activeAward.icon}</span>
                   </div>
-                )}
-
-                {/* Nominados (alfabético) */}
-                <div className="space-y-1.5">
-                  {nominees.map((n) => {
-                    const rank = picks.indexOf(n.id)
-                    const self = isSelf(n)
-                    const chosen = rank >= 0
-                    return (
-                      <button
-                        key={n.id}
-                        disabled={!selected.is_open || self}
-                        onClick={() => togglePick(a.key, n)}
-                        className={`w-full flex items-center gap-2.5 p-2 rounded-xl border text-left transition-all ${
-                          chosen ? 'bg-emerald-500/[0.08] border-emerald-500/30'
-                          : self ? 'bg-white/[0.01] border-white/[0.03] opacity-40'
-                          : 'bg-white/[0.02] border-white/[0.04] hover:border-white/15'
-                        } ${!selected.is_open && !chosen ? 'opacity-80' : ''}`}
-                      >
-                        <NomineeMedia n={n} size={34} />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[11px] font-bold text-white truncate leading-tight">{nName(n)}</p>
-                          <p className="text-[8px] text-[#6A6C6E] font-black uppercase tracking-widest truncate">{nSub(n)}{self ? ' · tú' : ''}</p>
-                        </div>
-                        {chosen ? (
-                          <span className={`text-[10px] font-black ${SLOT_COLOR[rank]} shrink-0`}>{SLOT_LABEL[rank]}</span>
-                        ) : self ? (
-                          <Lock className="w-3.5 h-3.5 text-[#6A6C6E] shrink-0" />
-                        ) : selected.is_open ? (
-                          <div className="w-4 h-4 rounded-full border border-white/15 shrink-0" />
-                        ) : null}
-                      </button>
-                    )
-                  })}
+                  <h3 className="text-lg font-black text-white uppercase tracking-tighter leading-none">{activeAward.label}</h3>
+                  <p className="text-[8px] font-black uppercase tracking-[0.3em] mt-1" style={{ color: accent }}>{activeAward.desc}</p>
                 </div>
-              </section>
+
+                {nominees.length === 0 ? (
+                  <p className="text-[#6A6C6E] font-black uppercase tracking-widest text-[10px] text-center py-10">Sin nominados</p>
+                ) : (
+                  <>
+                    {/* Mini-podio */}
+                    {showPodium && (
+                      <div className="flex items-stretch gap-2">
+                        {[0, 1, 2].map((slot) => {
+                          const id = picks[slot]
+                          const n = id ? nominees.find((x) => x.id === id) : null
+                          const m = MEDAL[slot]
+                          return (
+                            <button
+                              key={slot}
+                              disabled={!n || !selected.is_open}
+                              onClick={() => n && removePick(key, n.id)}
+                              className="flex-1 rounded-2xl border p-2 flex flex-col items-center gap-1 transition-all"
+                              style={{ borderColor: n ? `${m.color}55` : 'rgba(255,255,255,0.06)', background: n ? `${m.color}12` : 'rgba(255,255,255,0.02)' }}
+                            >
+                              <div className="relative">
+                                <div className="w-12 h-12 rounded-full bg-[#0A0A0A] flex items-center justify-center overflow-hidden" style={{ border: `2px solid ${n ? m.color : '#2a2a2a'}` }}>
+                                  {n ? (nImage(n) ? <img src={nImage(n)!} alt="" className={n.type === 'player' ? 'w-full h-full object-cover' : 'w-full h-full object-contain p-1'} /> : <UserIcon className="w-5 h-5 text-[#6A6C6E]" />) : <span className="text-sm font-black" style={{ color: m.color }}>{m.label}</span>}
+                                </div>
+                                {n && <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-black text-[#0A0A0A]" style={{ background: m.color }}>{slot + 1}</span>}
+                              </div>
+                              <span className="text-[8px] font-bold text-white truncate max-w-full leading-tight">{n ? nName(n) : '—'}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    {/* Cuadrícula de nominados (póster) */}
+                    <div className="grid grid-cols-2 gap-3">
+                      {nominees.map((n, idx) => {
+                        const rank = picks.indexOf(n.id)
+                        const chosen = rank >= 0
+                        const self = isSelf(n)
+                        const img = nImage(n)
+                        return (
+                          <motion.button
+                            key={n.id}
+                            initial={{ opacity: 0, y: 8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: Math.min(idx * 0.02, 0.3) }}
+                            disabled={!selected.is_open || self}
+                            onClick={() => togglePick(key, n)}
+                            className="relative rounded-[18px] overflow-hidden border text-left flex flex-col transition-all"
+                            style={{
+                              borderColor: chosen ? MEDAL[rank].color : 'rgba(255,255,255,0.06)',
+                              boxShadow: chosen ? `0 0 18px ${MEDAL[rank].color}40` : 'none',
+                              opacity: self ? 0.45 : 1,
+                            }}
+                          >
+                            <div className="relative aspect-[4/5] w-full bg-gradient-to-b from-[#1a1a1a] to-[#0A0A0A] flex items-center justify-center">
+                              {img ? (
+                                <img src={img} alt="" className={n.type === 'player' ? 'w-full h-full object-cover' : 'w-3/4 h-3/4 object-contain'} />
+                              ) : n.type === 'player' ? (
+                                <UserIcon className="w-12 h-12 text-[#2a2a2a]" />
+                              ) : (
+                                <Shield className="w-12 h-12 text-[#2a2a2a]" />
+                              )}
+                              <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0A] via-transparent to-transparent" />
+                              <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md text-[7px] font-black uppercase tracking-widest" style={{ color: accent, background: '#0A0A0Acc' }}>{nSub(n).split(' · ')[0] || n.type}</div>
+                              {chosen && (
+                                <span className="absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black text-[#0A0A0A] shadow-lg" style={{ background: MEDAL[rank].color }}>{rank + 1}</span>
+                              )}
+                              {self && (
+                                <span className="absolute top-2 right-2 w-6 h-6 rounded-full bg-[#0A0A0A]/80 border border-white/10 flex items-center justify-center"><Lock className="w-3 h-3 text-[#6A6C6E]" /></span>
+                              )}
+                            </div>
+                            <div className="p-2.5 space-y-1.5">
+                              <div>
+                                <p className="text-[12px] font-black text-white truncate leading-tight">{nName(n)}</p>
+                                <p className="text-[7.5px] text-[#6A6C6E] font-black uppercase tracking-widest truncate">{n.type === 'player' ? (n.club?.name ?? '') : nSub(n)}{self ? ' · tú' : ''}</p>
+                              </div>
+                              <StatChips n={n} />
+                            </div>
+                          </motion.button>
+                        )
+                      })}
+                    </div>
+                  </>
+                )}
+              </motion.div>
             )
-          })}
-        </>
-      )}
+          })()
+        ) : null}
+      </div>
     </div>
   )
 }
