@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Plus, Calendar, Trophy, Loader2, ChevronRight, Play, CheckCircle, Pencil, Trash2, Clock, Zap, Archive, ChevronLeft } from 'lucide-react'
+import { Plus, Calendar, Trophy, Loader2, ChevronRight, Play, CheckCircle, Pencil, Trash2, Clock, Zap, Archive, ChevronLeft, Sparkles } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { calculateMatchDeadlines } from '@/lib/match-engine'
 import { revertContractDecrement, resetSalaryPayments, decrementContracts, toggleTransferWindow, finalizeAndArchiveSeason } from '@/lib/contract-engine'
@@ -324,6 +324,15 @@ export default function SeasonsPage() {
                       >
                         <CheckCircle className="w-3 h-3" />
                         Finalizar Ciclo
+                      </button>
+                    )}
+                    {season.status === 'finished' && (
+                      <button
+                        onClick={() => router.push(`/admin/seasons/${season.id}/gala`)}
+                        className="flex-1 h-9.5 bg-amber-400/5 hover:bg-amber-400 text-amber-300 hover:text-[#0A0A0A] border border-amber-400/15 rounded-xl font-black uppercase tracking-widest text-[8px] transition-all flex items-center justify-center gap-2"
+                      >
+                        <Sparkles className="w-3 h-3" />
+                        Ver Gala
                       </button>
                     )}
                     <button 
