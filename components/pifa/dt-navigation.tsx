@@ -1,15 +1,15 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { 
-  Home, Trophy, BarChart3, Calendar, Users, 
-  ShoppingCart, Newspaper, MessageCircle, MoreHorizontal, Megaphone, Award 
+import {
+  Home, Trophy, BarChart3, Calendar, Users,
+  ShoppingCart, Newspaper, MessageCircle, MoreHorizontal, Megaphone, Award, Sparkles
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 import { useUnreadChat } from '@/lib/use-unread-chat'
 
-export type DtTab = 'home' | 'competitions' | 'stats' | 'calendar' | 'squad' | 'market' | 'news' | 'chat' | 'announcements'
+export type DtTab = 'home' | 'competitions' | 'stats' | 'calendar' | 'squad' | 'market' | 'news' | 'chat' | 'announcements' | 'hall_of_fame' | 'galas'
 
 interface DtNavigationProps {
   activeTab: DtTab
@@ -35,6 +35,7 @@ const moreTabs: { id: DtTab; label: string; icon: any }[] = [
   { id: 'news', label: 'Noticias', icon: Newspaper },
   { id: 'announcements', label: 'Comunicados', icon: Megaphone },
   { id: 'hall_of_fame', label: 'Palmarés', icon: Award },
+  { id: 'galas', label: 'Galas', icon: Sparkles },
 ]
 
 const TabButton = ({ 

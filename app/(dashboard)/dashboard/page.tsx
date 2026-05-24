@@ -52,6 +52,7 @@ const NewsTab = dynamic(() => import('@/components/pifa/news-tab').then(m => ({ 
 const GlobalChat = dynamic(() => import('@/components/pifa/global-chat').then(m => ({ default: m.GlobalChat })), { ssr: false, loading: TabFallback })
 const AnnouncementsList = dynamic(() => import('@/components/pifa/announcements-list').then(m => ({ default: m.AnnouncementsList })), { ssr: false, loading: TabFallback })
 const HallOfFame = dynamic(() => import('@/components/pifa/hall-of-fame').then(m => ({ default: m.HallOfFame })), { ssr: false, loading: TabFallback })
+const DtGalas = dynamic(() => import('@/components/pifa/dt-galas'), { ssr: false, loading: TabFallback })
 
 type ClubLoadState = 'loading' | 'loaded' | 'error' | 'no-club'
 
@@ -1836,6 +1837,10 @@ export default function DashboardPage() {
 
               <HallOfFame />
             </div>
+          )}
+
+          {activeTab === 'galas' && (
+            <DtGalas user={user} club={club} />
           )}
 
           {/* ======== TAB: CHAT ======== */}
