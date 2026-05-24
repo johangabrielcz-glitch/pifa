@@ -337,19 +337,24 @@ export default function GalaPage({ params }: { params: Promise<{ seasonId: strin
         if (comps.length === 0) { setBlocks([]); setIsLoading(false); return }
         const compIds = comps.map((c) => c.id)
 
-        const [standingsRes, statsRes, finalsRes] = await Promise.all([
-          supabase.from('standings').select('*, club:clubs(id, name, shield_url)').in('competition_id', compIds),
-          supabase.from('player_competition_stats')
-            .select('id, competition_id, player_id, club_id, goals, assists, mvp_count, matches_played, yellow_cards, red_cards, player:players(id, name, position, photo_url, number), club:clubs(id, name, shield_url)')
-            .in('competition_id', compIds),
-          supabase.from('matches')
-            .select('*, home_club:clubs!matches_home_club_id_fkey(id, name, shield_url), away_club:clubs!matches_away_club_id_fkey(id, name, shield_url)')
-            .in('competition_id', compIds).eq('status', 'finished'),
+        const [standingsRes, statsRes, finalsRes, playersRes, clubsRes] = await Promise.all([
+          supabase.from('standings').select('id, competition_id, club_id, group_name, played, won, drawn, lost, goals_for, goals_against, goal_difference, points, position').in('competition_id', compIds),
+          supabase.from('player_competition_stats').select('id, competition_id, player_id, club_id, goals, assists, mvp_count, matches_played, yellow_cards, red_cards').in('competition_id', compIds),
+          supabase.from('matches').select('id, competition_id, home_club_id, away_club_id, home_score, away_score, status, round_name, leg, matchday, group_name').in('competition_id', compIds).eq('status', 'finished'),
+          supabase.from('players').select('id, name, position, photo_url, number'),
+          supabase.from('clubs').select('id, name, shield_url'),
         ])
 
-        const allStandings = (standingsRes.data ?? []) as Standing[]
-        const allStats = (statsRes.data ?? []) as StatRow[]
-        const allMatches = (finalsRes.data ?? []) as Match[]
+        // Unimos jugadores y clubes en JS (sin joins embebidos, que pueden fallar como bloque
+        // y vaciar toda la gala). Refleja siempre el nombre/datos vigentes del jugador.
+        const playersById = new Map<string, any>()
+        for (const p of (playersRes.data ?? []) as any[]) playersById.set(p.id, p)
+        const clubsById = new Map<string, any>()
+        for (const c of (clubsRes.data ?? []) as any[]) clubsById.set(c.id, c)
+
+        const allStandings = ((standingsRes.data ?? []) as any[]).map((s) => ({ ...s, club: clubsById.get(s.club_id) ?? null })) as Standing[]
+        const allStats = ((statsRes.data ?? []) as any[]).map((s) => ({ ...s, player: playersById.get(s.player_id) ?? null, club: clubsById.get(s.club_id) ?? null })) as StatRow[]
+        const allMatches = ((finalsRes.data ?? []) as any[]).map((m) => ({ ...m, home_club: clubsById.get(m.home_club_id) ?? null, away_club: clubsById.get(m.away_club_id) ?? null })) as Match[]
 
         const builtBlocks: CompBlock[] = comps.map((competition) => {
           const cStandings = allStandings.filter((s) => s.competition_id === competition.id)
