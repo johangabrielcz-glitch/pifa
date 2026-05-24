@@ -171,7 +171,7 @@ export type PlayerPosition =
 
 export type SquadRole = 'essential' | 'important' | 'rotation'
 export type ContractStatus = 'active' | 'free_agent' | 'renewal_pending'
-export type DtTab = 'home' | 'competitions' | 'stats' | 'calendar' | 'squad' | 'market' | 'news' | 'chat' | 'announcements' | 'hall_of_fame'
+export type DtTab = 'home' | 'competitions' | 'stats' | 'calendar' | 'squad' | 'market' | 'news' | 'chat' | 'announcements' | 'hall_of_fame' | 'galas'
 export type PlayerEmailType = 'complaint' | 'apology' | 'demand' | 'farewell' | 'general' | 'promotion_demand' | 'plea'
 
 export interface Player {
@@ -867,4 +867,28 @@ export interface SeasonAwardWeight {
   season_id: string
   competition_id: string
   weight: number
+}
+
+export interface SeasonGalaPublish {
+  id: string
+  season_id: string
+  is_open: boolean
+  payload: any // GalaPayload (definido en lib/award-engine.ts)
+  opened_at: string | null
+  closed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AwardVote {
+  id: string
+  season_id: string
+  award_key: AwardKey
+  voter_user_id: string
+  voter_name: string | null
+  first_id: string | null
+  second_id: string | null
+  third_id: string | null
+  created_at: string
+  updated_at: string
 }

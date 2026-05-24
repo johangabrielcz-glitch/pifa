@@ -13,6 +13,7 @@ import {
   type ChampionResult, type AggregatedPlayerStat,
 } from '@/lib/season-awards'
 import GalaAwards from '@/components/pifa/gala-awards'
+import GalaVotingAdmin from '@/components/pifa/gala-voting-admin'
 import type { Season, Competition, Standing, Match, PlayerCompetitionStats, Player, Club } from '@/lib/types'
 
 type StatRow = PlayerCompetitionStats & { player?: Player; club?: Club }
@@ -35,6 +36,7 @@ const TABS = [
   { id: 'resumen', label: 'Resumen' },
   { id: 'competencias', label: 'Competencias' },
   { id: 'premios', label: 'Premios' },
+  { id: 'votaciones', label: 'Votaciones' },
   { id: 'global', label: 'Global' },
 ] as const
 type TabId = (typeof TABS)[number]['id']
@@ -517,6 +519,11 @@ export default function GalaPage({ params }: { params: Promise<{ seasonId: strin
               {/* ---------- PREMIOS ---------- */}
               {activeTab === 'premios' && season && (
                 <GalaAwards season={season} blocks={blocks} clubMatchCounts={clubMatchCounts} />
+              )}
+
+              {/* ---------- VOTACIONES ---------- */}
+              {activeTab === 'votaciones' && season && (
+                <GalaVotingAdmin season={season} blocks={blocks} clubMatchCounts={clubMatchCounts} />
               )}
 
               {/* ---------- GLOBAL ---------- */}

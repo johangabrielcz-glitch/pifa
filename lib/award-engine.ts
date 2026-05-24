@@ -303,6 +303,103 @@ function rankDts(
 
 // ---------- Master ----------
 
+// Puntos por posición en el top 3 de cada DT
+export const VOTE_POINTS = [5, 3, 1]
+
+// Límite de nominados por premio en la papeleta
+export const AWARD_LIMITS: Record<AwardKey, number> = {
+  ballon_dor: 30,
+  the_best: 5,
+  best_playmaker: 5,
+  golden_boot: 5,
+  oliver_kahn: 5,
+  club_year: 5,
+  dt_year: 5,
+}
+
+const AWARD_KEYS: AwardKey[] = ['ballon_dor', 'the_best', 'best_playmaker', 'golden_boot', 'oliver_kahn', 'club_year', 'dt_year']
+
+export interface GalaRosterPlayer {
+  id: string
+  name: string
+  photo_url: string | null
+  number: number | null
+  position: string
+  goals: number
+  assists: number
+  matches: number
+}
+
+export interface GalaChampionSnapshot {
+  competitionId: string
+  competitionName: string
+  competitionType: string
+  clubId: string
+  clubName: string
+  clubShield: string | null
+  roster: GalaRosterPlayer[]
+}
+
+export interface GalaPayload {
+  awards: Record<AwardKey, Nominee[]>
+  champions: GalaChampionSnapshot[]
+}
+
+export interface BuildPayloadInput extends AwardEngineInput {
+  /** Para cada premio: refs curados por el admin; si no hay, se usa el cálculo. */
+  savedNominees?: Partial<Record<AwardKey, { type: string; id: string }[]>>
+  /** Bloques con la plantilla campeona ya calculada (championRoster). */
+  championBlocks: (AwardCompBlock & { championRoster: AwardStatRow[] })[]
+}
+
+/**
+ * Construye el snapshot publicable de la gala para la vista DT: papeleta de
+ * nominados por premio (curada o calculada) + campeones con sus plantillas.
+ */
+export function buildGalaPayload(input: BuildPayloadInput): GalaPayload {
+  const computed = computeAwards(input)
+
+  const awards = {} as Record<AwardKey, Nominee[]>
+  for (const key of AWARD_KEYS) {
+    const pool = computed[key]
+    const byId = new Map(pool.map((n) => [n.id, n]))
+    const saved = input.savedNominees?.[key]
+    if (saved && saved.length > 0) {
+      awards[key] = saved.map((r) => byId.get(r.id)).filter(Boolean) as Nominee[]
+    } else {
+      awards[key] = pool.slice(0, AWARD_LIMITS[key])
+    }
+  }
+
+  const champions: GalaChampionSnapshot[] = []
+  for (const block of input.championBlocks) {
+    if (!block.champion) continue
+    const roster: GalaRosterPlayer[] = [...block.championRoster]
+      .sort((a, b) => b.goals - a.goals || b.assists - a.assists)
+      .map((s) => ({
+        id: s.player_id,
+        name: s.player?.name ?? 'Jugador',
+        photo_url: s.player?.photo_url ?? null,
+        number: s.player?.number ?? null,
+        position: s.player?.position ?? '',
+        goals: s.goals ?? 0,
+        assists: s.assists ?? 0,
+        matches: s.matches_played ?? 0,
+      }))
+    champions.push({
+      competitionId: block.competition.id,
+      competitionName: block.competition.name,
+      competitionType: block.competition.type,
+      clubId: block.champion.clubId,
+      clubName: block.champion.club?.name ?? 'Club',
+      clubShield: block.champion.club?.shield_url ?? null,
+      roster,
+    })
+  }
+
+  return { awards, champions }
+}
+
 export function computeAwards(input: AwardEngineInput): Record<AwardKey, Nominee[]> {
   const aggs = computePlayerAggregates(input.blocks, input.weights, input.clubMatchCounts)
   const clubAggs = computeClubAggregates(input.blocks, input.weights, input.clubsById)
