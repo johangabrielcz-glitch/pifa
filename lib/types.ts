@@ -830,3 +830,41 @@ export interface ClubTrophy {
   updated_at: string
   trophies?: Trophy
 }
+
+// =============================================
+// SEASON AWARDS (gala — premios reales)
+// =============================================
+
+export type AwardKey =
+  | 'ballon_dor'
+  | 'the_best'
+  | 'best_playmaker'
+  | 'golden_boot'
+  | 'oliver_kahn'
+  | 'club_year'
+  | 'dt_year'
+
+export type AwardWinnerType = 'player' | 'club' | 'user'
+
+export interface AwardNomineeRef {
+  type: AwardWinnerType
+  id: string
+}
+
+export interface SeasonAward {
+  id: string
+  season_id: string
+  award_key: AwardKey
+  winner_type: AwardWinnerType
+  winner_id: string | null
+  nominees: AwardNomineeRef[]
+  created_at: string
+  updated_at: string
+}
+
+export interface SeasonAwardWeight {
+  id: string
+  season_id: string
+  competition_id: string
+  weight: number
+}

@@ -12,6 +12,7 @@ import {
   resolveChampion, aggregateGlobalStats, topByMetric, countTitlesByClub, multiTitleLabel,
   type ChampionResult, type AggregatedPlayerStat,
 } from '@/lib/season-awards'
+import GalaAwards from '@/components/pifa/gala-awards'
 import type { Season, Competition, Standing, Match, PlayerCompetitionStats, Player, Club } from '@/lib/types'
 
 type StatRow = PlayerCompetitionStats & { player?: Player; club?: Club }
@@ -19,6 +20,7 @@ type StatRow = PlayerCompetitionStats & { player?: Player; club?: Club }
 interface CompBlock {
   competition: Competition
   stats: StatRow[]
+  standings: Standing[]
   champion: ChampionResult | null
   championRoster: StatRow[]
 }
@@ -32,6 +34,7 @@ const COMP_TYPE_LABEL: Record<string, string> = {
 const TABS = [
   { id: 'resumen', label: 'Resumen' },
   { id: 'competencias', label: 'Competencias' },
+  { id: 'premios', label: 'Premios' },
   { id: 'global', label: 'Global' },
 ] as const
 type TabId = (typeof TABS)[number]['id']
@@ -313,6 +316,7 @@ export default function GalaPage({ params }: { params: Promise<{ seasonId: strin
   const [blocks, setBlocks] = useState<CompBlock[]>([])
   const [globalStats, setGlobalStats] = useState<AggregatedPlayerStat[]>([])
   const [titlesByClub, setTitlesByClub] = useState<Map<string, number>>(new Map())
+  const [clubMatchCounts, setClubMatchCounts] = useState<Record<string, number>>({})
   const [activeTab, setActiveTab] = useState<TabId>('resumen')
   const [expandedRosters, setExpandedRosters] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
@@ -353,10 +357,18 @@ export default function GalaPage({ params }: { params: Promise<{ seasonId: strin
           const championRoster = champion
             ? cStats.filter((s) => s.club_id === champion.clubId)
             : []
-          return { competition, stats: cStats, champion, championRoster }
+          return { competition, stats: cStats, standings: cStandings, champion, championRoster }
         })
 
+        // Partidos finalizados por club (para el mínimo de elegibilidad de premios)
+        const matchCounts: Record<string, number> = {}
+        for (const m of allMatches) {
+          if (m.home_club_id) matchCounts[m.home_club_id] = (matchCounts[m.home_club_id] ?? 0) + 1
+          if (m.away_club_id) matchCounts[m.away_club_id] = (matchCounts[m.away_club_id] ?? 0) + 1
+        }
+
         setBlocks(builtBlocks)
+        setClubMatchCounts(matchCounts)
         setTitlesByClub(countTitlesByClub(builtBlocks.map((b) => b.champion)))
         setGlobalStats(aggregateGlobalStats(allStats))
       } catch (err: any) {
@@ -500,6 +512,11 @@ export default function GalaPage({ params }: { params: Promise<{ seasonId: strin
                     />
                   ))}
                 </div>
+              )}
+
+              {/* ---------- PREMIOS ---------- */}
+              {activeTab === 'premios' && season && (
+                <GalaAwards season={season} blocks={blocks} clubMatchCounts={clubMatchCounts} />
               )}
 
               {/* ---------- GLOBAL ---------- */}
