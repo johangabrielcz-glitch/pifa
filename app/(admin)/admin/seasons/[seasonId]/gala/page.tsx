@@ -2,9 +2,9 @@
 
 import { use, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
-  ChevronLeft, Trophy, Crown, Shield, User, Goal, Star, Sparkles,
+  ChevronLeft, ChevronDown, Trophy, Crown, Shield, User, Goal, Star, Sparkles,
   Loader2, Award, HandHelping, Medal,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -28,6 +28,13 @@ const COMP_TYPE_LABEL: Record<string, string> = {
   cup: 'Copa',
   groups_knockout: 'Grupos + K.O.',
 }
+
+const TABS = [
+  { id: 'resumen', label: 'Resumen' },
+  { id: 'competencias', label: 'Competencias' },
+  { id: 'global', label: 'Global' },
+] as const
+type TabId = (typeof TABS)[number]['id']
 
 // ---------- Subcomponentes de presentación ----------
 
@@ -148,7 +155,7 @@ function ChampionCard({ block, titles, index }: { block: CompBlock; titles: numb
     <motion.div
       initial={{ opacity: 0, y: 18 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.15 + index * 0.08 }}
+      transition={{ delay: 0.1 + index * 0.07 }}
       className="relative bg-gradient-to-br from-[#FF3131]/[0.07] to-transparent rounded-[22px] border border-[#FF3131]/15 p-5 overflow-hidden"
     >
       <div className="absolute -top-16 -right-16 w-40 h-40 bg-amber-400/10 rounded-full blur-[70px] pointer-events-none animate-medal-shine" />
@@ -184,6 +191,118 @@ function ChampionCard({ block, titles, index }: { block: CompBlock; titles: numb
   )
 }
 
+function RosterGrid({ roster }: { roster: StatRow[] }) {
+  const sorted = [...roster].sort((a, b) => b.goals - a.goals || b.assists - a.assists)
+  const pichichiId = sorted.find((p) => p.goals > 0)?.player_id
+  if (sorted.length === 0) {
+    return <p className="text-[9px] text-[#2D2D2D] font-black uppercase tracking-widest py-4 text-center">Sin jugadores con minutos registrados</p>
+  }
+  return (
+    <div className="grid gap-2 grid-cols-2 sm:grid-cols-3">
+      {sorted.map((p) => {
+        const isPichichi = p.player_id === pichichiId
+        return (
+          <div key={p.player_id} className={`flex items-center gap-2.5 p-2 rounded-xl border ${isPichichi ? 'bg-amber-400/[0.06] border-amber-400/20' : 'bg-white/[0.02] border-white/[0.04]'}`}>
+            <PlayerAvatar player={p.player} size={34} />
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-bold text-white truncate leading-tight">
+                {p.player?.number != null ? <span className="text-[#6A6C6E]">{p.player.number} · </span> : null}
+                {p.player?.name ?? 'Jugador'}
+              </p>
+              <div className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-widest">
+                <span className="text-[#6A6C6E]">{p.player?.position ?? ''}</span>
+                {p.goals > 0 && <span className="text-amber-300">{p.goals}G</span>}
+                {p.assists > 0 && <span className="text-sky-400">{p.assists}A</span>}
+                {p.matches_played > 0 && <span className="text-[#6A6C6E]">{p.matches_played}PJ</span>}
+              </div>
+            </div>
+            {isPichichi && <Goal className="w-3.5 h-3.5 text-amber-300 shrink-0" />}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function CompetitionSection({ block, titles, expanded, onToggle, index }: {
+  block: CompBlock; titles: number; expanded: boolean; onToggle: () => void; index: number
+}) {
+  const label = multiTitleLabel(titles)
+  const hasRoster = !!block.champion && block.championRoster.length > 0
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.06 }}
+      className="bg-[#141414]/40 rounded-[22px] border border-white/[0.05] p-4 sm:p-5 space-y-4"
+    >
+      {/* Banner del campeón */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="relative shrink-0">
+            <ClubBadge club={block.champion?.club} size={44} />
+            {block.champion && <Crown className="w-4 h-4 text-amber-300 absolute -top-2 left-1/2 -translate-x-1/2 drop-shadow-[0_0_5px_rgba(252,211,77,0.6)]" />}
+          </div>
+          <div className="min-w-0">
+            <p className="text-[8px] font-black uppercase tracking-[0.25em] text-[#6A6C6E]">
+              {COMP_TYPE_LABEL[block.competition.type] ?? block.competition.type}
+            </p>
+            <p className="text-sm font-black text-white uppercase tracking-tight truncate leading-tight">{block.competition.name}</p>
+            {block.champion ? (
+              <p className="text-[9px] font-black uppercase tracking-widest text-amber-300 truncate">Campeón · {block.champion.club?.name ?? 'Club'}</p>
+            ) : (
+              <p className="text-[9px] font-black uppercase tracking-widest text-[#6A6C6E]">Campeón sin definir</p>
+            )}
+          </div>
+        </div>
+        {label && (
+          <span className="shrink-0 px-2 py-0.5 rounded-md bg-amber-400/15 border border-amber-400/30 text-amber-300 text-[8px] font-black uppercase tracking-widest">
+            {label}
+          </span>
+        )}
+      </div>
+
+      {/* Rankings de la competencia */}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <RankingColumn label="Goleadores" icon={<Goal className="w-3.5 h-3.5" />} accent="#fbbf24" rows={toRankRows(block.stats, 'goals', 15)} />
+        <RankingColumn label="Asistencias" icon={<HandHelping className="w-3.5 h-3.5" />} accent="#38bdf8" rows={toRankRows(block.stats, 'assists', 15)} />
+        <RankingColumn label="MVPs" icon={<Star className="w-3.5 h-3.5" />} accent="#FF3131" rows={toRankRows(block.stats, 'mvp_count', 15)} />
+      </div>
+
+      {/* Plantilla campeona (expandible) */}
+      {hasRoster && (
+        <div>
+          <button
+            onClick={onToggle}
+            className="w-full flex items-center justify-between gap-2 px-3 h-9 rounded-xl bg-amber-400/[0.05] hover:bg-amber-400/10 border border-amber-400/15 transition-all"
+          >
+            <span className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.2em] text-amber-300">
+              <Crown className="w-3.5 h-3.5" />
+              Plantilla campeona · {block.champion?.club?.name ?? ''}
+            </span>
+            <ChevronDown className={`w-4 h-4 text-amber-300 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+          </button>
+          <AnimatePresence initial={false}>
+            {expanded && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.22 }}
+                className="overflow-hidden"
+              >
+                <div className="pt-3">
+                  <RosterGrid roster={block.championRoster} />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
+    </motion.div>
+  )
+}
+
 // ---------- Página ----------
 
 export default function GalaPage({ params }: { params: Promise<{ seasonId: string }> }) {
@@ -194,7 +313,8 @@ export default function GalaPage({ params }: { params: Promise<{ seasonId: strin
   const [blocks, setBlocks] = useState<CompBlock[]>([])
   const [globalStats, setGlobalStats] = useState<AggregatedPlayerStat[]>([])
   const [titlesByClub, setTitlesByClub] = useState<Map<string, number>>(new Map())
-  const [selectedCompId, setSelectedCompId] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<TabId>('resumen')
+  const [expandedRosters, setExpandedRosters] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -239,7 +359,6 @@ export default function GalaPage({ params }: { params: Promise<{ seasonId: strin
         setBlocks(builtBlocks)
         setTitlesByClub(countTitlesByClub(builtBlocks.map((b) => b.champion)))
         setGlobalStats(aggregateGlobalStats(allStats))
-        setSelectedCompId(comps[0].id)
       } catch (err: any) {
         setError(err?.message || 'Error al cargar la gala')
       } finally {
@@ -249,11 +368,15 @@ export default function GalaPage({ params }: { params: Promise<{ seasonId: strin
     load()
   }, [seasonId])
 
-  const selectedBlock = blocks.find((b) => b.competition.id === selectedCompId) ?? null
-  const championRosterSorted = selectedBlock
-    ? [...selectedBlock.championRoster].sort((a, b) => b.goals - a.goals || b.assists - a.assists)
-    : []
-  const teamPichichiId = championRosterSorted.find((p) => p.goals > 0)?.player_id
+  const toggleRoster = (id: string) =>
+    setExpandedRosters((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+
+  const showTabs = !isLoading && !error && blocks.length > 0
 
   return (
     <div className="min-h-screen">
@@ -274,6 +397,31 @@ export default function GalaPage({ params }: { params: Promise<{ seasonId: strin
             </p>
           </div>
         </div>
+        {showTabs && (
+          <div className="flex gap-2 px-6 pb-2.5">
+            {TABS.map((t) => {
+              const active = activeTab === t.id
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setActiveTab(t.id)}
+                  className="relative px-4 h-8 rounded-lg flex items-center justify-center transition-all active:scale-95"
+                >
+                  {active && (
+                    <motion.div
+                      layoutId="galaActiveTab"
+                      className="absolute inset-0 bg-[#FF3131]/10 border border-[#FF3131]/20 rounded-lg"
+                      transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+                    />
+                  )}
+                  <span className={`relative z-10 text-[9px] font-black uppercase tracking-[0.2em] ${active ? 'text-[#FF3131]' : 'text-[#6A6C6E] hover:text-white'}`}>
+                    {t.label}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        )}
       </header>
 
       {isLoading ? (
@@ -283,138 +431,92 @@ export default function GalaPage({ params }: { params: Promise<{ seasonId: strin
           <Trophy className="w-14 h-14 text-[#2D2D2D] mx-auto mb-5" />
           <p className="text-[#6A6C6E] font-black uppercase tracking-[0.2em] text-xs">{error}</p>
         </div>
+      ) : blocks.length === 0 ? (
+        <div className="px-6 py-16">
+          <div className="text-center py-16 bg-[#141414]/30 rounded-[28px] border border-dashed border-white/[0.06]">
+            <p className="text-[#6A6C6E] font-black uppercase tracking-[0.2em] text-xs">Sin competencias en esta temporada</p>
+          </div>
+        </div>
       ) : (
-        <div className="px-6 py-6 space-y-10 pb-32">
-          {/* Hero */}
-          <motion.div
-            initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
-            className="relative text-center py-8 overflow-hidden"
-          >
-            <div className="absolute inset-0 bg-gradient-to-b from-[#FF3131]/[0.05] to-transparent rounded-[28px] pointer-events-none" />
-            <Sparkles className="w-7 h-7 text-amber-300 mx-auto mb-3 animate-medal-shine" />
-            <h2 className="text-2xl font-black text-white uppercase tracking-tighter leading-none relative z-10">
-              PALMARÉS
-            </h2>
-            <p className="text-[10px] text-[#FF3131] font-black uppercase tracking-[0.35em] mt-2 relative z-10">{season?.name}</p>
-            {season?.archived_at && (
-              <p className="text-[7px] text-[#2D2D2D] font-black uppercase tracking-[0.3em] mt-1.5 relative z-10">
-                Archivada el {new Date(season.archived_at).toLocaleDateString('es', { day: '2-digit', month: 'long', year: 'numeric' })}
-              </p>
-            )}
-          </motion.div>
-
-          {blocks.length === 0 ? (
-            <div className="text-center py-16 bg-[#141414]/30 rounded-[28px] border border-dashed border-white/[0.06]">
-              <p className="text-[#6A6C6E] font-black uppercase tracking-[0.2em] text-xs">Sin competencias en esta temporada</p>
-            </div>
-          ) : (
-            <>
-              {/* Premios individuales */}
-              <section>
-                <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-[#6A6C6E] mb-4 flex items-center gap-2">
-                  <Award className="w-3.5 h-3.5 text-amber-300" /> Premios Individuales
-                </h3>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <AwardSpotlight label="Bota de Oro" sub="Máximo goleador" icon={<Goal className="w-4 h-4" />} accent="#fbbf24" top={toRankRows(globalStats, 'goals', 1)[0]} delay={0.05} />
-                  <AwardSpotlight label="Rey de Asistencias" sub="Más asistencias" icon={<HandHelping className="w-4 h-4" />} accent="#38bdf8" top={toRankRows(globalStats, 'assists', 1)[0]} delay={0.12} />
-                  <AwardSpotlight label="MVP de la Temporada" sub="Más MVPs" icon={<Star className="w-4 h-4" />} accent="#FF3131" top={toRankRows(globalStats, 'mvp_count', 1)[0]} delay={0.19} />
-                </div>
-              </section>
-
-              {/* Campeones */}
-              <section>
-                <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-[#6A6C6E] mb-4 flex items-center gap-2">
-                  <Trophy className="w-3.5 h-3.5 text-amber-300" /> Campeones
-                </h3>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {blocks.map((b, i) => (
-                    <ChampionCard key={b.competition.id} block={b} titles={b.champion ? (titlesByClub.get(b.champion.clubId) ?? 1) : 0} index={i} />
-                  ))}
-                </div>
-              </section>
-
-              {/* Detalle por competencia */}
-              <section>
-                <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-[#6A6C6E] mb-4 flex items-center gap-2">
-                  <Medal className="w-3.5 h-3.5 text-amber-300" /> Detalle por Competencia
-                </h3>
-                <div className="flex gap-2 overflow-x-auto pb-2 mb-4 -mx-1 px-1">
-                  {blocks.map((b) => {
-                    const active = b.competition.id === selectedCompId
-                    return (
-                      <button
-                        key={b.competition.id}
-                        onClick={() => setSelectedCompId(b.competition.id)}
-                        className={`shrink-0 px-3.5 h-8 rounded-lg border font-black uppercase tracking-widest text-[8px] transition-all ${
-                          active
-                            ? 'bg-[#FF3131]/10 text-[#FF3131] border-[#FF3131]/20'
-                            : 'bg-white/[0.02] text-[#6A6C6E] border-white/[0.04] hover:text-white'
-                        }`}
-                      >
-                        {b.competition.name}
-                      </button>
-                    )
-                  })}
-                </div>
-
-                {selectedBlock && (
-                  <div className="space-y-4">
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      <RankingColumn label="Goleadores" icon={<Goal className="w-3.5 h-3.5" />} accent="#fbbf24" rows={toRankRows(selectedBlock.stats, 'goals', 15)} />
-                      <RankingColumn label="Asistencias" icon={<HandHelping className="w-3.5 h-3.5" />} accent="#38bdf8" rows={toRankRows(selectedBlock.stats, 'assists', 15)} />
-                      <RankingColumn label="MVPs" icon={<Star className="w-3.5 h-3.5" />} accent="#FF3131" rows={toRankRows(selectedBlock.stats, 'mvp_count', 15)} />
-                    </div>
-
-                    {/* Plantilla campeona */}
-                    {selectedBlock.champion && championRosterSorted.length > 0 && (
-                      <div className="bg-[#141414]/50 rounded-[18px] border border-amber-400/10 p-4">
-                        <div className="flex items-center gap-2 mb-4">
-                          <Crown className="w-3.5 h-3.5 text-amber-300" />
-                          <span className="text-[9px] font-black uppercase tracking-[0.2em] text-amber-300">
-                            Plantilla Campeona · {selectedBlock.champion.club?.name ?? ''}
-                          </span>
-                        </div>
-                        <div className="grid gap-2 grid-cols-2 sm:grid-cols-3">
-                          {championRosterSorted.map((p) => {
-                            const isPichichi = p.player_id === teamPichichiId
-                            return (
-                              <div key={p.player_id} className={`flex items-center gap-2.5 p-2 rounded-xl border ${isPichichi ? 'bg-amber-400/[0.06] border-amber-400/20' : 'bg-white/[0.02] border-white/[0.04]'}`}>
-                                <PlayerAvatar player={p.player} size={34} />
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-[11px] font-bold text-white truncate leading-tight">
-                                    {p.player?.number != null ? <span className="text-[#6A6C6E]">{p.player.number} · </span> : null}
-                                    {p.player?.name ?? 'Jugador'}
-                                  </p>
-                                  <div className="flex items-center gap-2 text-[8px] text-[#6A6C6E] font-black uppercase tracking-widest">
-                                    <span>{p.player?.position ?? ''}</span>
-                                    {p.goals > 0 && <span className="text-amber-300">{p.goals}G</span>}
-                                    {p.assists > 0 && <span className="text-sky-400">{p.assists}A</span>}
-                                  </div>
-                                </div>
-                                {isPichichi && <Goal className="w-3.5 h-3.5 text-amber-300 shrink-0" />}
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
+        <div className="px-6 py-6 pb-32">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.18 }}
+            >
+              {/* ---------- RESUMEN ---------- */}
+              {activeTab === 'resumen' && (
+                <div className="space-y-9">
+                  <div className="relative text-center py-7 overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-b from-[#FF3131]/[0.05] to-transparent rounded-[28px] pointer-events-none" />
+                    <Sparkles className="w-7 h-7 text-amber-300 mx-auto mb-3 animate-medal-shine" />
+                    <h2 className="text-2xl font-black text-white uppercase tracking-tighter leading-none relative z-10">PALMARÉS</h2>
+                    <p className="text-[10px] text-[#FF3131] font-black uppercase tracking-[0.35em] mt-2 relative z-10">{season?.name}</p>
+                    {season?.archived_at && (
+                      <p className="text-[7px] text-[#2D2D2D] font-black uppercase tracking-[0.3em] mt-1.5 relative z-10">
+                        Archivada el {new Date(season.archived_at).toLocaleDateString('es', { day: '2-digit', month: 'long', year: 'numeric' })}
+                      </p>
                     )}
                   </div>
-                )}
-              </section>
 
-              {/* Rankings globales */}
-              <section>
-                <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-[#6A6C6E] mb-4 flex items-center gap-2">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-300" /> Rankings Globales · Top 15
-                </h3>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <RankingColumn label="Goleadores" icon={<Goal className="w-3.5 h-3.5" />} accent="#fbbf24" rows={toRankRows(globalStats, 'goals', 15)} />
-                  <RankingColumn label="Asistencias" icon={<HandHelping className="w-3.5 h-3.5" />} accent="#38bdf8" rows={toRankRows(globalStats, 'assists', 15)} />
-                  <RankingColumn label="MVPs" icon={<Star className="w-3.5 h-3.5" />} accent="#FF3131" rows={toRankRows(globalStats, 'mvp_count', 15)} />
+                  <section>
+                    <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-[#6A6C6E] mb-4 flex items-center gap-2">
+                      <Award className="w-3.5 h-3.5 text-amber-300" /> Premios Individuales
+                    </h3>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <AwardSpotlight label="Bota de Oro" sub="Máximo goleador" icon={<Goal className="w-4 h-4" />} accent="#fbbf24" top={toRankRows(globalStats, 'goals', 1)[0]} delay={0.05} />
+                      <AwardSpotlight label="Rey de Asistencias" sub="Más asistencias" icon={<HandHelping className="w-4 h-4" />} accent="#38bdf8" top={toRankRows(globalStats, 'assists', 1)[0]} delay={0.12} />
+                      <AwardSpotlight label="MVP de la Temporada" sub="Más MVPs" icon={<Star className="w-4 h-4" />} accent="#FF3131" top={toRankRows(globalStats, 'mvp_count', 1)[0]} delay={0.19} />
+                    </div>
+                  </section>
+
+                  <section>
+                    <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-[#6A6C6E] mb-4 flex items-center gap-2">
+                      <Trophy className="w-3.5 h-3.5 text-amber-300" /> Campeones
+                    </h3>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {blocks.map((b, i) => (
+                        <ChampionCard key={b.competition.id} block={b} titles={b.champion ? (titlesByClub.get(b.champion.clubId) ?? 1) : 0} index={i} />
+                      ))}
+                    </div>
+                  </section>
                 </div>
-              </section>
-            </>
-          )}
+              )}
+
+              {/* ---------- COMPETENCIAS ---------- */}
+              {activeTab === 'competencias' && (
+                <div className="space-y-4">
+                  {blocks.map((b, i) => (
+                    <CompetitionSection
+                      key={b.competition.id}
+                      block={b}
+                      index={i}
+                      titles={b.champion ? (titlesByClub.get(b.champion.clubId) ?? 1) : 0}
+                      expanded={expandedRosters.has(b.competition.id)}
+                      onToggle={() => toggleRoster(b.competition.id)}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* ---------- GLOBAL ---------- */}
+              {activeTab === 'global' && (
+                <section>
+                  <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-[#6A6C6E] mb-4 flex items-center gap-2">
+                    <Medal className="w-3.5 h-3.5 text-amber-300" /> Rankings Globales · Top 15
+                  </h3>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <RankingColumn label="Goleadores" icon={<Goal className="w-3.5 h-3.5" />} accent="#fbbf24" rows={toRankRows(globalStats, 'goals', 15)} />
+                    <RankingColumn label="Asistencias" icon={<HandHelping className="w-3.5 h-3.5" />} accent="#38bdf8" rows={toRankRows(globalStats, 'assists', 15)} />
+                    <RankingColumn label="MVPs" icon={<Star className="w-3.5 h-3.5" />} accent="#FF3131" rows={toRankRows(globalStats, 'mvp_count', 15)} />
+                  </div>
+                </section>
+              )}
+            </motion.div>
+          </AnimatePresence>
         </div>
       )}
     </div>
