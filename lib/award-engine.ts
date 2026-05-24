@@ -128,16 +128,16 @@ function computePlayerAggregates(
       if (!a.player && row.player) a.player = row.player
       if (!a.position && row.player?.position) a.position = row.player.position
 
-      a.wGoals += w * row.goals
-      a.wAssists += w * row.assists
-      a.wMVP += w * row.mvp_count
-      a.wApps += w * row.matches_played
-      a.rawGoals += row.goals
-      a.rawAssists += row.assists
-      a.rawMVP += row.mvp_count
-      a.discipline += w * (0.5 * row.yellow_cards + 1.5 * row.red_cards)
-      a.totalApps += row.matches_played
-      a.appsByClub[row.club_id] = (a.appsByClub[row.club_id] ?? 0) + row.matches_played
+      a.wGoals += w * (row.goals ?? 0)
+      a.wAssists += w * (row.assists ?? 0)
+      a.wMVP += w * (row.mvp_count ?? 0)
+      a.wApps += w * (row.matches_played ?? 0)
+      a.rawGoals += row.goals ?? 0
+      a.rawAssists += row.assists ?? 0
+      a.rawMVP += row.mvp_count ?? 0
+      a.discipline += w * (0.5 * (row.yellow_cards ?? 0) + 1.5 * (row.red_cards ?? 0))
+      a.totalApps += row.matches_played ?? 0
+      a.appsByClub[row.club_id] = (a.appsByClub[row.club_id] ?? 0) + (row.matches_played ?? 0)
 
       if (champId && row.club_id === champId) {
         a.titlePoints += w

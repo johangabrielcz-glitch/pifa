@@ -338,7 +338,7 @@ export default function GalaPage({ params }: { params: Promise<{ seasonId: strin
         const [standingsRes, statsRes, finalsRes] = await Promise.all([
           supabase.from('standings').select('*, club:clubs(id, name, shield_url)').in('competition_id', compIds),
           supabase.from('player_competition_stats')
-            .select('id, competition_id, player_id, club_id, goals, assists, mvp_count, matches_played, player:players(id, name, position, photo_url, number), club:clubs(id, name, shield_url)')
+            .select('id, competition_id, player_id, club_id, goals, assists, mvp_count, matches_played, yellow_cards, red_cards, player:players(id, name, position, photo_url, number), club:clubs(id, name, shield_url)')
             .in('competition_id', compIds),
           supabase.from('matches')
             .select('*, home_club:clubs!matches_home_club_id_fkey(id, name, shield_url), away_club:clubs!matches_away_club_id_fkey(id, name, shield_url)')
