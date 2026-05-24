@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   Sparkles, Crown, Trophy, Shield, User as UserIcon, ChevronLeft, ChevronRight,
-  Loader2, Goal, Star, HandHelping, Gem, Award, Lock, Check,
+  Loader2, Star, HandHelping, Gem, Award, Lock, Check,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
@@ -15,7 +15,6 @@ const AWARDS: { key: AwardKey; label: string; short: string; icon: React.ReactNo
   { key: 'ballon_dor', label: 'Balón de Oro', short: 'Balón de Oro', icon: <Gem className="w-4 h-4" />, accent: '#fbbf24', desc: 'El mejor del año' },
   { key: 'the_best', label: 'The Best', short: 'The Best', icon: <Star className="w-4 h-4" />, accent: '#FF3131', desc: 'Impacto y títulos' },
   { key: 'best_playmaker', label: 'The Best Playmaker', short: 'Playmaker', icon: <HandHelping className="w-4 h-4" />, accent: '#38bdf8', desc: 'El mejor creador' },
-  { key: 'golden_boot', label: 'Bota de Oro', short: 'Bota de Oro', icon: <Goal className="w-4 h-4" />, accent: '#fbbf24', desc: 'El máximo goleador' },
   { key: 'oliver_kahn', label: 'Premio Oliver Kahn', short: 'Oliver Kahn', icon: <Shield className="w-4 h-4" />, accent: '#34d399', desc: 'El mejor portero' },
   { key: 'club_year', label: 'Club del Año', short: 'Club', icon: <Trophy className="w-4 h-4" />, accent: '#FF3131', desc: 'El mejor club' },
   { key: 'dt_year', label: 'DT del Año', short: 'DT', icon: <Award className="w-4 h-4" />, accent: '#a78bfa', desc: 'El mejor entrenador' },
