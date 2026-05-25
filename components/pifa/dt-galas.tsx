@@ -4,20 +4,22 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   Sparkles, Crown, Trophy, Shield, User as UserIcon, ChevronLeft, ChevronRight,
-  Loader2, Star, HandHelping, Gem, Award, Lock, Check,
+  Loader2, Star, HandHelping, Gem, Award, Lock, Check, Goal, Medal,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import type { GalaPayload, Nominee } from '@/lib/award-engine'
 import type { User, Club, AwardKey } from '@/lib/types'
 
-const AWARDS: { key: AwardKey; label: string; short: string; icon: React.ReactNode; accent: string; desc: string }[] = [
-  { key: 'ballon_dor', label: 'Balón de Oro', short: 'Balón de Oro', icon: <Gem className="w-4 h-4" />, accent: '#fbbf24', desc: 'El mejor del año' },
-  { key: 'the_best', label: 'The Best', short: 'The Best', icon: <Star className="w-4 h-4" />, accent: '#FF3131', desc: 'Impacto y títulos' },
-  { key: 'best_playmaker', label: 'The Best Playmaker', short: 'Playmaker', icon: <HandHelping className="w-4 h-4" />, accent: '#38bdf8', desc: 'El mejor creador' },
-  { key: 'oliver_kahn', label: 'Premio Oliver Kahn', short: 'Oliver Kahn', icon: <Shield className="w-4 h-4" />, accent: '#34d399', desc: 'El mejor portero' },
-  { key: 'club_year', label: 'Club del Año', short: 'Club', icon: <Trophy className="w-4 h-4" />, accent: '#FF3131', desc: 'El mejor club' },
-  { key: 'dt_year', label: 'DT del Año', short: 'DT', icon: <Award className="w-4 h-4" />, accent: '#a78bfa', desc: 'El mejor entrenador' },
+const AWARDS: { key: AwardKey; label: string; short: string; icon: React.ReactNode; accent: string; desc: string; votable: boolean }[] = [
+  { key: 'ballon_dor', label: 'Balón de Oro', short: 'Balón de Oro', icon: <Gem className="w-4 h-4" />, accent: '#fbbf24', desc: 'El mejor del año', votable: true },
+  { key: 'the_best', label: 'The Best', short: 'The Best', icon: <Star className="w-4 h-4" />, accent: '#FF3131', desc: 'Impacto y títulos', votable: true },
+  { key: 'best_playmaker', label: 'The Best Playmaker', short: 'Playmaker', icon: <HandHelping className="w-4 h-4" />, accent: '#38bdf8', desc: 'El mejor creador', votable: true },
+  { key: 'oliver_kahn', label: 'Premio Oliver Kahn', short: 'Oliver Kahn', icon: <Shield className="w-4 h-4" />, accent: '#34d399', desc: 'El mejor portero', votable: true },
+  { key: 'club_year', label: 'Club del Año', short: 'Club', icon: <Trophy className="w-4 h-4" />, accent: '#FF3131', desc: 'El mejor club', votable: true },
+  { key: 'dt_year', label: 'DT del Año', short: 'DT', icon: <Award className="w-4 h-4" />, accent: '#a78bfa', desc: 'El mejor entrenador', votable: true },
+  // No votable: solo aparece cuando el admin revela resultados.
+  { key: 'golden_boot', label: 'Bota de Oro', short: 'Bota de Oro', icon: <Goal className="w-4 h-4" />, accent: '#fbbf24', desc: 'El máximo goleador', votable: false },
 ]
 
 const MEDAL = [
@@ -90,6 +92,7 @@ export default function DtGalas({ user, club }: { user: User | null; club: Club 
   const [loadingGala, setLoadingGala] = useState(false)
   const [champIndex, setChampIndex] = useState(0)
   const [galaTab, setGalaTab] = useState<GalaTab>('ballon_dor')
+  const [resultsVisible, setResultsVisible] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -113,10 +116,11 @@ export default function DtGalas({ user, club }: { user: User | null; club: Club 
     setChampIndex(0)
     setGalaTab('ballon_dor')
     const [pubRes, votesRes] = await Promise.all([
-      supabase.from('season_gala_publish').select('payload, is_open').eq('season_id', s.season_id).maybeSingle(),
+      supabase.from('season_gala_publish').select('payload, is_open, results_visible').eq('season_id', s.season_id).maybeSingle(),
       user ? supabase.from('award_votes').select('*').eq('season_id', s.season_id).eq('voter_user_id', user.id) : Promise.resolve({ data: [] as any }),
     ])
     setPayload((pubRes.data as any)?.payload ?? null)
+    setResultsVisible(!!(pubRes.data as any)?.results_visible)
     const mv: Record<string, MyVote> = {}
     for (const v of ((votesRes as any).data ?? []) as any[]) mv[v.award_key] = { first_id: v.first_id, second_id: v.second_id, third_id: v.third_id }
     setMyVotes(mv)
@@ -135,6 +139,20 @@ export default function DtGalas({ user, club }: { user: User | null; club: Club 
     return [v.first_id, v.second_id, v.third_id].filter(Boolean) as string[]
   }
 
+  // Guarda el voto con delete + insert (robusto: no depende del UNIQUE para onConflict).
+  const saveVote = async (key: AwardKey, next: MyVote) => {
+    if (!user || !selected) return
+    await supabase.from('award_votes').delete()
+      .eq('season_id', selected.season_id).eq('award_key', key).eq('voter_user_id', user.id)
+    if (next.first_id) {
+      const { error } = await supabase.from('award_votes').insert({
+        season_id: selected.season_id, award_key: key, voter_user_id: user.id, voter_name: user.full_name,
+        first_id: next.first_id, second_id: next.second_id, third_id: next.third_id,
+      } as any)
+      if (error) toast.error('No se pudo guardar el voto')
+    }
+  }
+
   const togglePick = async (key: AwardKey, n: Nominee) => {
     if (!user) { toast.error('Sesión no encontrada'); return }
     if (!selected?.is_open) return
@@ -146,11 +164,7 @@ export default function DtGalas({ user, club }: { user: User | null; club: Club 
 
     const next: MyVote = { first_id: picks[0] ?? null, second_id: picks[1] ?? null, third_id: picks[2] ?? null }
     setMyVotes((prev) => ({ ...prev, [key]: next }))
-    const { error } = await supabase.from('award_votes').upsert({
-      season_id: selected.season_id, award_key: key, voter_user_id: user.id, voter_name: user.full_name,
-      first_id: next.first_id, second_id: next.second_id, third_id: next.third_id, updated_at: new Date().toISOString(),
-    } as any, { onConflict: 'season_id,award_key,voter_user_id' })
-    if (error) toast.error('No se pudo guardar el voto')
+    await saveVote(key, next)
   }
 
   const removePick = async (key: AwardKey, id: string) => {
@@ -158,10 +172,7 @@ export default function DtGalas({ user, club }: { user: User | null; club: Club 
     const picks = picksOf(key).filter((p) => p !== id)
     const next: MyVote = { first_id: picks[0] ?? null, second_id: picks[1] ?? null, third_id: picks[2] ?? null }
     setMyVotes((prev) => ({ ...prev, [key]: next }))
-    await supabase.from('award_votes').upsert({
-      season_id: selected.season_id, award_key: key, voter_user_id: user.id, voter_name: user.full_name,
-      first_id: next.first_id, second_id: next.second_id, third_id: next.third_id, updated_at: new Date().toISOString(),
-    } as any, { onConflict: 'season_id,award_key,voter_user_id' })
+    await saveVote(key, next)
   }
 
   // ----- season selector -----
@@ -230,7 +241,7 @@ export default function DtGalas({ user, club }: { user: User | null; club: Club 
         {/* Barra de pestañas */}
         {payload && (
           <div className="flex gap-1.5 overflow-x-auto pb-1.5 -mx-1 px-1 scrollbar-hide">
-            {AWARDS.map((a) => {
+            {AWARDS.filter((a) => a.votable || resultsVisible).map((a) => {
               const active = galaTab === a.key
               const voted = !!myVotes[a.key]?.first_id
               return (
@@ -317,9 +328,11 @@ export default function DtGalas({ user, club }: { user: User | null; club: Club 
           (() => {
             const key = activeAward.key
             const accent = activeAward.accent
+            const votable = activeAward.votable
             const nominees = [...((payload.awards as any)?.[key] ?? []) as Nominee[]].sort((x, y) => nName(x).localeCompare(nName(y)))
             const picks = picksOf(key)
             const showPodium = selected.is_open || picks.length > 0
+            const podium = resultsVisible ? (payload.results as any)?.[key] : null
             return (
               <motion.div key={key} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }} className="space-y-4">
                 {/* Encabezado premium */}
@@ -335,8 +348,36 @@ export default function DtGalas({ user, club }: { user: User | null; club: Club 
                   <p className="text-[#6A6C6E] font-black uppercase tracking-widest text-[10px] text-center py-10">Sin nominados</p>
                 ) : (
                   <>
-                    {/* Mini-podio */}
-                    {showPodium && (
+                    {/* Podio oficial revelado por el admin (sin puntos ni stats) */}
+                    {podium && Array.isArray(podium.top) && podium.top.length > 0 && (
+                      <div className="rounded-[18px] border border-amber-400/20 bg-gradient-to-b from-amber-400/[0.06] to-transparent p-3 space-y-2">
+                        <div className="flex items-center gap-1.5">
+                          <Medal className="w-3.5 h-3.5 text-amber-300" />
+                          <span className="text-[9px] font-black uppercase tracking-[0.2em] text-amber-300">Podio oficial</span>
+                        </div>
+                        {(podium.top as string[]).map((id, i) => {
+                          const n = nominees.find((x) => x.id === id)
+                          if (!n) return null
+                          const isWinner = i === 0
+                          return (
+                            <div key={id} className={`flex items-center gap-2.5 p-2 rounded-xl border ${isWinner ? 'bg-amber-400/[0.10] border-amber-400/40' : 'bg-white/[0.02] border-white/[0.04]'}`}>
+                              <span className="w-5 text-center text-[11px] font-black" style={{ color: i < 3 ? MEDAL[i].color : '#6A6C6E' }}>{i + 1}</span>
+                              <div className="w-9 h-9 rounded-full bg-[#0A0A0A] border flex items-center justify-center overflow-hidden shrink-0" style={{ borderColor: isWinner ? '#fbbf24' : '#202020' }}>
+                                {nImage(n) ? <img src={nImage(n)!} alt="" className={n.type === 'player' ? 'w-full h-full object-cover' : 'w-full h-full object-contain p-1'} /> : <UserIcon className="w-4 h-4 text-[#6A6C6E]" />}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-[12px] font-black text-white truncate leading-tight">{nName(n)}</p>
+                                <p className="text-[7.5px] text-[#6A6C6E] font-black uppercase tracking-widest truncate">{nSub(n)}</p>
+                              </div>
+                              {isWinner && <span className="flex items-center gap-1 text-[8px] font-black uppercase tracking-widest text-amber-300 shrink-0"><Crown className="w-3.5 h-3.5" /> Ganador</span>}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    {/* Mini-podio (tu voto) */}
+                    {votable && showPodium && (
                       <div className="flex items-stretch gap-2">
                         {[0, 1, 2].map((slot) => {
                           const id = picks[slot]
@@ -376,8 +417,8 @@ export default function DtGalas({ user, club }: { user: User | null; club: Club 
                             initial={{ opacity: 0, y: 8 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: Math.min(idx * 0.02, 0.3) }}
-                            disabled={!selected.is_open || self}
-                            onClick={() => togglePick(key, n)}
+                            disabled={!votable || !selected.is_open || self}
+                            onClick={() => votable && togglePick(key, n)}
                             className="relative rounded-[18px] overflow-hidden border text-left flex flex-col transition-all"
                             style={{
                               borderColor: chosen ? MEDAL[rank].color : 'rgba(255,255,255,0.06)',

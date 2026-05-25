@@ -873,6 +873,7 @@ export interface SeasonGalaPublish {
   id: string
   season_id: string
   is_open: boolean
+  results_visible: boolean
   payload: any // GalaPayload (definido en lib/award-engine.ts)
   opened_at: string | null
   closed_at: string | null
