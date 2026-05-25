@@ -139,6 +139,20 @@ export default function DtGalas({ user, club }: { user: User | null; club: Club 
     return [v.first_id, v.second_id, v.third_id].filter(Boolean) as string[]
   }
 
+  // Guarda el voto con delete + insert (robusto: no depende del UNIQUE para onConflict).
+  const saveVote = async (key: AwardKey, next: MyVote) => {
+    if (!user || !selected) return
+    await supabase.from('award_votes').delete()
+      .eq('season_id', selected.season_id).eq('award_key', key).eq('voter_user_id', user.id)
+    if (next.first_id) {
+      const { error } = await supabase.from('award_votes').insert({
+        season_id: selected.season_id, award_key: key, voter_user_id: user.id, voter_name: user.full_name,
+        first_id: next.first_id, second_id: next.second_id, third_id: next.third_id,
+      } as any)
+      if (error) toast.error('No se pudo guardar el voto')
+    }
+  }
+
   const togglePick = async (key: AwardKey, n: Nominee) => {
     if (!user) { toast.error('Sesión no encontrada'); return }
     if (!selected?.is_open) return
@@ -150,11 +164,7 @@ export default function DtGalas({ user, club }: { user: User | null; club: Club 
 
     const next: MyVote = { first_id: picks[0] ?? null, second_id: picks[1] ?? null, third_id: picks[2] ?? null }
     setMyVotes((prev) => ({ ...prev, [key]: next }))
-    const { error } = await supabase.from('award_votes').upsert({
-      season_id: selected.season_id, award_key: key, voter_user_id: user.id, voter_name: user.full_name,
-      first_id: next.first_id, second_id: next.second_id, third_id: next.third_id, updated_at: new Date().toISOString(),
-    } as any, { onConflict: 'season_id,award_key,voter_user_id' })
-    if (error) toast.error('No se pudo guardar el voto')
+    await saveVote(key, next)
   }
 
   const removePick = async (key: AwardKey, id: string) => {
@@ -162,10 +172,7 @@ export default function DtGalas({ user, club }: { user: User | null; club: Club 
     const picks = picksOf(key).filter((p) => p !== id)
     const next: MyVote = { first_id: picks[0] ?? null, second_id: picks[1] ?? null, third_id: picks[2] ?? null }
     setMyVotes((prev) => ({ ...prev, [key]: next }))
-    await supabase.from('award_votes').upsert({
-      season_id: selected.season_id, award_key: key, voter_user_id: user.id, voter_name: user.full_name,
-      first_id: next.first_id, second_id: next.second_id, third_id: next.third_id, updated_at: new Date().toISOString(),
-    } as any, { onConflict: 'season_id,award_key,voter_user_id' })
+    await saveVote(key, next)
   }
 
   // ----- season selector -----
