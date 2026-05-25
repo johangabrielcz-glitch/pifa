@@ -34,7 +34,7 @@ export default function AdminLoginPage() {
         .select('*')
         .eq('username', username.trim())
         .eq('password', password.trim())
-        .eq('role', 'admin')
+        .in('role', ['admin', 'moderator'])
         .single()
 
       if (error || !user) {

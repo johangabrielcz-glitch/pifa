@@ -29,7 +29,7 @@ export default function AdminUsersPage() {
     username: '',
     password: '',
     full_name: '',
-    role: 'user' as 'user' | 'admin',
+    role: 'user' as 'user' | 'admin' | 'moderator',
     club_id: 'none',
     create_club: false,
     new_club_name: '',
@@ -323,10 +323,11 @@ export default function AdminUsersPage() {
               
               <div className="space-y-2">
                 <Label className="text-[8px] text-[#6A6C6E] uppercase tracking-[0.2em] font-black ml-1">Jerarquía de Regulación (Rol)</Label>
-                <Select value={formData.role} onValueChange={(value: 'user' | 'admin') => setFormData({ ...formData, role: value })}>
+                <Select value={formData.role} onValueChange={(value: 'user' | 'admin' | 'moderator') => setFormData({ ...formData, role: value })}>
                   <SelectTrigger className="h-10 bg-[#0A0A0A] border-[#202020] rounded-xl text-white text-xs font-bold uppercase tracking-widest focus:border-[#FF3131]/30 px-4"><SelectValue /></SelectTrigger>
                   <SelectContent className="bg-[#141414] border-white/[0.08] rounded-xl">
                     <SelectItem value="user" className="text-xs font-bold uppercase tracking-widest text-white">⚽ Director Técnico</SelectItem>
+                    <SelectItem value="moderator" className="text-xs font-bold uppercase tracking-widest text-amber-400">🛡️ Moderador</SelectItem>
                     <SelectItem value="admin" className="text-xs font-bold uppercase tracking-widest text-[#FF3131]">⚙️ Administrador</SelectItem>
                   </SelectContent>
                 </Select>

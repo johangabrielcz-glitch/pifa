@@ -8,6 +8,7 @@ import {
   Users, Megaphone, Calendar, Award, MoreHorizontal, Gavel, ArrowLeftRight
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { MODERATOR_ALLOWED_ROUTES } from '@/lib/admin-access'
 
 export type AdminTab = string
 
@@ -81,10 +82,14 @@ const TabButton = ({
   )
 }
 
-export function AdminNavigation() {
+export function AdminNavigation({ role }: { role?: string }) {
   const pathname = usePathname()
   const [isMoreOpen, setIsMoreOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+
+  const isMod = role === 'moderator'
+  const visibleMain = isMod ? mainTabs.filter((t) => MODERATOR_ALLOWED_ROUTES.includes(t.id)) : mainTabs
+  const visibleMore = isMod ? moreTabs.filter((t) => MODERATOR_ALLOWED_ROUTES.includes(t.id)) : moreTabs
 
   // Cerrar al hacer clic fuera
   useEffect(() => {
@@ -100,7 +105,7 @@ export function AdminNavigation() {
   }, [isMoreOpen])
 
   // Determinar si alguna opción oculta está activa
-  const isMoreActive = moreTabs.some(t => pathname.startsWith(t.id))
+  const isMoreActive = visibleMore.some(t => pathname.startsWith(t.id))
 
   const isRouteActive = (routeId: string) => {
     if (routeId === '/admin') {
@@ -125,7 +130,7 @@ export function AdminNavigation() {
             <div className="px-3 py-2 border-b border-white/5 mb-1">
               <span className="text-[7px] font-black text-white/20 uppercase tracking-[0.3em]">Opciones Administrativas</span>
             </div>
-            {moreTabs.map((tab) => {
+            {visibleMore.map((tab) => {
               const active = isRouteActive(tab.id)
               return (
                 <Link
@@ -150,7 +155,7 @@ export function AdminNavigation() {
       </AnimatePresence>
 
       <nav className="w-full flex items-stretch justify-around px-2 h-16 max-w-screen-sm mx-auto">
-        {mainTabs.map((tab) => (
+        {visibleMain.map((tab) => (
           <TabButton
             key={tab.id}
             label={tab.label}
@@ -161,13 +166,15 @@ export function AdminNavigation() {
           />
         ))}
 
-        {/* Botón Más */}
-        <TabButton
-          label="Más"
-          icon={MoreHorizontal}
-          isActive={isMoreActive || isMoreOpen}
-          onClick={() => setIsMoreOpen(!isMoreOpen)}
-        />
+        {/* Botón Más (solo si hay opciones ocultas visibles) */}
+        {visibleMore.length > 0 && (
+          <TabButton
+            label="Más"
+            icon={MoreHorizontal}
+            isActive={isMoreActive || isMoreOpen}
+            onClick={() => setIsMoreOpen(!isMoreOpen)}
+          />
+        )}
       </nav>
     </div>
   )
