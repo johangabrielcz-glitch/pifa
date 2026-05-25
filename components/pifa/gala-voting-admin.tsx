@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Loader2, Vote, Lock, Unlock, RefreshCw, Crown, Trophy } from 'lucide-react'
+import { Loader2, Vote, Lock, Unlock, RefreshCw, Crown, Trophy, Eye, EyeOff } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
 import {
@@ -34,7 +34,9 @@ export default function GalaVotingAdmin({ season, blocks, clubMatchCounts }: {
   const [dtByClub, setDtByClub] = useState<Record<string, User>>({})
   const [weights, setWeights] = useState<Record<string, number>>({})
   const [savedNominees, setSavedNominees] = useState<Record<string, { type: string; id: string }[]>>({})
+  const [winnersById, setWinnersById] = useState<Record<string, string | null>>({})
   const [publish, setPublish] = useState<{ is_open: boolean; payload: GalaPayload; opened_at: string | null } | null>(null)
+  const [resultsVisible, setResultsVisible] = useState(false)
   const [votes, setVotes] = useState<AwardVote[]>([])
 
   const loadAll = async () => {
@@ -42,9 +44,9 @@ export default function GalaVotingAdmin({ season, blocks, clubMatchCounts }: {
     const [clubsRes, usersRes, awardsRes, weightsRes, pubRes, votesRes] = await Promise.all([
       supabase.from('clubs').select('id, name, shield_url, budget'),
       supabase.from('users').select('id, full_name, club_id, role'),
-      supabase.from('season_awards').select('award_key, nominees').eq('season_id', season.id),
+      supabase.from('season_awards').select('award_key, nominees, winner_id').eq('season_id', season.id),
       supabase.from('season_award_weights').select('competition_id, weight').eq('season_id', season.id),
-      supabase.from('season_gala_publish').select('is_open, payload, opened_at').eq('season_id', season.id).maybeSingle(),
+      supabase.from('season_gala_publish').select('is_open, payload, opened_at, results_visible').eq('season_id', season.id).maybeSingle(),
       supabase.from('award_votes').select('*').eq('season_id', season.id),
     ])
 
@@ -64,11 +66,17 @@ export default function GalaVotingAdmin({ season, blocks, clubMatchCounts }: {
     setWeights(w)
 
     const sn: Record<string, { type: string; id: string }[]> = {}
-    for (const a of (awardsRes.data ?? []) as any[]) if (Array.isArray(a.nominees)) sn[a.award_key] = a.nominees
+    const wn: Record<string, string | null> = {}
+    for (const a of (awardsRes.data ?? []) as any[]) {
+      if (Array.isArray(a.nominees)) sn[a.award_key] = a.nominees
+      wn[a.award_key] = a.winner_id ?? null
+    }
     setSavedNominees(sn)
+    setWinnersById(wn)
 
     if (pubRes.data) setPublish({ is_open: (pubRes.data as any).is_open, payload: (pubRes.data as any).payload, opened_at: (pubRes.data as any).opened_at })
     else setPublish(null)
+    setResultsVisible(!!(pubRes.data as any)?.results_visible)
 
     setVotes((votesRes.data ?? []) as AwardVote[])
     setLoading(false)
@@ -77,7 +85,28 @@ export default function GalaVotingAdmin({ season, blocks, clubMatchCounts }: {
   useEffect(() => { loadAll(); /* eslint-disable-next-line */ }, [season.id])
 
   const buildPayload = (): GalaPayload =>
-    buildGalaPayload({ blocks, championBlocks: blocks, weights, clubMatchCounts, clubsById, dtByClub, savedNominees })
+    buildGalaPayload({ blocks, championBlocks: blocks, weights, clubMatchCounts, clubsById, dtByClub, savedNominees, winners: winnersById as any })
+
+  const showResults = async () => {
+    setBusy(true)
+    const payload = buildPayload()
+    const { error } = await supabase.from('season_gala_publish').upsert({
+      season_id: season.id, is_open: publish?.is_open ?? false, payload, results_visible: true, updated_at: new Date().toISOString(),
+    } as any, { onConflict: 'season_id' })
+    setBusy(false)
+    if (error) { setNeedsMigration(true); toast.error('No se pudo mostrar resultados. ¿Ejecutaste las migraciones 18 y 19?') }
+    else { toast.success('Podio oficial visible para los DTs'); loadAll() }
+  }
+
+  const hideResults = async () => {
+    setBusy(true)
+    const { error } = await (supabase.from('season_gala_publish') as any)
+      .update({ results_visible: false, updated_at: new Date().toISOString() })
+      .eq('season_id', season.id)
+    setBusy(false)
+    if (error) toast.error('No se pudo ocultar')
+    else { toast.success('Resultados ocultados'); loadAll() }
+  }
 
   const publishAndOpen = async () => {
     setBusy(true)
@@ -199,9 +228,19 @@ export default function GalaVotingAdmin({ season, blocks, clubMatchCounts }: {
               </button>
             </>
           )}
+          {resultsVisible ? (
+            <button onClick={hideResults} disabled={busy} className="h-9 px-4 bg-amber-400/10 hover:bg-amber-400/20 text-amber-300 border border-amber-400/30 rounded-lg font-black uppercase tracking-widest text-[8px] disabled:opacity-50 flex items-center gap-2">
+              <EyeOff className="w-3 h-3" /> Ocultar resultados a DTs
+            </button>
+          ) : (
+            <button onClick={showResults} disabled={busy} className="h-9 px-4 bg-amber-400 hover:bg-amber-300 text-[#0A0A0A] rounded-lg font-black uppercase tracking-widest text-[8px] disabled:opacity-50 flex items-center gap-2">
+              {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Eye className="w-3 h-3" />} Mostrar resultados a DTs
+            </button>
+          )}
         </div>
         <p className="text-[8px] text-[#6A6C6E] font-bold tracking-wide mt-2">
-          Publicar congela la papeleta actual (nominados + campeones) para que los DTs voten. Re-publicar la actualiza. Cerrar detiene la votación; los resultados de abajo se ven siempre.
+          Publicar congela la papeleta (nominados + campeones) para que los DTs voten. Cerrar detiene la votación; los resultados de abajo los ves siempre.
+          "Mostrar resultados a DTs" revela en la gala del DT el podio oficial (top 5 + ganador de la pestaña Premios), sin puntos ni stats. Por defecto está oculto.
         </p>
       </div>
 

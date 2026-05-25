@@ -340,9 +340,15 @@ export interface GalaChampionSnapshot {
   roster: GalaRosterPlayer[]
 }
 
+export interface GalaPodium {
+  winnerId: string | null
+  top: string[]
+}
+
 export interface GalaPayload {
   awards: Record<AwardKey, Nominee[]>
   champions: GalaChampionSnapshot[]
+  results?: Record<AwardKey, GalaPodium>
 }
 
 export interface BuildPayloadInput extends AwardEngineInput {
@@ -350,6 +356,8 @@ export interface BuildPayloadInput extends AwardEngineInput {
   savedNominees?: Partial<Record<AwardKey, { type: string; id: string }[]>>
   /** Bloques con la plantilla campeona ya calculada (championRoster). */
   championBlocks: (AwardCompBlock & { championRoster: AwardStatRow[] })[]
+  /** Ganador oficial elegido por el admin por premio (season_awards.winner_id). */
+  winners?: Partial<Record<AwardKey, string | null>>
 }
 
 /**
@@ -397,7 +405,16 @@ export function buildGalaPayload(input: BuildPayloadInput): GalaPayload {
     })
   }
 
-  return { awards, champions }
+  // Podio oficial por premio: ganador elegido (o #1) primero, luego el resto del orden, top 5.
+  const results = {} as Record<AwardKey, GalaPodium>
+  for (const key of AWARD_KEYS) {
+    const order = (awards[key] || []).map((n) => n.id)
+    const winnerId = input.winners?.[key] ?? order[0] ?? null
+    const top = (winnerId ? [winnerId, ...order.filter((id) => id !== winnerId)] : order).slice(0, 5)
+    results[key] = { winnerId, top }
+  }
+
+  return { awards, champions, results }
 }
 
 export function computeAwards(input: AwardEngineInput): Record<AwardKey, Nominee[]> {
