@@ -36,6 +36,7 @@ export default function AdminDashboardPage() {
   const [stats, setStats] = useState<Stats>({ users: 0, clubs: 0, players: 0, seasons: 0, competitions: 0 })
   const [activeSeason, setActiveSeason] = useState<(Season & { competitions_count: number }) | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isModerator, setIsModerator] = useState(false)
 
   useEffect(() => {
     const loadData = async () => {
@@ -46,6 +47,7 @@ export default function AdminDashboardPage() {
           const user = session.user
           if (user) {
             setAdminName(user.full_name || 'Admin')
+            setIsModerator(user.role === 'moderator')
 
             // Sincronizar token de forma silenciosa
             const token = localStorage.getItem('expoPushToken')
@@ -141,32 +143,40 @@ export default function AdminDashboardPage() {
         {/* Active Season Highlight (HERO) */}
         <section>
           {activeSeason ? (
-            <Link href={`/admin/seasons/${activeSeason.id}`} className="group relative block">
-              <div className="relative overflow-hidden rounded-[24px] bg-[#141414] border border-white/[0.05] p-5 transition-all duration-300 group-hover:border-[#FF3131]/40 shadow-xl">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-[#FF3131]/5 rounded-full blur-2xl -mr-10 -mt-10" />
-                
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#FF3131] to-[#A30000] flex items-center justify-center shadow-lg border border-white/10">
-                      <Zap className="w-4 h-4 text-white" />
-                    </div>
-                    <div>
-                      <div className="px-1.5 py-0.5 rounded-full bg-[#FF3131]/10 border border-[#FF3131]/20 w-fit mb-0.5">
-                        <p className="text-[6px] font-black text-[#FF3131] uppercase tracking-[0.2em]">En Curso</p>
+            (() => {
+              const heroInner = (
+                <div className={`relative overflow-hidden rounded-[24px] bg-[#141414] border border-white/[0.05] p-5 transition-all duration-300 shadow-xl ${isModerator ? '' : 'group-hover:border-[#FF3131]/40'}`}>
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-[#FF3131]/5 rounded-full blur-2xl -mr-10 -mt-10" />
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#FF3131] to-[#A30000] flex items-center justify-center shadow-lg border border-white/10">
+                        <Zap className="w-4 h-4 text-white" />
                       </div>
-                      <h2 className="text-lg font-black text-white uppercase tracking-tighter group-hover:text-[#FF3131] transition-colors line-clamp-1">{activeSeason.name}</h2>
+                      <div>
+                        <div className="px-1.5 py-0.5 rounded-full bg-[#FF3131]/10 border border-[#FF3131]/20 w-fit mb-0.5">
+                          <p className="text-[6px] font-black text-[#FF3131] uppercase tracking-[0.2em]">En Curso</p>
+                        </div>
+                        <h2 className={`text-lg font-black text-white uppercase tracking-tighter line-clamp-1 ${isModerator ? '' : 'group-hover:text-[#FF3131] transition-colors'}`}>{activeSeason.name}</h2>
+                      </div>
                     </div>
+                    {!isModerator && <ChevronRight size={18} className="text-[#2D2D2D] group-hover:text-white transition-all" />}
                   </div>
-                  <ChevronRight size={18} className="text-[#2D2D2D] group-hover:text-white transition-all" />
                 </div>
-              </div>
-            </Link>
+              )
+              return isModerator ? (
+                <div className="relative block">{heroInner}</div>
+              ) : (
+                <Link href={`/admin/seasons/${activeSeason.id}`} className="group relative block">{heroInner}</Link>
+              )
+            })()
           ) : (
             <div className="rounded-[24px] bg-[#141414]/30 border border-dashed border-white/[0.08] p-6 text-center">
               <p className="text-[7px] text-[#2D2D2D] font-black uppercase tracking-[0.4em] mb-3">Sin fase activa</p>
-              <Link href="/admin/seasons" className="inline-flex items-center gap-2 px-4 py-2 bg-white/[0.03] hover:bg-[#FF3131]/10 rounded-lg border border-white/[0.05] transition-all">
-                <span className="text-[7px] font-black text-white uppercase tracking-widest">Iniciar Nueva</span>
-              </Link>
+              {!isModerator && (
+                <Link href="/admin/seasons" className="inline-flex items-center gap-2 px-4 py-2 bg-white/[0.03] hover:bg-[#FF3131]/10 rounded-lg border border-white/[0.05] transition-all">
+                  <span className="text-[7px] font-black text-white uppercase tracking-widest">Iniciar Nueva</span>
+                </Link>
+              )}
             </div>
           )}
         </section>

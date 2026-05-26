@@ -48,7 +48,15 @@ export default function AdminPlayersPage() {
   const [filterClub, setFilterClub] = useState<string>('all')
   const [page, setPage] = useState(0)
   const [totalCount, setTotalCount] = useState(0)
-  
+  const [isAdmin, setIsAdmin] = useState(false)
+
+  useEffect(() => {
+    try {
+      const s = JSON.parse(localStorage.getItem('pifa_auth_session') || '{}')
+      setIsAdmin(s?.user?.role === 'admin')
+    } catch {}
+  }, [])
+
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null)
@@ -410,15 +418,17 @@ export default function AdminPlayersPage() {
                     >
                       <Pencil className="w-3 h-3" />
                     </button>
-                    <button
-                      onClick={() => {
-                        setDeletingPlayer(player)
-                        setIsDeleteOpen(true)
-                      }}
-                      className="w-7 h-7 rounded-lg bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#2D2D2D] hover:text-red-500 hover:bg-red-500/5 transition-all shadow-md"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
+                    {isAdmin && (
+                      <button
+                        onClick={() => {
+                          setDeletingPlayer(player)
+                          setIsDeleteOpen(true)
+                        }}
+                        className="w-7 h-7 rounded-lg bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#2D2D2D] hover:text-red-500 hover:bg-red-500/5 transition-all shadow-md"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

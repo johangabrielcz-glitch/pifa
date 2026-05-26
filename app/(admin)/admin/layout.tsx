@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { Loader2, LogOut, User, Settings } from 'lucide-react'
 import { toast } from 'sonner'
 import { syncPushToken } from '@/lib/push-notifications'
+import { canModeratorAccess } from '@/lib/admin-access'
 import { AdminNavigation } from '@/components/pifa/admin-navigation'
 import { PifaLogo } from '@/components/pifa/logo'
 import { Button } from '@/components/ui/button'
@@ -23,6 +24,7 @@ export default function AdminLayout({
   children: React.ReactNode
 }) {
   const router = useRouter()
+  const pathname = usePathname()
   const [isLoading, setIsLoading] = useState(true)
   const [user, setUser] = useState<UserType | null>(null)
 
@@ -36,8 +38,8 @@ export default function AdminLayout({
 
       try {
         const session: AuthSession = JSON.parse(stored)
-        
-        if (!session.user || session.user.role !== 'admin') {
+
+        if (!session.user || (session.user.role !== 'admin' && session.user.role !== 'moderator')) {
           router.replace('/admin-login')
           return
         }
@@ -52,6 +54,13 @@ export default function AdminLayout({
 
     checkAuth()
   }, [router])
+
+  // Moderador: bloquear rutas críticas (también ante navegación client-side)
+  useEffect(() => {
+    if (user?.role === 'moderator' && !canModeratorAccess(pathname)) {
+      router.replace('/admin')
+    }
+  }, [pathname, user, router])
 
   const handleLogout = async () => {
     if (user) {
@@ -150,7 +159,7 @@ export default function AdminLayout({
       </main>
 
       <div className="fixed bottom-0 left-0 right-0 z-50">
-        <AdminNavigation />
+        <AdminNavigation role={user?.role} />
       </div>
     </div>
   )

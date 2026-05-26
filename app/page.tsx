@@ -17,7 +17,7 @@ export default function HomePage() {
         const session = JSON.parse(stored)
         if (session.user) {
           // Redirect based on role
-          if (session.user.role === 'admin') {
+          if (session.user.role === 'admin' || session.user.role === 'moderator') {
             router.replace('/admin')
           } else {
             router.replace('/dashboard')
