@@ -16,14 +16,6 @@ export default function AdminTrophiesPage() {
   
   // Form para nuevo trofeo
   const [newTrophy, setNewTrophy] = useState({ name: '', image_url: '' })
-  const [isAdmin, setIsAdmin] = useState(false)
-
-  useEffect(() => {
-    try {
-      const s = JSON.parse(localStorage.getItem('pifa_auth_session') || '{}')
-      setIsAdmin(s?.user?.role === 'admin')
-    } catch {}
-  }, [])
 
   const loadData = async () => {
     setIsLoading(true)
@@ -153,11 +145,9 @@ export default function AdminTrophiesPage() {
                   </div>
                   <span className="text-sm font-bold text-white uppercase tracking-tight">{t.name}</span>
                 </div>
-                {isAdmin && (
-                  <button onClick={() => handleDeleteTrophy(t.id)} className="p-2 text-[#2D2D2D] hover:text-red-500 transition-colors">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
+                <button onClick={() => handleDeleteTrophy(t.id)} className="p-2 text-[#2D2D2D] hover:text-red-500 transition-colors">
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
             ))}
           </div>
