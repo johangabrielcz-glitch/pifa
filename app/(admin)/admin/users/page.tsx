@@ -24,6 +24,14 @@ export default function AdminUsersPage() {
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [deletingUser, setDeletingUser] = useState<User | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [isModerator, setIsModerator] = useState(false)
+
+  useEffect(() => {
+    try {
+      const s = JSON.parse(localStorage.getItem('pifa_auth_session') || '{}')
+      setIsModerator(s?.user?.role === 'moderator')
+    } catch {}
+  }, [])
   
   const [formData, setFormData] = useState({
     username: '',
@@ -41,7 +49,14 @@ export default function AdminUsersPage() {
       supabase.from('users').select('*, club:clubs(*)').order('created_at', { ascending: false }),
       supabase.from('clubs').select('*').order('name'),
     ])
-    if (usersRes.data) setUsers(usersRes.data.map(u => ({ ...u, club: u.club || null })))
+    let mod = false
+    try { mod = JSON.parse(localStorage.getItem('pifa_auth_session') || '{}')?.user?.role === 'moderator' } catch {}
+    if (usersRes.data) {
+      let list = usersRes.data.map(u => ({ ...u, club: u.club || null }))
+      // El moderador solo ve DTs (no expone cuentas admin/moderador).
+      if (mod) list = list.filter(u => u.role === 'user')
+      setUsers(list)
+    }
     if (clubsRes.data) setClubs(clubsRes.data)
     setIsLoading(false)
   }
@@ -77,6 +92,12 @@ export default function AdminUsersPage() {
     if (!editingUser && !formData.password.trim()) { 
       toast.error('Se requiere un token de acceso para nuevos registros')
       return 
+    }
+
+    // Guarda anti-escalada: el moderador solo puede crear/gestionar DTs.
+    if (isModerator && (formData.role !== 'user' || (editingUser && editingUser.role !== 'user'))) {
+      toast.error('Solo puedes gestionar Directores Técnicos')
+      return
     }
 
     setIsSaving(true)
@@ -135,6 +156,10 @@ export default function AdminUsersPage() {
 
   const handleDelete = async () => {
     if (!deletingUser) return
+    if (isModerator && deletingUser.role !== 'user') {
+      toast.error('Solo puedes eliminar Directores Técnicos')
+      return
+    }
     try {
       const { error } = await supabase.from('users').delete().eq('id', deletingUser.id)
       if (error) throw error
@@ -321,17 +346,19 @@ export default function AdminUsersPage() {
                 <Input value={formData.full_name} onChange={(e) => setFormData({ ...formData, full_name: e.target.value })} placeholder="NOMBRE DEL OPERADOR..." className="h-10 bg-[#0A0A0A] border-[#202020] rounded-xl text-white placeholder:text-[#2D2D2D] text-xs font-bold uppercase tracking-widest focus:border-[#FF3131]/30 px-4" />
               </div>
               
-              <div className="space-y-2">
-                <Label className="text-[8px] text-[#6A6C6E] uppercase tracking-[0.2em] font-black ml-1">Jerarquía de Regulación (Rol)</Label>
-                <Select value={formData.role} onValueChange={(value: 'user' | 'admin' | 'moderator') => setFormData({ ...formData, role: value })}>
-                  <SelectTrigger className="h-10 bg-[#0A0A0A] border-[#202020] rounded-xl text-white text-xs font-bold uppercase tracking-widest focus:border-[#FF3131]/30 px-4"><SelectValue /></SelectTrigger>
-                  <SelectContent className="bg-[#141414] border-white/[0.08] rounded-xl">
-                    <SelectItem value="user" className="text-xs font-bold uppercase tracking-widest text-white">⚽ Director Técnico</SelectItem>
-                    <SelectItem value="moderator" className="text-xs font-bold uppercase tracking-widest text-amber-400">🛡️ Moderador</SelectItem>
-                    <SelectItem value="admin" className="text-xs font-bold uppercase tracking-widest text-[#FF3131]">⚙️ Administrador</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              {!isModerator && (
+                <div className="space-y-2">
+                  <Label className="text-[8px] text-[#6A6C6E] uppercase tracking-[0.2em] font-black ml-1">Jerarquía de Regulación (Rol)</Label>
+                  <Select value={formData.role} onValueChange={(value: 'user' | 'admin' | 'moderator') => setFormData({ ...formData, role: value })}>
+                    <SelectTrigger className="h-10 bg-[#0A0A0A] border-[#202020] rounded-xl text-white text-xs font-bold uppercase tracking-widest focus:border-[#FF3131]/30 px-4"><SelectValue /></SelectTrigger>
+                    <SelectContent className="bg-[#141414] border-white/[0.08] rounded-xl">
+                      <SelectItem value="user" className="text-xs font-bold uppercase tracking-widest text-white">⚽ Director Técnico</SelectItem>
+                      <SelectItem value="moderator" className="text-xs font-bold uppercase tracking-widest text-amber-400">🛡️ Moderador</SelectItem>
+                      <SelectItem value="admin" className="text-xs font-bold uppercase tracking-widest text-[#FF3131]">⚙️ Administrador</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               {formData.role === 'user' && (
                 <div className="space-y-4 pt-2 animate-in fade-in slide-in-from-top-2 duration-500">

@@ -29,6 +29,14 @@ export default function AdminClubsPage() {
   const [editingClub, setEditingClub] = useState<Club | null>(null)
   const [deletingClub, setDeletingClub] = useState<Club | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
+
+  useEffect(() => {
+    try {
+      const s = JSON.parse(localStorage.getItem('pifa_auth_session') || '{}')
+      setIsAdmin(s?.user?.role === 'admin')
+    } catch {}
+  }, [])
   
   const [formData, setFormData] = useState({
     name: '',
@@ -108,8 +116,9 @@ export default function AdminClubsPage() {
         const updateData: ClubUpdate = {
           name: formData.name.trim(),
           shield_url: formData.shield_url.trim() || null,
-          budget,
         }
+        // Solo el admin puede tocar el presupuesto; el moderador lo conserva intacto.
+        if (isAdmin) updateData.budget = budget
 
         const { error } = await supabase
           .from('clubs')
@@ -122,7 +131,7 @@ export default function AdminClubsPage() {
         const insertData: ClubInsert = {
           name: formData.name.trim(),
           shield_url: formData.shield_url.trim() || null,
-          budget,
+          budget: isAdmin ? budget : 0,
         }
 
         const { error } = await supabase.from('clubs').insert(insertData)
@@ -288,29 +297,33 @@ export default function AdminClubsPage() {
                   >
                     <Pencil className="w-3 h-3" />
                   </button>
-                  <button
-                    onClick={() => {
-                      setDeletingClub(club)
-                      setIsDeleteOpen(true)
-                    }}
-                    className="w-7 h-7 rounded-lg bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#2D2D2D] hover:text-red-500 hover:bg-red-500/5 transition-all shadow-md"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
+                  {isAdmin && (
+                    <button
+                      onClick={() => {
+                        setDeletingClub(club)
+                        setIsDeleteOpen(true)
+                      }}
+                      className="w-7 h-7 rounded-lg bg-[#0A0A0A] border border-[#202020] flex items-center justify-center text-[#2D2D2D] hover:text-red-500 hover:bg-red-500/5 transition-all shadow-md"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
                 </div>
               </div>
               
               {/* Club Context Stats */}
               <div className="relative mt-2.5 pt-2.5 border-t border-white/[0.04] flex items-center gap-2">
-                <div className="flex-1 flex items-center gap-2 bg-[#0A0A0A]/30 border border-white/[0.02] rounded-lg px-2 py-1.5 group/stat">
-                  <div className="w-6 h-6 rounded bg-amber-400/5 flex items-center justify-center border border-amber-400/10">
-                    <DollarSign className="w-3 h-3 text-amber-400" />
+                {isAdmin && (
+                  <div className="flex-1 flex items-center gap-2 bg-[#0A0A0A]/30 border border-white/[0.02] rounded-lg px-2 py-1.5 group/stat">
+                    <div className="w-6 h-6 rounded bg-amber-400/5 flex items-center justify-center border border-amber-400/10">
+                      <DollarSign className="w-3 h-3 text-amber-400" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-white tracking-widest leading-none">{formatBudget(club.budget)}</p>
+                      <p className="text-[6.5px] text-[#2D2D2D] uppercase font-black tracking-widest mt-0.5">Tesorería</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-[10px] font-black text-white tracking-widest leading-none">{formatBudget(club.budget)}</p>
-                    <p className="text-[6.5px] text-[#2D2D2D] uppercase font-black tracking-widest mt-0.5">Tesorería</p>
-                  </div>
-                </div>
+                )}
                 <div className="flex-1 flex items-center gap-2 bg-[#0A0A0A]/30 border border-white/[0.02] rounded-lg px-2 py-1.5 group/stat">
                   <div className="w-6 h-6 rounded bg-emerald-400/5 flex items-center justify-center border border-emerald-400/10">
                     <Users className="w-3 h-3 text-emerald-400" />
@@ -366,19 +379,21 @@ export default function AdminClubsPage() {
                 folder="logos"
               />
 
-              <div className="space-y-1.5">
-                <Label className="text-[8px] text-[#6A6C6E] uppercase tracking-[0.2em] font-black ml-1">Capital Operativo (USD)</Label>
-                <div className="relative">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-amber-400 font-black text-[10px]">$</div>
-                  <Input
-                    type="number"
-                    value={formData.budget}
-                    onChange={(e) => setFormData({ ...formData, budget: e.target.value })}
-                    placeholder="0.00"
-                    className="h-10.5 bg-[#0A0A0A] border-[#202020] rounded-xl text-white placeholder:text-[#2D2D2D] text-xs font-bold uppercase tracking-widest focus:border-[#FF3131]/30 transition-all pl-9 pr-4"
-                  />
+              {isAdmin && (
+                <div className="space-y-1.5">
+                  <Label className="text-[8px] text-[#6A6C6E] uppercase tracking-[0.2em] font-black ml-1">Capital Operativo (USD)</Label>
+                  <div className="relative">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-amber-400 font-black text-[10px]">$</div>
+                    <Input
+                      type="number"
+                      value={formData.budget}
+                      onChange={(e) => setFormData({ ...formData, budget: e.target.value })}
+                      placeholder="0.00"
+                      className="h-10.5 bg-[#0A0A0A] border-[#202020] rounded-xl text-white placeholder:text-[#2D2D2D] text-xs font-bold uppercase tracking-widest focus:border-[#FF3131]/30 transition-all pl-9 pr-4"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
 
