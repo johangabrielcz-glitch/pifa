@@ -26,18 +26,139 @@ import {
 // DEADLINE CALCULATION
 // =============================================
 
+const HOUR_MS = 60 * 60 * 1000
+export const DEFAULT_GAP_HOURS = 24
+
+export interface ScheduleMatchInput {
+  id: string
+  matchday: number | null
+  leg: number | null
+  match_order: number
+  type: string // competition type ('league' | 'cup' | 'groups_knockout')
+}
+
+export interface ScheduleOptions {
+  /** Base time in ms. Slots without an override are placed at anchorMs + dayIndex * gap. */
+  anchorMs: number
+  /** Hours between consecutive day-slots. Defaults to DEFAULT_GAP_HOURS. */
+  gapHours?: number
+  /** slotKey -> ISO deadline. Manual per-matchday overrides (hybrid model). */
+  overrides?: Record<string, string>
+}
+
+export interface SlotPlan {
+  slotKey: string
+  category: 'league' | 'cup'
+  matchday: number
+  leg: number
+  dayIndex: number // 1..K position in the schedule
+  deadline: string // ISO
+  overridden: boolean
+  matchIds: string[]
+}
+
+export interface SeasonSchedule {
+  perMatch: Record<string, string> // matchId -> ISO deadline
+  slots: SlotPlan[]
+}
+
+/**
+ * Pure deadline planner. Single source of truth used by BOTH the admin
+ * calendar preview and season activation, so "preview == reality".
+ *
+ * Model (unchanged from before, plus an ida/vuelta correctness fix):
+ *   - category = 'league' for league competitions, 'cup' for everything else
+ *     (cup + groups_knockout collapse together — intentional).
+ *   - A slot is identified by `${category}-${matchday}-${leg}`. Every match in
+ *     the same slot shares one deadline (= what plays simultaneously).
+ *   - Slots are discovered in match_order order, then assigned sequential days.
+ *   - Fix: within the same (category, matchday), legs are forced ascending so
+ *     Ida (leg 1) always precedes Vuelta (leg 2) even if match_order is corrupt.
+ *   - A slot's deadline is the override if present, else anchorMs + dayIndex*gap.
+ */
+export function computeSeasonSchedule(
+  matches: ScheduleMatchInput[],
+  opts: ScheduleOptions
+): SeasonSchedule {
+  const gapHours = opts.gapHours && opts.gapHours > 0 ? opts.gapHours : DEFAULT_GAP_HOURS
+  const overrides = opts.overrides || {}
+
+  // 1. Group matches into slots, recording first-appearance order by match_order.
+  const sorted = [...matches].sort((a, b) => (a.match_order || 0) - (b.match_order || 0))
+  const slotMap = new Map<string, { category: 'league' | 'cup'; matchday: number; leg: number; firstSeen: number; matchIds: string[] }>()
+
+  let seen = 0
+  for (const m of sorted) {
+    const category: 'league' | 'cup' = m.type === 'league' ? 'league' : 'cup'
+    const matchday = m.matchday || 1
+    const leg = m.leg || 1
+    const slotKey = `${category}-${matchday}-${leg}`
+    let slot = slotMap.get(slotKey)
+    if (!slot) {
+      slot = { category, matchday, leg, firstSeen: seen++, matchIds: [] }
+      slotMap.set(slotKey, slot)
+    }
+    slot.matchIds.push(m.id)
+  }
+
+  // 2. Order slots by first appearance, but force Ida before Vuelta within a
+  //    same (category, matchday) so two-leg ties never get inverted deadlines.
+  const orderedSlots = Array.from(slotMap.values()).sort((a, b) => {
+    if (a.category === b.category && a.matchday === b.matchday) {
+      return a.leg - b.leg
+    }
+    return a.firstSeen - b.firstSeen
+  })
+
+  // 3. Assign sequential day-slots and resolve deadlines (override or relative).
+  const perMatch: Record<string, string> = {}
+  const slots: SlotPlan[] = []
+
+  orderedSlots.forEach((slot, idx) => {
+    const dayIndex = idx + 1
+    const slotKey = `${slot.category}-${slot.matchday}-${slot.leg}`
+    const override = overrides[slotKey]
+    const deadline = override
+      ? new Date(override).toISOString()
+      : new Date(opts.anchorMs + dayIndex * gapHours * HOUR_MS).toISOString()
+
+    for (const id of slot.matchIds) perMatch[id] = deadline
+
+    slots.push({
+      slotKey,
+      category: slot.category,
+      matchday: slot.matchday,
+      leg: slot.leg,
+      dayIndex,
+      deadline,
+      overridden: !!override,
+      matchIds: slot.matchIds,
+    })
+  })
+
+  return { perMatch, slots }
+}
+
 /**
  * Calculates and assigns deadlines to all matches in a season.
- * Called when a season is activated.
- * 
- * Logic per competition:
- *   - Group matches by matchday
- *   - Jornada 1 deadline = activatedAt + 24h
- *   - Jornada 2 deadline = activatedAt + 48h
- *   - etc.
+ * Called when a season is activated. Reads the season's saved schedule config
+ * (anchor / gap / per-matchday overrides) and delegates to computeSeasonSchedule
+ * so the result matches the admin preview exactly.
+ *
+ * If deadline_anchor is null, deadlines are anchored to NOW (relative model).
  */
 export async function calculateMatchDeadlines(seasonId: string): Promise<void> {
-  const activatedAt = new Date()
+  // Read schedule config from the season.
+  const { data: season } = await supabase
+    .from('seasons')
+    .select('deadline_anchor, deadline_gap_hours, deadline_overrides')
+    .eq('id', seasonId)
+    .single()
+
+  const anchorRaw = (season as any)?.deadline_anchor as string | null | undefined
+  const anchorMs = anchorRaw ? new Date(anchorRaw).getTime() : Date.now()
+  const gapHours = (season as any)?.deadline_gap_hours ?? DEFAULT_GAP_HOURS
+  const overrides = ((season as any)?.deadline_overrides ?? {}) as Record<string, string>
 
   // Get all competitions in this season
   const { data: competitions } = await supabase
@@ -51,10 +172,9 @@ export async function calculateMatchDeadlines(seasonId: string): Promise<void> {
   const { data: allMatches, error: matchesError } = await supabase
     .from('matches')
     .select(`
-      id, 
-      competition_id, 
-      matchday, 
-      match_order, 
+      id,
+      matchday,
+      match_order,
       leg,
       competition:competitions(type)
     `)
@@ -63,39 +183,22 @@ export async function calculateMatchDeadlines(seasonId: string): Promise<void> {
 
   if (matchesError || !allMatches || allMatches.length === 0) return
 
-  // Sequential Category Deadline Assignment:
-  // Maps matches to slots based on (Category + Matchday + Leg).
-  // Category is either 'league' or 'cup'.
-  // Parallel leagues or parallel cups share the same slot.
-  // Different categories or matchdays get sequential days.
-  const updates: { id: string; deadline: string }[] = []
-  
-  let currentGlobalDay = 0; 
-  const slotDayMap = new Map<string, number>()
-
-  for (const match of (allMatches as any[])) {
-    const rawType = (match.competition as any)?.type || 'league'
-    // Normalize type: 'league' stays 'league', others ('cup', 'groups_knockout') become 'cup'
-    const category = rawType === 'league' ? 'league' : 'cup'
-    
-    const slotKey = `${category}-${match.matchday || 1}-${match.leg || 1}`
-
-    if (!slotDayMap.has(slotKey)) {
-      currentGlobalDay++
-      slotDayMap.set(slotKey, currentGlobalDay)
-    }
-
-    const assignedDay = slotDayMap.get(slotKey)!
-    const deadlineMs = activatedAt.getTime() + assignedDay * 24 * 60 * 60 * 1000 
-    
-    updates.push({ id: match.id, deadline: new Date(deadlineMs).toISOString() })
-  }
+  const { perMatch } = computeSeasonSchedule(
+    (allMatches as any[]).map(m => ({
+      id: m.id,
+      matchday: m.matchday,
+      leg: m.leg,
+      match_order: m.match_order,
+      type: (m.competition as any)?.type || 'league',
+    })),
+    { anchorMs, gapHours, overrides }
+  )
 
   // Batch update deadlines
-  for (const update of updates) {
+  for (const [id, deadline] of Object.entries(perMatch)) {
     await (supabase.from('matches') as any)
-      .update({ deadline: update.deadline })
-      .eq('id', update.id)
+      .update({ deadline })
+      .eq('id', id)
   }
 }
 

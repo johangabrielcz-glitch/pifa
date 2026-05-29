@@ -456,6 +456,10 @@ export interface Season {
   archived_at: string | null
   transfer_window_open: boolean
   contracts_decremented: boolean
+  // Deadline scheduling (see lib/match-engine.ts computeSeasonSchedule)
+  deadline_anchor: string | null // null => anchored to activation time (relative)
+  deadline_gap_hours: number     // hours between consecutive day-slots (default 24)
+  deadline_overrides: Record<string, string> // slotKey -> ISO deadline
   created_at: string
   updated_at: string
 }
@@ -478,6 +482,9 @@ export interface SeasonUpdate {
   archived_at?: string | null
   transfer_window_open?: boolean
   contracts_decremented?: boolean
+  deadline_anchor?: string | null
+  deadline_gap_hours?: number
+  deadline_overrides?: Record<string, string>
   updated_at?: string
 }
 

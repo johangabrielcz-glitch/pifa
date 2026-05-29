@@ -212,90 +212,36 @@ export default function CompetitionDetailPage({ params }: { params: Promise<{ se
 
       if (newMatches.length === 0) { toast.error('Fallo en el cálculo de enfrentamientos'); return }
 
-      // 1. Get all matches for this season to find occupied dates and current max match_order
+      // 1. Get all matches for this season to find the current max match_order.
+      //    Deadlines are NOT assigned here — they are materialized later by the
+      //    unified engine (calendar preview save / season activation), so this
+      //    page no longer hardcodes dates.
       const { data: seasonComps } = await supabase
         .from('competitions')
-        .select('id, name')
+        .select('id')
         .eq('season_id', seasonId)
-      
+
       const compIds = (seasonComps || []).map(c => c.id)
-      const isWorldCup = competition.name.toLowerCase().includes('mundial')
-      
+
       const { data: existingMatches } = await supabase
         .from('matches')
-        .select('match_order, deadline, round_name')
+        .select('match_order')
         .in('competition_id', compIds)
         .order('match_order', { ascending: false })
 
       const maxOrder = existingMatches && existingMatches.length > 0 ? existingMatches[0].match_order : 0
-      
-      // Map of occupied dates (YYYY-MM-DD)
-      const occupiedDates = new Set((existingMatches || [])
-        .filter(m => m.deadline)
-        .map(m => m.deadline!.split('T')[0]))
 
-      // 2. Assign order and calculation of deadlines
+      // 2. Assign sequential match_order. League restarts ordering at 0; other
+      //    competitions append after the current max so they interleave later.
       const isTourney = competition.type !== 'league'
       const startOrder = isTourney ? maxOrder : 0
-      
-      // Starting date for the season (April 18th)
-      let currentGenDate = new Date('2026-04-18T04:49:30.01Z')
-      
-      // If it's a World Cup, find the last date of the season and start the day after
-      if (isWorldCup) {
-        const lastMatch = [...(existingMatches || [])].sort((a, b) => {
-          if (!a.deadline) return 1
-          if (!b.deadline) return -1
-          return new Date(b.deadline).getTime() - new Date(a.deadline).getTime()
-        })[0]
-        
-        if (lastMatch?.deadline) {
-          currentGenDate = new Date(lastMatch.deadline)
-          currentGenDate.setDate(currentGenDate.getDate() + 1)
-        }
-      }
 
-      const matchesWithOrder = []
-      const matchdayDates: Record<number, string> = {}
-
-      for (let i = 0; i < newMatches.length; i++) {
-        const m = newMatches[i]
-        const md = m.matchday || 1
-        
-        if (!matchdayDates[md]) {
-          let dateStr = currentGenDate.toISOString().split('T')[0]
-          
-          // Logic to find the next available day
-          // If league, just take the next day. If cup, check for overlaps.
-          while (occupiedDates.has(dateStr)) {
-            currentGenDate.setDate(currentGenDate.getDate() + 1)
-            dateStr = currentGenDate.toISOString().split('T')[0]
-          }
-
-          // Special Rule: Semis Ida must be 1 day apart if there's already one
-          if (m.round_name?.includes('Semifinales - Ida')) {
-            const hasOtherSemisIda = existingMatches?.some(em => 
-              em.round_name?.includes('Semifinales - Ida') && 
-              em.deadline?.split('T')[0] === dateStr
-            )
-            if (hasOtherSemisIda) {
-              currentGenDate.setDate(currentGenDate.getDate() + 1)
-              dateStr = currentGenDate.toISOString().split('T')[0]
-            }
-          }
-
-          matchdayDates[md] = `${dateStr}T04:49:30.01Z`
-          occupiedDates.add(dateStr)
-          currentGenDate.setDate(currentGenDate.getDate() + 1)
-        }
-
-        matchesWithOrder.push({ 
-          ...m, 
-          competition_id: competitionId, 
-          match_order: startOrder + i + 1,
-          deadline: matchdayDates[md]
-        })
-      }
+      const matchesWithOrder = newMatches.map((m, i) => ({
+        ...m,
+        competition_id: competitionId,
+        match_order: startOrder + i + 1,
+        deadline: null,
+      }))
 
       const { error } = await supabase.from('matches').insert(matchesWithOrder)
       if (error) throw error
