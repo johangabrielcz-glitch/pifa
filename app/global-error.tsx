@@ -1,5 +1,7 @@
 'use client'
 
+import { useEffect } from 'react'
+
 export default function GlobalError({
   error,
 }: {
@@ -9,6 +11,19 @@ export default function GlobalError({
 
   // Log the error to the console so it will be forwarded to server logs and captured by auto-fix
   console.error(error)
+
+  // Last line of defense: a stale-chunk error after a deploy → reload once.
+  useEffect(() => {
+    const text = `${error?.name ?? ''} ${error?.message ?? ''}`
+    if (!/ChunkLoadError|Loading chunk [\w-]+ failed|Failed to load chunk|dynamically imported module/i.test(text)) return
+    try {
+      const KEY = 'pifa_chunk_reloaded_at'
+      const last = Number(sessionStorage.getItem(KEY) || 0)
+      if (Date.now() - last < 10_000) return
+      sessionStorage.setItem(KEY, String(Date.now()))
+    } catch {}
+    window.location.reload()
+  }, [error])
 
   return (
     <html>
