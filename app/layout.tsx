@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { Toaster } from 'sonner'
 import { PushTokenHandler } from '@/components/pifa/push-token-handler'
+import { ChunkReloadHandler } from '@/components/pifa/chunk-reload-handler'
 import './globals.css'
 
 const inter = Inter({ 
@@ -47,6 +48,7 @@ export default function RootLayout({
       <body className="font-sans antialiased min-h-dvh overflow-x-hidden" suppressHydrationWarning>
         <div className="app-viewport">
           <main className="min-h-dvh">
+            <ChunkReloadHandler />
             <PushTokenHandler />
             {children}
           </main>
