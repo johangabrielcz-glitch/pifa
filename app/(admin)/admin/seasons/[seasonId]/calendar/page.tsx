@@ -225,6 +225,7 @@ export default function SeasonCalendarPage({ params }: { params: Promise<{ seaso
   const scheduleInput: ScheduleMatchInput[] = useMemo(
     () => matches.map(m => ({
       id: m.id,
+      competitionId: m.competition_id,
       matchday: m.matchday,
       leg: m.leg,
       match_order: m.match_order,
@@ -527,6 +528,16 @@ export default function SeasonCalendarPage({ params }: { params: Promise<{ seaso
                 <p className="text-[8px] text-[#6A6C6E] font-bold uppercase tracking-widest flex items-center gap-1.5">
                   <AlertTriangle size={11} className="text-amber-500" /> {tbdCount} encuentro(s) por definir (TBD) en el calendario.
                 </p>
+              )}
+              {isEditable && (
+                <button
+                  onClick={saveAll}
+                  disabled={isSaving}
+                  className="w-full h-11 bg-[#FF3131] hover:bg-[#D32F2F] text-white rounded-xl flex items-center justify-center gap-2.5 font-black uppercase tracking-widest text-[10px] shadow-[0_0_20px_rgba(255,49,49,0.3)] transition-all active:scale-95 disabled:opacity-50"
+                >
+                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+                  Recalcular y guardar fechas
+                </button>
               )}
             </div>
 
