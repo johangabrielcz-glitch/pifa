@@ -1681,8 +1681,9 @@ export default function DashboardPage() {
                  </div>
               </div>
 
-              {/* Pay All Salaries (Preseason Only) */}
-              {isPreseason && players.some(p => !p.salary_paid_this_season && p.contract_status === 'active' && !p.wants_to_leave) && (
+              {/* Pay All Salaries — available whenever there are unpaid salaries
+                  (preseason OR active season; salaries can be paid mid-season) */}
+              {players.some(p => !p.salary_paid_this_season && p.contract_status === 'active' && !p.wants_to_leave) && (
                 <button
                   onClick={async () => {
                     if (!club) return
