@@ -3,14 +3,15 @@
 import { useEffect, useState, use } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Plus, Loader2, Shield, X, Users, Swords, Play, Trash2, RefreshCw, Lock, AlertTriangle, Trophy, LayoutList, ChevronRight } from 'lucide-react'
+import { ArrowLeft, Plus, Loader2, Shield, X, Users, Swords, Play, Trash2, RefreshCw, Lock, AlertTriangle, Trophy, LayoutList, ChevronRight, Coins, RotateCcw } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { defaultPrizeConfig, getCompetitionPrizeConfig, ROUND_TIERS, TIER_LABEL } from '@/lib/prize-engine'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from '@/components/ui/dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
-import type { Competition, Club, CompetitionClub, Match, LeagueConfig, CupConfig, GroupsKnockoutConfig, Season } from '@/lib/types'
+import type { Competition, Club, CompetitionClub, Match, LeagueConfig, CupConfig, GroupsKnockoutConfig, Season, PrizeConfig } from '@/lib/types'
 
 // ============================================================
 // Match generation utilities
@@ -141,8 +142,32 @@ export default function CompetitionDetailPage({ params }: { params: Promise<{ se
   const [isDeleteMatchesOpen, setIsDeleteMatchesOpen] = useState(false)
   const [isDeleteCompetitionOpen, setIsDeleteCompetitionOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
-  
+  const [prizeConfig, setPrizeConfig] = useState<PrizeConfig | null>(null)
+  const [savingPrizes, setSavingPrizes] = useState(false)
+
   const canEdit = season?.status === 'draft'
+  // Prize amounts can be tuned until they're actually paid (even on a finished season).
+  const canEditPrizes = season ? !season.prizes_paid : false
+
+  // Editing in millions for readability; store raw.
+  const toM = (n: number) => Math.round(n / 1_000_000)
+  const fromM = (m: number) => Math.max(0, Math.round(m)) * 1_000_000
+
+  const savePrizeConfig = async () => {
+    if (!prizeConfig) return
+    setSavingPrizes(true)
+    try {
+      const { error } = await (supabase.from('competitions') as any)
+        .update({ prize_config: prizeConfig, updated_at: new Date().toISOString() }).eq('id', competitionId)
+      if (error) throw error
+      toast.success('Premios de la competencia guardados')
+      loadData()
+    } catch {
+      toast.error('Error al guardar los premios')
+    } finally {
+      setSavingPrizes(false)
+    }
+  }
 
   const loadData = async () => {
     setIsLoading(true)
@@ -159,6 +184,10 @@ export default function CompetitionDetailPage({ params }: { params: Promise<{ se
     if (enrolledRes.data) setEnrolledClubs(enrolledRes.data)
     if (allClubsRes.data) setAllClubs(allClubsRes.data)
     if (matchesRes.data) setMatches(matchesRes.data)
+    if (compRes.data) {
+      const teamCount = enrolledRes.data?.length || 0
+      setPrizeConfig(getCompetitionPrizeConfig(compRes.data as Competition, teamCount))
+    }
     setIsLoading(false)
   }
 
@@ -454,6 +483,88 @@ export default function CompetitionDetailPage({ params }: { params: Promise<{ se
             )}
           </div>
         </section>
+
+        {/* Prizes Section */}
+        {prizeConfig && (
+          <section className="bg-[#141414]/30 backdrop-blur-xl rounded-[32px] border border-white/[0.04] overflow-hidden shadow-2xl">
+            <div className="px-6 py-5 flex items-center justify-between border-b border-white/[0.04] bg-[#0A0A0A]/30">
+              <div className="flex items-center gap-3">
+                <Coins size={16} className="text-[#00FF85]" />
+                <h2 className="text-[10px] font-black text-white uppercase tracking-[0.2em]">PREMIOS (POR TEMPORADA)</h2>
+              </div>
+              {canEditPrizes && (
+                <button
+                  onClick={() => setPrizeConfig(defaultPrizeConfig(competition!.type, enrolledClubs.length))}
+                  className="h-8 px-3 bg-white/5 hover:bg-white/10 text-[#6A6C6E] hover:text-white border border-white/10 rounded-lg flex items-center gap-1.5 font-black uppercase tracking-widest text-[8px] transition-all"
+                >
+                  <RotateCcw size={12} /> Sugeridos
+                </button>
+              )}
+            </div>
+
+            <div className="p-5 space-y-4">
+              {season?.prizes_paid && (
+                <p className="text-[8px] text-emerald-500 font-black uppercase tracking-widest flex items-center gap-1.5">
+                  <Lock className="w-2.5 h-2.5" /> Premios ya pagados — configuración bloqueada.
+                </p>
+              )}
+              <p className="text-[8px] text-[#6A6C6E] font-bold uppercase tracking-widest leading-relaxed">Montos en millones (M). Se pagan una vez al finalizar la temporada.</p>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[8px] font-black text-[#6A6C6E] uppercase tracking-widest">Por victoria (M)</label>
+                  <input type="number" inputMode="numeric" disabled={!canEditPrizes} value={toM(prizeConfig.per_win)}
+                    onChange={(e) => setPrizeConfig({ ...prizeConfig, per_win: fromM(parseFloat(e.target.value) || 0) })}
+                    className="mt-1 w-full h-10 bg-black border border-[#202020] rounded-xl px-3 text-[12px] font-black text-white focus:border-[#00FF85]/40 outline-none disabled:opacity-40" />
+                </div>
+                <div>
+                  <label className="text-[8px] font-black text-[#6A6C6E] uppercase tracking-widest">Bono título (M)</label>
+                  <input type="number" inputMode="numeric" disabled={!canEditPrizes} value={toM(prizeConfig.title_bonus)}
+                    onChange={(e) => setPrizeConfig({ ...prizeConfig, title_bonus: fromM(parseFloat(e.target.value) || 0) })}
+                    className="mt-1 w-full h-10 bg-black border border-[#202020] rounded-xl px-3 text-[12px] font-black text-white focus:border-[#00FF85]/40 outline-none disabled:opacity-40" />
+                </div>
+              </div>
+
+              {competition?.type === 'league' ? (
+                <div>
+                  <label className="text-[8px] font-black text-[#6A6C6E] uppercase tracking-widest">Clasificación · por posición (M)</label>
+                  <div className="mt-1.5 grid grid-cols-4 gap-2 max-h-[220px] overflow-y-auto custom-scrollbar pr-1">
+                    {prizeConfig.positions.map((amt, i) => (
+                      <div key={i} className="flex flex-col items-center bg-black/40 border border-white/[0.04] rounded-xl p-2">
+                        <span className="text-[7px] font-black text-[#00FF85] uppercase tracking-widest mb-1">{i + 1}º</span>
+                        <input type="number" inputMode="numeric" disabled={!canEditPrizes} value={toM(amt)}
+                          onChange={(e) => { const next = [...prizeConfig.positions]; next[i] = fromM(parseFloat(e.target.value) || 0); setPrizeConfig({ ...prizeConfig, positions: next }) }}
+                          className="w-full h-8 bg-black border border-[#202020] rounded-lg px-1 text-[11px] font-black text-white text-center focus:border-[#00FF85]/40 outline-none disabled:opacity-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="text-[8px] font-black text-[#6A6C6E] uppercase tracking-widest">Clasificación · por ronda alcanzada (M)</label>
+                  <div className="mt-1.5 grid grid-cols-2 gap-2">
+                    {ROUND_TIERS.map((tier) => (
+                      <div key={tier} className="flex items-center justify-between gap-2 bg-black/40 border border-white/[0.04] rounded-xl px-3 py-2">
+                        <span className="text-[8px] font-black text-[#6A6C6E] uppercase tracking-wider truncate">{TIER_LABEL[tier]}</span>
+                        <input type="number" inputMode="numeric" disabled={!canEditPrizes} value={toM(prizeConfig.rounds[tier] ?? 0)}
+                          onChange={(e) => setPrizeConfig({ ...prizeConfig, rounds: { ...prizeConfig.rounds, [tier]: fromM(parseFloat(e.target.value) || 0) } })}
+                          className="w-16 h-8 bg-black border border-[#202020] rounded-lg px-1 text-[11px] font-black text-white text-center focus:border-[#00FF85]/40 outline-none disabled:opacity-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {canEditPrizes && (
+                <button onClick={savePrizeConfig} disabled={savingPrizes}
+                  className="w-full h-11 bg-[#00FF85]/10 hover:bg-[#00FF85] text-[#00FF85] hover:text-[#0A0A0A] border border-[#00FF85]/20 rounded-xl flex items-center justify-center gap-2 font-black uppercase tracking-widest text-[9px] transition-all active:scale-95 disabled:opacity-50">
+                  {savingPrizes ? <Loader2 className="w-4 h-4 animate-spin" /> : <Coins className="w-4 h-4" />}
+                  Guardar Premios
+                </button>
+              )}
+            </div>
+          </section>
+        )}
       </div>
 
       {/* Enroll Dialog */}

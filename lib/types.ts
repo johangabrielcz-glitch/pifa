@@ -37,6 +37,11 @@ export interface Database {
         Insert: Partial<Standing>
         Update: Partial<Standing>
       }
+      season_prizes: {
+        Row: SeasonPrize
+        Insert: Partial<SeasonPrize>
+        Update: Partial<SeasonPrize>
+      }
       player_competition_stats: {
         Row: PlayerCompetitionStats
         Insert: Partial<PlayerCompetitionStats>
@@ -460,6 +465,8 @@ export interface Season {
   deadline_anchor: string | null // null => anchored to activation time (relative)
   deadline_gap_hours: number     // hours between consecutive day-slots (default 24)
   deadline_overrides: Record<string, string> // slotKey -> ISO deadline
+  prizes_paid: boolean           // season-end prize money distributed once
+  prizes_paid_at: string | null
   created_at: string
   updated_at: string
 }
@@ -485,6 +492,8 @@ export interface SeasonUpdate {
   deadline_anchor?: string | null
   deadline_gap_hours?: number
   deadline_overrides?: Record<string, string>
+  prizes_paid?: boolean
+  prizes_paid_at?: string | null
   updated_at?: string
 }
 
@@ -511,6 +520,17 @@ export interface GroupsKnockoutConfig {
 
 export type CompetitionConfig = LeagueConfig | CupConfig | GroupsKnockoutConfig
 
+// Season-end prize configuration (per competition; see lib/prize-engine.ts)
+export interface PrizeConfig {
+  per_win: number          // amount per match won
+  title_bonus: number      // extra bonus for the champion
+  // League: amounts by final table position (index 0 = 1st). Missing positions
+  // fall back to the last entry. Used when competition.type === 'league'.
+  positions: number[]
+  // Cup / groups_knockout: amount by round reached. Keys are tier ids.
+  rounds: Record<string, number> // champion|finalist|semifinal|quarterfinal|round_16|round_32|group_stage
+}
+
 // Competition types
 export interface Competition {
   id: string
@@ -519,6 +539,7 @@ export interface Competition {
   type: CompetitionType
   status: CompetitionStatus
   config: CompetitionConfig
+  prize_config: PrizeConfig | null // null => computed defaults
   created_at: string
   updated_at: string
 }
@@ -537,6 +558,19 @@ export interface CompetitionUpdate {
   type?: CompetitionType
   status?: CompetitionStatus
   config?: CompetitionConfig
+  prize_config?: PrizeConfig | null
+}
+
+// Season prize payout audit row
+export interface SeasonPrize {
+  id: string
+  season_id: string
+  club_id: string
+  competition_id: string | null
+  category: 'match_won' | 'classification' | 'title'
+  detail: string
+  amount: number
+  created_at: string
 }
 
 // Competition Club (inscribed clubs)

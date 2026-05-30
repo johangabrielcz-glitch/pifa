@@ -3,10 +3,11 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Plus, Calendar, Trophy, Loader2, ChevronRight, Play, CheckCircle, Pencil, Trash2, Clock, Zap, Archive, ChevronLeft, Sparkles } from 'lucide-react'
+import { Plus, Calendar, Trophy, Loader2, ChevronRight, Play, CheckCircle, Pencil, Trash2, Clock, Zap, Archive, ChevronLeft, Sparkles, Coins } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { calculateMatchDeadlines } from '@/lib/match-engine'
 import { revertContractDecrement, resetSalaryPayments, decrementContracts, toggleTransferWindow, finalizeAndArchiveSeason } from '@/lib/contract-engine'
+import { computeSeasonPrizes, paySeasonPrizes, type SeasonPrizeBreakdown } from '@/lib/prize-engine'
 import { sendPushToAll } from '@/lib/push-notifications'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -28,6 +29,44 @@ export default function SeasonsPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [finalizeConfirm, setFinalizeConfirm] = useState<Season | null>(null)
   const [isFinalizing, setIsFinalizing] = useState(false)
+  const [prizeSeason, setPrizeSeason] = useState<Season | null>(null)
+  const [prizeBreakdown, setPrizeBreakdown] = useState<SeasonPrizeBreakdown | null>(null)
+  const [loadingPrizes, setLoadingPrizes] = useState(false)
+  const [isPaying, setIsPaying] = useState(false)
+  const [expandedClub, setExpandedClub] = useState<string | null>(null)
+
+  const fmtMoney = (n: number) => '$' + Math.round(n).toLocaleString('es')
+
+  const openPrizePreview = async (season: Season) => {
+    setPrizeSeason(season)
+    setPrizeBreakdown(null)
+    setExpandedClub(null)
+    setLoadingPrizes(true)
+    try {
+      const b = await computeSeasonPrizes(season.id)
+      setPrizeBreakdown(b)
+    } catch (e) {
+      toast.error('Error al calcular los premios')
+    } finally {
+      setLoadingPrizes(false)
+    }
+  }
+
+  const handlePayPrizes = async () => {
+    if (!prizeSeason) return
+    setIsPaying(true)
+    try {
+      const res = await paySeasonPrizes(prizeSeason.id)
+      if (!res.success) throw new Error(res.error || 'Error al pagar premios')
+      toast.success(`Premios pagados a ${res.paid} clubes · Total ${fmtMoney(res.grandTotal || 0)}`)
+      setPrizeSeason(null)
+      loadSeasons()
+    } catch (e: any) {
+      toast.error(e.message || 'Error al pagar premios')
+    } finally {
+      setIsPaying(false)
+    }
+  }
 
   const loadSeasons = async () => {
     setIsLoading(true)
@@ -335,6 +374,20 @@ export default function SeasonsPage() {
                         Ver Gala
                       </button>
                     )}
+                    {season.status === 'finished' && (
+                      <button
+                        onClick={() => openPrizePreview(season)}
+                        disabled={season.prizes_paid}
+                        className={`flex-1 h-9.5 rounded-xl font-black uppercase tracking-widest text-[8px] transition-all flex items-center justify-center gap-2 border ${
+                          season.prizes_paid
+                            ? 'bg-emerald-500/5 text-emerald-500/60 border-emerald-500/10 cursor-default'
+                            : 'bg-[#00FF85]/5 hover:bg-[#00FF85] text-[#00FF85] hover:text-[#0A0A0A] border-[#00FF85]/15'
+                        }`}
+                      >
+                        <Coins className="w-3 h-3" />
+                        {season.prizes_paid ? 'Premios Pagados' : 'Pagar Premios'}
+                      </button>
+                    )}
                     <button 
                       onClick={() => router.push(`/admin/seasons/${season.id}`)}
                       className="flex-1 h-9.5 bg-white/[0.02] hover:bg-white/[0.05] text-[#2D2D2D] hover:text-white border border-white/[0.04] rounded-xl font-black uppercase tracking-widest text-[8px] transition-all flex items-center justify-center gap-2"
@@ -462,6 +515,79 @@ export default function SeasonsPage() {
           </div>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Prize preview + pay */}
+      <Dialog open={!!prizeSeason} onOpenChange={(open) => { if (!open && !isPaying) { setPrizeSeason(null); setPrizeBreakdown(null) } }}>
+        <DialogContent className="max-w-lg w-full rounded-[24px] bg-[#141414]/95 backdrop-blur-2xl border-white/[0.08] p-0 overflow-hidden shadow-2xl max-h-[88vh] flex flex-col fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+          <div className="p-6 pb-4 border-b border-white/[0.04]">
+            <DialogHeader>
+              <div className="w-12 h-12 rounded-xl bg-[#00FF85]/10 border border-[#00FF85]/20 flex items-center justify-center mx-auto mb-4 text-[#00FF85]">
+                <Coins className="w-6 h-6" />
+              </div>
+              <DialogTitle className="text-base font-black text-white uppercase tracking-tighter text-center">
+                PREMIOS DE <span className="text-[#00FF85]">{prizeSeason?.name}</span>
+              </DialogTitle>
+              <DialogDescription className="text-center text-[9px] text-[#6A6C6E] font-bold uppercase tracking-widest mt-2">
+                {loadingPrizes ? 'Calculando…' : prizeBreakdown
+                  ? `${prizeBreakdown.clubs.length} clubes · Total ${fmtMoney(prizeBreakdown.grandTotal)}`
+                  : ''}
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2 custom-scrollbar">
+            {loadingPrizes ? (
+              <div className="flex justify-center py-12"><Loader2 className="w-7 h-7 animate-spin text-[#00FF85]" /></div>
+            ) : !prizeBreakdown || prizeBreakdown.clubs.length === 0 ? (
+              <p className="text-center text-[10px] text-[#6A6C6E] font-bold uppercase tracking-widest py-12">Sin premios calculables para esta temporada.</p>
+            ) : (
+              prizeBreakdown.clubs.map((c) => {
+                const open = expandedClub === c.clubId
+                return (
+                  <div key={c.clubId} className="bg-[#0A0A0A]/50 border border-white/[0.04] rounded-2xl overflow-hidden">
+                    <button
+                      onClick={() => setExpandedClub(open ? null : c.clubId)}
+                      className="w-full px-4 py-3 flex items-center justify-between gap-3 hover:bg-white/[0.02] transition-all"
+                    >
+                      <span className="text-[11px] font-black text-white uppercase tracking-tight truncate">{c.clubName}</span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-[12px] font-black text-[#00FF85] tabular-nums">{fmtMoney(c.total)}</span>
+                        <ChevronRight className={`w-3.5 h-3.5 text-[#2D2D2D] transition-transform ${open ? 'rotate-90' : ''}`} />
+                      </div>
+                    </button>
+                    {open && (
+                      <div className="px-4 pb-3 pt-1 space-y-1 border-t border-white/[0.04]">
+                        {c.lines.map((l, idx) => (
+                          <div key={idx} className="flex items-center justify-between gap-3 text-[9px]">
+                            <span className={`font-bold uppercase tracking-wider truncate ${
+                              l.category === 'title' ? 'text-amber-400' : l.category === 'classification' ? 'text-blue-400' : 'text-[#6A6C6E]'
+                            }`}>{l.detail}</span>
+                            <span className="font-black text-white/70 tabular-nums shrink-0">{fmtMoney(l.amount)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })
+            )}
+          </div>
+
+          <div className="flex gap-3 p-5 bg-[#0A0A0A]/50 border-t border-white/[0.04]">
+            <DialogClose asChild>
+              <button disabled={isPaying} className="flex-1 h-11 border border-[#202020] text-[#2D2D2D] hover:text-white rounded-xl font-black uppercase tracking-widest text-[9px] transition-all disabled:opacity-50">Cerrar</button>
+            </DialogClose>
+            <button
+              onClick={handlePayPrizes}
+              disabled={isPaying || loadingPrizes || !prizeBreakdown || prizeBreakdown.clubs.length === 0}
+              className="flex-1 h-11 bg-[#00FF85] hover:bg-[#00e077] text-[#0A0A0A] rounded-xl font-black uppercase tracking-widest text-[9px] shadow-[0_0_20px_rgba(0,255,133,0.25)] transition-all active:scale-95 disabled:opacity-40 flex items-center justify-center gap-2"
+            >
+              {isPaying ? <Loader2 className="w-4 h-4 animate-spin" /> : <Coins className="w-4 h-4" />}
+              Confirmar y Pagar
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
