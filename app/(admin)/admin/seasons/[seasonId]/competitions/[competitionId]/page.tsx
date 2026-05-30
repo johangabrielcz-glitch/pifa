@@ -149,9 +149,9 @@ export default function CompetitionDetailPage({ params }: { params: Promise<{ se
   // Prize amounts can be tuned until they're actually paid (even on a finished season).
   const canEditPrizes = season ? !season.prizes_paid : false
 
-  // Editing in millions for readability; store raw.
-  const toM = (n: number) => Math.round(n / 1_000_000)
-  const fromM = (m: number) => Math.max(0, Math.round(m)) * 1_000_000
+  // Editing in thousands (K) for readability; store raw.
+  const toM = (n: number) => Math.round(n / 1_000)
+  const fromM = (m: number) => Math.max(0, Math.round(m)) * 1_000
 
   const savePrizeConfig = async () => {
     if (!prizeConfig) return
@@ -508,17 +508,17 @@ export default function CompetitionDetailPage({ params }: { params: Promise<{ se
                   <Lock className="w-2.5 h-2.5" /> Premios ya pagados — configuración bloqueada.
                 </p>
               )}
-              <p className="text-[8px] text-[#6A6C6E] font-bold uppercase tracking-widest leading-relaxed">Montos en millones (M). Se pagan una vez al finalizar la temporada.</p>
+              <p className="text-[8px] text-[#6A6C6E] font-bold uppercase tracking-widest leading-relaxed">Montos en miles (K). Se pagan una vez al finalizar la temporada.</p>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[8px] font-black text-[#6A6C6E] uppercase tracking-widest">Por victoria (M)</label>
+                  <label className="text-[8px] font-black text-[#6A6C6E] uppercase tracking-widest">Por victoria (K)</label>
                   <input type="number" inputMode="numeric" disabled={!canEditPrizes} value={toM(prizeConfig.per_win)}
                     onChange={(e) => setPrizeConfig({ ...prizeConfig, per_win: fromM(parseFloat(e.target.value) || 0) })}
                     className="mt-1 w-full h-10 bg-black border border-[#202020] rounded-xl px-3 text-[12px] font-black text-white focus:border-[#00FF85]/40 outline-none disabled:opacity-40" />
                 </div>
                 <div>
-                  <label className="text-[8px] font-black text-[#6A6C6E] uppercase tracking-widest">Bono título (M)</label>
+                  <label className="text-[8px] font-black text-[#6A6C6E] uppercase tracking-widest">Bono título (K)</label>
                   <input type="number" inputMode="numeric" disabled={!canEditPrizes} value={toM(prizeConfig.title_bonus)}
                     onChange={(e) => setPrizeConfig({ ...prizeConfig, title_bonus: fromM(parseFloat(e.target.value) || 0) })}
                     className="mt-1 w-full h-10 bg-black border border-[#202020] rounded-xl px-3 text-[12px] font-black text-white focus:border-[#00FF85]/40 outline-none disabled:opacity-40" />
@@ -527,7 +527,7 @@ export default function CompetitionDetailPage({ params }: { params: Promise<{ se
 
               {competition?.type === 'league' ? (
                 <div>
-                  <label className="text-[8px] font-black text-[#6A6C6E] uppercase tracking-widest">Clasificación · por posición (M)</label>
+                  <label className="text-[8px] font-black text-[#6A6C6E] uppercase tracking-widest">Clasificación · por posición (K)</label>
                   <div className="mt-1.5 grid grid-cols-4 gap-2 max-h-[220px] overflow-y-auto custom-scrollbar pr-1">
                     {prizeConfig.positions.map((amt, i) => (
                       <div key={i} className="flex flex-col items-center bg-black/40 border border-white/[0.04] rounded-xl p-2">
@@ -541,7 +541,7 @@ export default function CompetitionDetailPage({ params }: { params: Promise<{ se
                 </div>
               ) : (
                 <div>
-                  <label className="text-[8px] font-black text-[#6A6C6E] uppercase tracking-widest">Clasificación · por ronda alcanzada (M)</label>
+                  <label className="text-[8px] font-black text-[#6A6C6E] uppercase tracking-widest">Clasificación · por ronda alcanzada (K)</label>
                   <div className="mt-1.5 grid grid-cols-2 gap-2">
                     {ROUND_TIERS.map((tier) => (
                       <div key={tier} className="flex items-center justify-between gap-2 bg-black/40 border border-white/[0.04] rounded-xl px-3 py-2">

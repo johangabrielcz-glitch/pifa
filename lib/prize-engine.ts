@@ -10,7 +10,7 @@ import { sendPushToClub, sendPushToAll } from './push-notifications'
 // per competition (league position / cup round reached) and titles (champion
 // bonus). Amounts are per-competition, admin-configurable with defaults.
 
-const M = 1_000_000
+const K = 1_000
 
 // Cup/groups_knockout classification tiers (deepest round reached).
 export const ROUND_TIERS = ['champion', 'finalist', 'semifinal', 'quarterfinal', 'round_16', 'round_32', 'group_stage'] as const
@@ -28,34 +28,34 @@ export const TIER_LABEL: Record<string, string> = {
 
 /**
  * Sensible default prize amounts, calibrated to the game economy
- * (avg salary ~30M, star 100-200M, common transfer ~40M). Admin-editable.
+ * (avg salary ~30K, star 100-200K, common transfer ~40K). Admin-editable.
  */
 export function defaultPrizeConfig(type: CompetitionType, teamCount: number): PrizeConfig {
   if (type === 'league') {
     const n = Math.max(2, teamCount || 2)
-    const top = 150 * M
-    const floor = 5 * M
+    const top = 150 * K
+    const floor = 5 * K
     const positions: number[] = []
     for (let i = 0; i < n; i++) {
       const t = n === 1 ? 0 : i / (n - 1)
-      const val = top * Math.pow(floor / top, t) // geometric decay 150M → 5M
-      positions.push(Math.max(floor, Math.round(val / M) * M))
+      const val = top * Math.pow(floor / top, t) // geometric decay 150K → 5K
+      positions.push(Math.max(floor, Math.round(val / K) * K))
     }
-    return { per_win: 6 * M, title_bonus: 100 * M, positions, rounds: {} }
+    return { per_win: 6 * K, title_bonus: 100 * K, positions, rounds: {} }
   }
   const groups = type === 'groups_knockout'
   return {
-    per_win: groups ? 7 * M : 8 * M,
-    title_bonus: groups ? 110 * M : 100 * M,
+    per_win: groups ? 7 * K : 8 * K,
+    title_bonus: groups ? 110 * K : 100 * K,
     positions: [],
     rounds: {
-      champion: 120 * M,
-      finalist: 70 * M,
-      semifinal: 40 * M,
-      quarterfinal: 22 * M,
-      round_16: 12 * M,
-      round_32: 6 * M,
-      group_stage: groups ? 6 * M : 4 * M,
+      champion: 120 * K,
+      finalist: 70 * K,
+      semifinal: 40 * K,
+      quarterfinal: 22 * K,
+      round_16: 12 * K,
+      round_32: 6 * K,
+      group_stage: groups ? 6 * K : 4 * K,
     },
   }
 }
