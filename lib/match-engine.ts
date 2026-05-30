@@ -31,6 +31,7 @@ export const DEFAULT_GAP_HOURS = 24
 
 export interface ScheduleMatchInput {
   id: string
+  competitionId: string
   matchday: number | null
   leg: number | null
   match_order: number
@@ -66,14 +67,16 @@ export interface SeasonSchedule {
  * Pure deadline planner. Single source of truth used by BOTH the admin
  * calendar preview and season activation, so "preview == reality".
  *
- * Model (unchanged from before, plus an ida/vuelta correctness fix):
- *   - category = 'league' for league competitions, 'cup' for everything else
- *     (cup + groups_knockout collapse together — intentional).
- *   - A slot is identified by `${category}-${matchday}-${leg}`. Every match in
- *     the same slot shares one deadline (= what plays simultaneously).
- *   - Slots are discovered in match_order order, then assigned sequential days.
- *   - Fix: within the same (category, matchday), legs are forced ascending so
- *     Ida (leg 1) always precedes Vuelta (leg 2) even if match_order is corrupt.
+ * Simultaneity model:
+ *   - LEAGUES play in parallel: every league sharing a (matchday, leg) collapses
+ *     into one slot `league-${matchday}-${leg}` → same deadline (intentional).
+ *   - CUPS / groups_knockout are per-competition: slot is
+ *     `cup-${competitionId}-${matchday}-${leg}`, so two different cups (or a group
+ *     stage and a cup) do NOT get tied to the same day — each follows its own
+ *     position in the saved order.
+ *   - Slots are ordered strictly by first appearance in match_order (what you
+ *     arrange in the calendar is exactly what gets scheduled — no hidden
+ *     reordering). The ida/vuelta order therefore follows the block order.
  *   - A slot's deadline is the override if present, else anchorMs + dayIndex*gap.
  */
 export function computeSeasonSchedule(
@@ -92,7 +95,10 @@ export function computeSeasonSchedule(
     const category: 'league' | 'cup' = m.type === 'league' ? 'league' : 'cup'
     const matchday = m.matchday || 1
     const leg = m.leg || 1
-    const slotKey = `${category}-${matchday}-${leg}`
+    // Leagues collapse across competitions (parallel); cups are per-competition.
+    const slotKey = category === 'league'
+      ? `league-${matchday}-${leg}`
+      : `cup-${m.competitionId}-${matchday}-${leg}`
     let slot = slotMap.get(slotKey)
     if (!slot) {
       slot = { category, matchday, leg, firstSeen: seen++, matchIds: [] }
@@ -101,22 +107,17 @@ export function computeSeasonSchedule(
     slot.matchIds.push(m.id)
   }
 
-  // 2. Order slots by first appearance, but force Ida before Vuelta within a
-  //    same (category, matchday) so two-leg ties never get inverted deadlines.
-  const orderedSlots = Array.from(slotMap.values()).sort((a, b) => {
-    if (a.category === b.category && a.matchday === b.matchday) {
-      return a.leg - b.leg
-    }
-    return a.firstSeen - b.firstSeen
-  })
+  // 2. Order slots strictly by first appearance (stable, transitive). This makes
+  //    the schedule follow the saved block order exactly.
+  const slotEntries = Array.from(slotMap.entries())
+  slotEntries.sort((a, b) => a[1].firstSeen - b[1].firstSeen)
 
   // 3. Assign sequential day-slots and resolve deadlines (override or relative).
   const perMatch: Record<string, string> = {}
   const slots: SlotPlan[] = []
 
-  orderedSlots.forEach((slot, idx) => {
+  slotEntries.forEach(([slotKey, slot], idx) => {
     const dayIndex = idx + 1
-    const slotKey = `${slot.category}-${slot.matchday}-${slot.leg}`
     const override = overrides[slotKey]
     const deadline = override
       ? new Date(override).toISOString()
@@ -173,6 +174,7 @@ export async function calculateMatchDeadlines(seasonId: string): Promise<void> {
     .from('matches')
     .select(`
       id,
+      competition_id,
       matchday,
       match_order,
       leg,
@@ -186,6 +188,7 @@ export async function calculateMatchDeadlines(seasonId: string): Promise<void> {
   const { perMatch } = computeSeasonSchedule(
     (allMatches as any[]).map(m => ({
       id: m.id,
+      competitionId: m.competition_id,
       matchday: m.matchday,
       leg: m.leg,
       match_order: m.match_order,
