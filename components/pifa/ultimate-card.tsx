@@ -46,12 +46,16 @@ export function UltimateCard({ player, stats, showPrice = false, onClick, color 
   const isSuspended = (player.red_card_matches_left ?? 0) > 0
   const wantsToLeave = player.wants_to_leave ?? false
   const isFreeAgent = player.contract_status === 'free_agent'
-  const isUnavailable = isInjured || isSuspended || wantsToLeave || isFreeAgent
+  const salaryPaid = player.salary_paid_this_season ?? false
+  // During an active season an unpaid salary makes the player unusable
+  // (mirrors canUsePlayer in contract-engine). In preseason we only flag it
+  // with a badge so the manager can still review the squad before paying.
+  const isSalaryUnpaid = showContractInfo && !isPreseason && !salaryPaid && player.contract_status === 'active' && !wantsToLeave && !isFreeAgent
+  const isUnavailable = isInjured || isSuspended || wantsToLeave || isFreeAgent || isSalaryUnpaid
   const stamina = player.stamina ?? 100
   const staminaColor = stamina > 60 ? '#00FF85' : stamina > 30 ? '#FFB800' : '#FF3333'
   const morale = player.morale ?? 75
   const moraleColor = morale > 70 ? '#00FF85' : morale > 55 ? '#FFB800' : morale > 30 ? '#FF8C00' : '#FF3333'
-  const salaryPaid = player.salary_paid_this_season ?? false
   const contractSeasons = player.contract_seasons_left ?? 0
   const roleLabel = player.squad_role === 'essential' ? 'ESE' : player.squad_role === 'important' ? 'IMP' : player.squad_role === 'rotation' ? 'ROT' : null
 
@@ -112,8 +116,9 @@ export function UltimateCard({ player, stats, showPrice = false, onClick, color 
               )}
             </div>
           )}
-          {/* Salary status (below morale) */}
-          {showContractInfo && isPreseason && !wantsToLeave && !isFreeAgent && !isUnavailable && (
+          {/* Salary status (below morale). Shown whenever the player is otherwise
+              available; an unpaid salary in an active season becomes the overlay. */}
+          {showContractInfo && !wantsToLeave && !isFreeAgent && !isUnavailable && (
             <div className={`mt-0.5 px-1.5 py-0.5 rounded text-[6px] font-black uppercase tracking-wider ${
               salaryPaid 
                 ? 'bg-emerald-500/20 text-emerald-400' 
@@ -186,12 +191,12 @@ export function UltimateCard({ player, stats, showPrice = false, onClick, color 
         {/* Injury/Suspension/Contract Overlay */}
         {isUnavailable && (
           <div className="absolute inset-0 bg-black/60 z-30 flex flex-col items-center justify-center" style={{ clipPath: 'polygon(50% 0%, 100% 15%, 100% 85%, 50% 100%, 0% 85%, 0% 15%)' }}>
-            <span className="text-2xl mb-1">{wantsToLeave ? '🚪' : isFreeAgent ? '📋' : isInjured ? '🏥' : '🟥'}</span>
+            <span className="text-2xl mb-1">{wantsToLeave ? '🚪' : isFreeAgent ? '📋' : isInjured ? '🏥' : isSuspended ? '🟥' : '💰'}</span>
             <span className="text-[9px] font-black text-red-400 uppercase tracking-wider">
-              {wantsToLeave ? 'En busca de equipo' : isFreeAgent ? 'Agente Libre' : isInjured ? 'Lesionado' : 'Suspendido'}
+              {wantsToLeave ? 'En busca de equipo' : isFreeAgent ? 'Agente Libre' : isInjured ? 'Lesionado' : isSuspended ? 'Suspendido' : 'Salario impago'}
             </span>
             <span className="text-[8px] font-bold text-red-400/70 uppercase">
-              {wantsToLeave ? 'No disponible' : isFreeAgent ? 'Sin contrato' : isInjured ? `${player.injury_matches_left}P restantes` : `${player.red_card_matches_left}P restantes`}
+              {wantsToLeave ? 'No disponible' : isFreeAgent ? 'Sin contrato' : isInjured ? `${player.injury_matches_left}P restantes` : isSuspended ? `${player.red_card_matches_left}P restantes` : 'Paga su salario'}
             </span>
           </div>
         )}
