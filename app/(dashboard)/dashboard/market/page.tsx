@@ -3,14 +3,20 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Player, Club, MarketOffer, MarketHistory } from '@/lib/types'
-import { ShoppingCart, History, Search, Filter, DollarSign, ArrowRight, User as UserIcon, Shield, Lock, UserPlus, Loader2 } from 'lucide-react'
+import { ShoppingCart, History, Search, Filter, DollarSign, ArrowRight, User as UserIcon, Shield, Lock, UserPlus, Loader2, FilePlus, ClipboardList, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { UltimateCard } from '@/components/pifa/ultimate-card'
+import { ImageUpload } from '@/components/pifa/image-upload'
 import { createOffer, handleOfferResponse, buyPlayerDirectly } from '@/lib/market-engine'
 import { isTransferWindowOpen, signFreeAgent } from '@/lib/contract-engine'
+import { submitPlayerRequest } from '@/lib/player-request-engine'
+import type { PlayerCreationRequest } from '@/lib/types'
 import { toast } from 'sonner'
 import { ClauseChatDrawer } from '@/components/pifa/clause-chat-drawer'
+
+const POSITIONS = ['GK', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LM', 'RM', 'LW', 'RW', 'ST', 'CF']
 import { 
   AlertDialog,
   AlertDialogAction,
@@ -23,7 +29,7 @@ import {
 } from "@/components/ui/alert-dialog"
 
 export default function MarketPage() {
-  const [activeTab, setActiveTab] = useState<'buy' | 'history' | 'my-offers' | 'clubs' | 'free-agents'>('buy')
+  const [activeTab, setActiveTab] = useState<'buy' | 'history' | 'my-offers' | 'clubs' | 'free-agents' | 'propose'>('buy')
   const [playersOnSale, setPlayersOnSale] = useState<Player[]>([])
   const [freeAgents, setFreeAgents] = useState<Player[]>([])
   const [transferWindowStatus, setTransferWindowStatus] = useState<boolean | null>(null)
@@ -60,6 +66,17 @@ export default function MarketPage() {
   const [freeAgentToSign, setFreeAgentToSign] = useState<Player | null>(null)
   const [signingFreeAgent, setSigningFreeAgent] = useState(false)
 
+  // Player Creation Request (propose) — DT-side
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [myRequests, setMyRequests] = useState<PlayerCreationRequest[]>([])
+  const [reqName, setReqName] = useState('')
+  const [reqPosition, setReqPosition] = useState('')
+  const [reqNumber, setReqNumber] = useState('')
+  const [reqAge, setReqAge] = useState('')
+  const [reqNationality, setReqNationality] = useState('')
+  const [reqPhoto, setReqPhoto] = useState('')
+  const [submittingRequest, setSubmittingRequest] = useState(false)
+
   useEffect(() => {
     fetchInitialData()
   }, [])
@@ -71,6 +88,7 @@ export default function MarketPage() {
       const sessionStr = localStorage.getItem('pifa_auth_session')
       const authSession = JSON.parse(sessionStr || '{}')
       if (authSession.club) setCurrentUserClub(authSession.club)
+      if (authSession.user?.id) setCurrentUserId(authSession.user.id)
 
       // Fire all initial queries in parallel, each setting state independently
       // so the market page becomes usable as each section's data arrives.
@@ -272,6 +290,55 @@ export default function MarketPage() {
     }
   }
 
+  async function loadMyPlayerRequests(clubId: string) {
+    const { data } = await supabase
+      .from('player_creation_requests')
+      .select('*')
+      .eq('club_id', clubId)
+      .order('created_at', { ascending: false })
+      .limit(50)
+    setMyRequests((data as PlayerCreationRequest[]) || [])
+  }
+
+  useEffect(() => {
+    if (activeTab !== 'propose' || !currentUserClub?.id) return
+    loadMyPlayerRequests(currentUserClub.id)
+    const channel = supabase
+      .channel(`pcr_dt_${currentUserClub.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'player_creation_requests', filter: `club_id=eq.${currentUserClub.id}` },
+        () => loadMyPlayerRequests(currentUserClub.id)
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [activeTab, currentUserClub?.id])
+
+  async function handleSubmitRequest() {
+    if (!currentUserClub?.id) { toast.error('Tu sesión no tiene club asignado'); return }
+    if (!reqName.trim()) { toast.error('Ingresa el nombre del jugador'); return }
+    if (!reqPosition) { toast.error('Selecciona una posición'); return }
+    setSubmittingRequest(true)
+    try {
+      const res = await submitPlayerRequest({
+        clubId: currentUserClub.id,
+        submittedBy: currentUserId,
+        name: reqName.trim(),
+        position: reqPosition,
+        number: reqNumber ? parseInt(reqNumber) : null,
+        age: reqAge ? parseInt(reqAge) : null,
+        nationality: reqNationality.trim() || null,
+        photoUrl: reqPhoto.trim() || null,
+      })
+      if (!res.success) { toast.error(res.error || 'Error al enviar la solicitud'); return }
+      toast.success('Solicitud enviada. El admin la revisará pronto.')
+      setReqName(''); setReqPosition(''); setReqNumber(''); setReqAge(''); setReqNationality(''); setReqPhoto('')
+      loadMyPlayerRequests(currentUserClub.id)
+    } finally {
+      setSubmittingRequest(false)
+    }
+  }
+
   const filteredPlayers = useMemo(() => {
     return playersOnSale.filter(p => 
       p.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -329,6 +396,15 @@ export default function MarketPage() {
             Libres
           </button>
           <button
+            onClick={() => setActiveTab('propose')}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+              activeTab === 'propose' ? 'bg-[#00FF85] text-[#0A0A0A] shadow-[0_0_20px_rgba(0,255,133,0.2)]' : 'text-[#6A6C6E] hover:text-white'
+            }`}
+          >
+            <FilePlus className="w-3.5 h-3.5" />
+            Proponer
+          </button>
+          <button
             onClick={() => setActiveTab('history')}
             className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
               activeTab === 'history' ? 'bg-[#00FF85] text-[#0A0A0A] shadow-[0_0_20px_rgba(0,255,133,0.2)]' : 'text-[#6A6C6E] hover:text-white'
@@ -341,7 +417,7 @@ export default function MarketPage() {
       </div>
 
       {/* Transfer Window Closed Warning */}
-      {transferWindowStatus === false && activeTab !== 'free-agents' && activeTab !== 'history' && (
+      {transferWindowStatus === false && activeTab !== 'free-agents' && activeTab !== 'history' && activeTab !== 'propose' && (
         <div className="px-6 mb-6">
           <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-6 text-center">
             <Lock className="w-8 h-8 text-red-400 mx-auto mb-3" />
@@ -810,6 +886,106 @@ export default function MarketPage() {
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === 'propose' && (
+            <div className="space-y-6">
+              {/* Form */}
+              <div className="bg-[#141414]/60 backdrop-blur-xl rounded-2xl border border-[#202020]/50 p-5 space-y-4">
+                <div className="flex items-center gap-2">
+                  <FilePlus className="w-4 h-4 text-[#00FF85]" />
+                  <h3 className="text-[10px] font-black text-white uppercase tracking-[0.2em]">Proponer Jugador Nuevo</h3>
+                </div>
+                <p className="text-[9px] text-[#6A6C6E] font-bold uppercase tracking-widest leading-relaxed">
+                  Envía la identidad de un jugador que aún no existe en la app. El admin definirá su contrato y lo aprobará o rechazará.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="sm:col-span-2 space-y-1.5">
+                    <label className="text-[8px] text-[#6A6C6E] uppercase tracking-[0.2em] font-black">Nombre</label>
+                    <Input value={reqName} onChange={(e) => setReqName(e.target.value)} placeholder="Ej. Lionel Messi" className="h-10 bg-[#0A0A0A] border-[#202020] rounded-xl text-white" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[8px] text-[#6A6C6E] uppercase tracking-[0.2em] font-black">Posición</label>
+                    <Select value={reqPosition} onValueChange={(v) => setReqPosition(v)}>
+                      <SelectTrigger className="h-10 bg-[#0A0A0A] border-[#202020] rounded-xl text-white text-xs font-bold uppercase tracking-widest"><SelectValue placeholder="SEL." /></SelectTrigger>
+                      <SelectContent className="bg-[#141414] border-white/[0.08] rounded-xl">
+                        {POSITIONS.map(p => <SelectItem key={p} value={p} className="text-xs font-bold uppercase tracking-widest text-white">{p}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[8px] text-[#6A6C6E] uppercase tracking-[0.2em] font-black">Dorsal</label>
+                    <Input type="number" inputMode="numeric" value={reqNumber} onChange={(e) => setReqNumber(e.target.value)} placeholder="00" className="h-10 bg-[#0A0A0A] border-[#202020] rounded-xl text-white text-center" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[8px] text-[#6A6C6E] uppercase tracking-[0.2em] font-black">Edad</label>
+                    <Input type="number" inputMode="numeric" value={reqAge} onChange={(e) => setReqAge(e.target.value)} placeholder="00" className="h-10 bg-[#0A0A0A] border-[#202020] rounded-xl text-white text-center" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[8px] text-[#6A6C6E] uppercase tracking-[0.2em] font-black">Nacionalidad</label>
+                    <Input value={reqNationality} onChange={(e) => setReqNationality(e.target.value)} placeholder="Argentina" className="h-10 bg-[#0A0A0A] border-[#202020] rounded-xl text-white" />
+                  </div>
+                </div>
+
+                <ImageUpload
+                  label="Foto (opcional)"
+                  value={reqPhoto}
+                  onChange={(url) => setReqPhoto(url)}
+                  onRemove={() => setReqPhoto('')}
+                  folder="players"
+                />
+
+                <button
+                  onClick={handleSubmitRequest}
+                  disabled={submittingRequest || !reqName.trim() || !reqPosition}
+                  className="w-full h-11 bg-[#00FF85] hover:bg-[#00e077] text-[#0A0A0A] rounded-xl font-black uppercase tracking-widest text-[10px] shadow-[0_0_20px_rgba(0,255,133,0.25)] transition-all active:scale-95 disabled:opacity-40 flex items-center justify-center gap-2"
+                >
+                  {submittingRequest ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  Enviar Solicitud
+                </button>
+              </div>
+
+              {/* My requests */}
+              <div className="bg-[#141414]/40 backdrop-blur-xl rounded-2xl border border-[#202020]/50 overflow-hidden">
+                <div className="px-5 py-4 flex items-center justify-between border-b border-white/[0.04] bg-[#0A0A0A]/40">
+                  <div className="flex items-center gap-2">
+                    <ClipboardList className="w-4 h-4 text-[#00FF85]" />
+                    <h3 className="text-[10px] font-black text-white uppercase tracking-[0.2em]">Mis Solicitudes</h3>
+                  </div>
+                  <span className="text-[9px] text-[#6A6C6E] font-bold uppercase tracking-widest">{myRequests.length}</span>
+                </div>
+                <div className="p-4 space-y-2">
+                  {myRequests.length === 0 ? (
+                    <p className="text-[10px] text-[#6A6C6E] font-bold uppercase tracking-widest text-center py-10">Aún no enviaste solicitudes.</p>
+                  ) : myRequests.map((r) => {
+                    const tone = r.status === 'approved' ? 'emerald' : r.status === 'rejected' ? 'red' : 'amber'
+                    const label = r.status === 'approved' ? 'Aprobada' : r.status === 'rejected' ? 'Rechazada' : 'Pendiente'
+                    return (
+                      <div key={r.id} className="bg-black/40 border border-white/[0.04] rounded-xl px-4 py-3 flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-black border border-[#202020] overflow-hidden flex items-center justify-center shrink-0">
+                          {r.photo_url
+                            ? <img src={r.photo_url} className="w-full h-full object-cover" />
+                            : <UserPlus className="w-4 h-4 text-[#2D2D2D]" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] font-black text-white uppercase tracking-tight truncate">{r.name}</p>
+                          <p className="text-[8px] text-[#6A6C6E] font-bold uppercase tracking-widest truncate">
+                            {r.position}{r.number != null ? ` · #${r.number}` : ''}{r.nationality ? ` · ${r.nationality}` : ''}
+                            {r.admin_notes ? ` · ${r.admin_notes}` : ''}
+                          </p>
+                        </div>
+                        <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded shrink-0 ${
+                          tone === 'emerald' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                          tone === 'red' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+                          'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                        }`}>{label}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
             </div>
           )}
 
