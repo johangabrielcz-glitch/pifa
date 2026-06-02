@@ -87,6 +87,11 @@ export interface Database {
         Insert: MatchAppealInsert
         Update: Partial<MatchAppeal>
       }
+      player_creation_requests: {
+        Row: PlayerCreationRequest
+        Insert: PlayerCreationRequestInsert
+        Update: Partial<PlayerCreationRequest>
+      }
     }
   }
 }
@@ -933,4 +938,50 @@ export interface AwardVote {
   third_id: string | null
   created_at: string
   updated_at: string
+}
+
+// =============================================
+// Player creation requests (DT proposes -> admin approves/rejects)
+// See lib/player-request-engine.ts and scripts/24-player-creation-requests.sql
+// =============================================
+export type PlayerCreationRequestStatus = 'pending' | 'approved' | 'rejected'
+
+export interface PlayerCreationRequest {
+  id: string
+  club_id: string
+  submitted_by: string | null
+  // Identity proposed by the DT
+  name: string
+  position: string
+  number: number | null
+  age: number | null
+  nationality: string | null
+  photo_url: string | null
+  // Approval cycle
+  status: PlayerCreationRequestStatus
+  admin_notes: string | null
+  resolved_by: string | null
+  resolved_at: string | null
+  player_id: string | null
+  created_at: string
+  updated_at: string
+  // Relations
+  club?: Club
+}
+
+export interface PlayerCreationRequestInsert {
+  id?: string
+  club_id: string
+  submitted_by?: string | null
+  name: string
+  position: string
+  number?: number | null
+  age?: number | null
+  nationality?: string | null
+  photo_url?: string | null
+  status?: PlayerCreationRequestStatus
+  admin_notes?: string | null
+  resolved_by?: string | null
+  resolved_at?: string | null
+  player_id?: string | null
 }
