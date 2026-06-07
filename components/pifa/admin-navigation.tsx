@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   Home, Pencil, Shield, UserCog,
-  Users, Megaphone, Calendar, Award, MoreHorizontal, Gavel, ArrowLeftRight, Coins, UserPlus
+  Users, Megaphone, Calendar, Award, MoreHorizontal, Gavel, ArrowLeftRight, Coins, UserPlus, Database
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { MODERATOR_ALLOWED_ROUTES } from '@/lib/admin-access'
@@ -30,6 +30,7 @@ const moreTabs = [
   { id: '/admin/users', label: 'Usuarios', icon: Users },
   { id: '/admin/bonuses', label: 'Bonos', icon: Coins },
   { id: '/admin/player-requests', label: 'Solicitudes', icon: UserPlus },
+  { id: '/admin/db-migration', label: 'Migración', icon: Database },
 ]
 
 const TabButton = ({ 

@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Eye, EyeOff, Loader2, User, ChevronRight, Shield } from 'lucide-react'
+import { Eye, EyeOff, Loader2, User, ChevronRight, Shield, Upload, Database, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { PifaLogo } from '@/components/pifa/logo'
@@ -17,6 +17,63 @@ export default function AdminLoginPage() {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+
+  // Import mode (shown only on an empty Supabase project: no admins yet).
+  // Probe migration_count_admins() to decide. If the RPC doesn't exist yet
+  // (schema.sql wasn't run), surface a hint instead of the import button.
+  const [emptyTarget, setEmptyTarget] = useState<null | boolean>(null)
+  const [schemaMissing, setSchemaMissing] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const { data, error } = await (supabase as any).rpc('migration_count_admins')
+        if (cancelled) return
+        if (error) {
+          // 404-like (function missing) → schema.sql not yet applied
+          setSchemaMissing(true)
+          setEmptyTarget(false)
+          return
+        }
+        setEmptyTarget(Number(data ?? 0) === 0)
+      } catch {
+        if (!cancelled) { setSchemaMissing(true); setEmptyTarget(false) }
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  async function handleImport(file: File) {
+    setImporting(true)
+    try {
+      const text = await file.text()
+      let dump: any
+      try { dump = JSON.parse(text) } catch { toast.error('JSON inválido'); return }
+      const res = await fetch('/api/admin/db-import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dump }),
+      })
+      const data = await res.json()
+      if (!res.ok) { toast.error(data?.error || 'Error al importar'); return }
+      const total = Object.values(data.table_counts || {}).reduce((s: number, n: any) => s + (n || 0), 0)
+      if (data.errors?.length) {
+        toast.error(`Importado con ${data.errors.length} errores · ${total} filas`)
+      } else {
+        toast.success(`Importado · ${total} filas`)
+      }
+      // Refresh: now there is an admin, the import block hides and the user can log in.
+      setEmptyTarget(false)
+    } catch (e: any) {
+      toast.error(e?.message || 'Error de red')
+    } finally {
+      setImporting(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -171,6 +228,45 @@ export default function AdminLoginPage() {
               )}
             </Button>
           </form>
+
+          {/* Initialize from another project (only on an empty destination) */}
+          {emptyTarget === true && (
+            <div className="bg-[#141414]/60 border border-[#00FF85]/15 rounded-2xl p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Database className="w-4 h-4 text-[#00FF85]" />
+                <p className="text-[10px] font-black text-white uppercase tracking-widest">Inicializar desde otro proyecto</p>
+              </div>
+              <p className="text-[9px] text-[#6A6C6E] font-bold uppercase tracking-widest leading-relaxed">
+                Este proyecto está vacío. Sube el <span className="text-white">pifa-export-*.json</span> que generaste en el proyecto viejo.
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/json,.json"
+                hidden
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImport(f) }}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={importing}
+                className="w-full h-11 bg-[#00FF85] hover:bg-[#00e077] text-[#0A0A0A] rounded-xl font-black uppercase tracking-widest text-[10px] shadow-[0_0_20px_rgba(0,255,133,0.25)] transition-all active:scale-95 disabled:opacity-40 flex items-center justify-center gap-2"
+              >
+                {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                Importar JSON
+              </button>
+              <p className="text-[8px] text-amber-400/80 font-black uppercase tracking-widest flex items-start gap-1.5">
+                <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" /> El destino se vacía y se sobrescribe. Esto solo aparece mientras no haya admins.
+              </p>
+            </div>
+          )}
+          {schemaMissing && (
+            <div className="bg-[#141414]/60 border border-amber-400/15 rounded-2xl p-4">
+              <p className="text-[9px] text-amber-300 font-black uppercase tracking-widest flex items-start gap-1.5">
+                <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
+                Primero ejecuta <span className="text-white">scripts/schema.sql</span> en el SQL editor de Supabase.
+              </p>
+            </div>
+          )}
 
           {/* Admin Footer Section */}
           <div className="pt-10 flex flex-col items-center space-y-6">
