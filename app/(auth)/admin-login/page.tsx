@@ -10,6 +10,7 @@ import { PifaLogo } from '@/components/pifa/logo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { syncPushToken } from '@/lib/push-notifications'
+import { MIGRATION_TABLES } from '@/lib/migration-tables'
 
 export default function AdminLoginPage() {
   const router = useRouter()
@@ -46,22 +47,79 @@ export default function AdminLoginPage() {
     return () => { cancelled = true }
   }, [])
 
+  // Posts one small JSON body to /api/admin/db-import and returns its parsed response.
+  async function callImport(payload: any) {
+    const res = await fetch('/api/admin/db-import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data?.error || `Error ${res.status}`)
+    return data
+  }
+
+  // Splits rows into chunks whose JSON-encoded size stays under maxBytes, so
+  // each request body stays far below Vercel's hard ~4.5MB serverless limit
+  // (a full export can be tens of MB — sending it in one shot is what causes
+  // the 413 "Content Too Large"). Oversized single rows go in their own chunk.
+  function chunkRowsBySize(rows: any[], maxBytes: number): any[][] {
+    const chunks: any[][] = []
+    let current: any[] = []
+    let currentBytes = 2 // []
+    for (const row of rows) {
+      const rowBytes = JSON.stringify(row).length + 1
+      if (current.length > 0 && currentBytes + rowBytes > maxBytes) {
+        chunks.push(current)
+        current = []
+        currentBytes = 2
+      }
+      current.push(row)
+      currentBytes += rowBytes
+    }
+    if (current.length > 0) chunks.push(current)
+    return chunks
+  }
+
   async function handleImport(file: File) {
     setImporting(true)
     try {
       const text = await file.text()
       let dump: any
       try { dump = JSON.parse(text) } catch { toast.error('JSON inválido'); return }
-      const res = await fetch('/api/admin/db-import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dump }),
-      })
-      const data = await res.json()
-      if (!res.ok) { toast.error(data?.error || 'Error al importar'); return }
-      const total = Object.values(data.table_counts || {}).reduce((s: number, n: any) => s + (n || 0), 0)
-      if (data.errors?.length) {
-        toast.error(`Importado con ${data.errors.length} errores · ${total} filas`)
+      if (!dump || typeof dump !== 'object' || !dump.tables || typeof dump.tables !== 'object') {
+        toast.error('JSON inválido'); return
+      }
+      if (!Array.isArray(dump.tables.users) || !Array.isArray(dump.tables.clubs)) {
+        toast.error('El export no contiene users/clubs'); return
+      }
+
+      await callImport({ action: 'begin' })
+
+      const tableCounts: Record<string, number> = {}
+      const errors: { table: string; error: string }[] = []
+      const maxChunkBytes = 1_500_000 // ~1.5MB per request, well under the platform limit
+
+      for (const table of MIGRATION_TABLES) {
+        const rows: any[] = (dump.tables[table] as any[]) || []
+        let inserted = 0
+        for (const chunk of chunkRowsBySize(rows, maxChunkBytes)) {
+          const result = await callImport({ action: 'chunk', table, rows: chunk })
+          if (!result.ok) {
+            errors.push({ table, error: result.error || 'Error desconocido' })
+            // Keep going so the rest still imports; truncated rows can be retried.
+            break
+          }
+          inserted += result.inserted || 0
+        }
+        tableCounts[table] = inserted
+      }
+
+      await callImport({ action: 'end' })
+
+      const total = Object.values(tableCounts).reduce((s, n) => s + n, 0)
+      if (errors.length) {
+        toast.error(`Importado con ${errors.length} errores · ${total} filas`)
       } else {
         toast.success(`Importado · ${total} filas`)
       }
