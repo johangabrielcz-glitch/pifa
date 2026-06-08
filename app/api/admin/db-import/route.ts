@@ -19,6 +19,18 @@ export const runtime = 'nodejs'
 //   'begin' — guard checks, truncate destination, enable replica mode
 //   'chunk' — insert one small slice of one table's rows
 //   'end'   — restore replication role
+// supabase.rpc() returns a PostgrestBuilder, which only implements
+// PromiseLike (has .then but not .catch/.finally) — calling .catch directly
+// on it throws "TypeError: ... .catch is not a function". Swallow errors via
+// try/await instead when restoring replication is best-effort.
+async function resetReplicationQuietly() {
+  try {
+    await (supabase as any).rpc('migration_set_replication', { replica: false })
+  } catch {
+    // best-effort cleanup; nothing more we can do here
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
@@ -42,7 +54,7 @@ export async function POST(req: NextRequest) {
       try {
         await (supabase as any).rpc('migration_truncate_all')
       } catch (truncateErr) {
-        await (supabase as any).rpc('migration_set_replication', { replica: false }).catch(() => {})
+        await resetReplicationQuietly()
         throw truncateErr
       }
       return NextResponse.json({ ok: true })
@@ -65,7 +77,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'end') {
-      await (supabase as any).rpc('migration_set_replication', { replica: false }).catch(() => {})
+      await resetReplicationQuietly()
       return NextResponse.json({ ok: true })
     }
 
