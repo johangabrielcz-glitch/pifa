@@ -19,22 +19,44 @@ export const runtime = 'nodejs'
 //   'begin' — guard checks, truncate destination, enable replica mode
 //   'chunk' — insert one small slice of one table's rows
 //   'end'   — restore replication role
+// supabase.rpc() returns a PostgrestBuilder, which only implements
+// PromiseLike (has .then but not .catch/.finally) — calling .catch directly
+// on it throws "TypeError: ... .catch is not a function". Swallow errors via
+// try/await instead when restoring replication is best-effort.
+async function resetReplicationQuietly() {
+  try {
+    await (supabase as any).rpc('migration_set_replication', { replica: false })
+  } catch {
+    // best-effort cleanup; nothing more we can do here
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
     const action = body?.action
 
-    if (action === 'begin') {
-      const { data: countRes, error: countErr } = await (supabase as any).rpc('migration_count_admins')
-      if (countErr) {
-        return NextResponse.json({
-          error: 'Faltan los helpers de migración en la DB. Ejecuta schema.sql primero.',
-          details: countErr.message,
-        }, { status: 500 })
-      }
-      const count = typeof countRes === 'number' ? countRes : Number(countRes ?? 0)
-      if (count > 0) {
-        return NextResponse.json({ error: 'Destino no vacío: ya existen administradores' }, { status: 403 })
+    if (action === 'begin' || action === 'force-begin') {
+      if (action === 'force-begin') {
+        // Already-logged-in admin re-importing from /admin/db-migration. Skip
+        // the "destination empty" guard — they're explicitly opting into a
+        // full wipe-and-restore.
+        const role = req.headers.get('x-admin-role')
+        if (role !== 'admin') {
+          return NextResponse.json({ error: 'Solo admin puede reimportar' }, { status: 403 })
+        }
+      } else {
+        const { data: countRes, error: countErr } = await (supabase as any).rpc('migration_count_admins')
+        if (countErr) {
+          return NextResponse.json({
+            error: 'Faltan los helpers de migración en la DB. Ejecuta schema.sql primero.',
+            details: countErr.message,
+          }, { status: 500 })
+        }
+        const count = typeof countRes === 'number' ? countRes : Number(countRes ?? 0)
+        if (count > 0) {
+          return NextResponse.json({ error: 'Destino no vacío: ya existen administradores' }, { status: 403 })
+        }
       }
 
       // Bypass FK checks for the duration of the restore.
@@ -42,7 +64,7 @@ export async function POST(req: NextRequest) {
       try {
         await (supabase as any).rpc('migration_truncate_all')
       } catch (truncateErr) {
-        await (supabase as any).rpc('migration_set_replication', { replica: false }).catch(() => {})
+        await resetReplicationQuietly()
         throw truncateErr
       }
       return NextResponse.json({ ok: true })
@@ -65,7 +87,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'end') {
-      await (supabase as any).rpc('migration_set_replication', { replica: false }).catch(() => {})
+      await resetReplicationQuietly()
       return NextResponse.json({ ok: true })
     }
 
