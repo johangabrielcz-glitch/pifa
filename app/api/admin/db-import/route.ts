@@ -36,17 +36,27 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const action = body?.action
 
-    if (action === 'begin') {
-      const { data: countRes, error: countErr } = await (supabase as any).rpc('migration_count_admins')
-      if (countErr) {
-        return NextResponse.json({
-          error: 'Faltan los helpers de migración en la DB. Ejecuta schema.sql primero.',
-          details: countErr.message,
-        }, { status: 500 })
-      }
-      const count = typeof countRes === 'number' ? countRes : Number(countRes ?? 0)
-      if (count > 0) {
-        return NextResponse.json({ error: 'Destino no vacío: ya existen administradores' }, { status: 403 })
+    if (action === 'begin' || action === 'force-begin') {
+      if (action === 'force-begin') {
+        // Already-logged-in admin re-importing from /admin/db-migration. Skip
+        // the "destination empty" guard — they're explicitly opting into a
+        // full wipe-and-restore.
+        const role = req.headers.get('x-admin-role')
+        if (role !== 'admin') {
+          return NextResponse.json({ error: 'Solo admin puede reimportar' }, { status: 403 })
+        }
+      } else {
+        const { data: countRes, error: countErr } = await (supabase as any).rpc('migration_count_admins')
+        if (countErr) {
+          return NextResponse.json({
+            error: 'Faltan los helpers de migración en la DB. Ejecuta schema.sql primero.',
+            details: countErr.message,
+          }, { status: 500 })
+        }
+        const count = typeof countRes === 'number' ? countRes : Number(countRes ?? 0)
+        if (count > 0) {
+          return NextResponse.json({ error: 'Destino no vacío: ya existen administradores' }, { status: 403 })
+        }
       }
 
       // Bypass FK checks for the duration of the restore.

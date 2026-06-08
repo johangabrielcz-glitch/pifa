@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Database, Download, ImageIcon, Loader2, AlertTriangle, CheckCircle, ChevronLeft } from 'lucide-react'
+import { Database, Download, ImageIcon, Loader2, AlertTriangle, CheckCircle, ChevronLeft, Upload, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { MIGRATION_TABLES } from '@/lib/migration-tables'
 
 interface ExportResponse {
   exported_at: string
@@ -21,6 +22,9 @@ export default function DbMigrationPage() {
   const [lastExport, setLastExport] = useState<{ counts: Record<string, number>; images: number; ts: string } | null>(null)
   const [migratingImages, setMigratingImages] = useState(false)
   const [imageResult, setImageResult] = useState<{ migrated: number; unique: number; failed: { url: string; reason: string }[] } | null>(null)
+  const [reimporting, setReimporting] = useState(false)
+  const [reimportResult, setReimportResult] = useState<{ counts: Record<string, number>; errors: { table: string; error: string }[] } | null>(null)
+  const reimportInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     try {
@@ -78,6 +82,88 @@ export default function DbMigrationPage() {
       toast.error(e?.message || 'Error de red')
     } finally {
       setMigratingImages(false)
+    }
+  }
+
+  // Same chunking strategy as /admin-login: keep each request body well under
+  // the ~4.5MB Vercel serverless limit (a full export is tens of MB).
+  function chunkRowsBySize(rows: any[], maxBytes: number): any[][] {
+    const chunks: any[][] = []
+    let current: any[] = []
+    let currentBytes = 2
+    for (const row of rows) {
+      const rowBytes = JSON.stringify(row).length + 1
+      if (current.length > 0 && currentBytes + rowBytes > maxBytes) {
+        chunks.push(current); current = []; currentBytes = 2
+      }
+      current.push(row); currentBytes += rowBytes
+    }
+    if (current.length > 0) chunks.push(current)
+    return chunks
+  }
+
+  async function callImport(payload: any) {
+    const res = await fetch('/api/admin/db-import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-role': 'admin' },
+      body: JSON.stringify(payload),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data?.error || `Error ${res.status}`)
+    return data
+  }
+
+  async function handleReimport(file: File) {
+    if (!confirm('Esto BORRARÁ todos los datos de este proyecto y los reemplazará con el contenido del archivo. ¿Continuar?')) {
+      if (reimportInputRef.current) reimportInputRef.current.value = ''
+      return
+    }
+    setReimporting(true)
+    setReimportResult(null)
+    try {
+      const text = await file.text()
+      let dump: any
+      try { dump = JSON.parse(text) } catch { toast.error('JSON inválido'); return }
+      if (!dump || typeof dump !== 'object' || !dump.tables || typeof dump.tables !== 'object') {
+        toast.error('JSON inválido'); return
+      }
+      if (!Array.isArray(dump.tables.users) || !Array.isArray(dump.tables.clubs)) {
+        toast.error('El export no contiene users/clubs'); return
+      }
+
+      // force-begin wipes and enables replica mode. Uses x-admin-role guard
+      // since the destination is no longer "empty" (the admin is logged in).
+      await callImport({ action: 'force-begin' })
+
+      const counts: Record<string, number> = {}
+      const errors: { table: string; error: string }[] = []
+      const maxChunkBytes = 1_500_000
+
+      for (const table of MIGRATION_TABLES) {
+        const rows: any[] = (dump.tables[table] as any[]) || []
+        let inserted = 0
+        for (const chunk of chunkRowsBySize(rows, maxChunkBytes)) {
+          const result = await callImport({ action: 'chunk', table, rows: chunk })
+          if (!result.ok) {
+            errors.push({ table, error: result.error || 'Error desconocido' })
+            break
+          }
+          inserted += result.inserted || 0
+        }
+        counts[table] = inserted
+      }
+
+      await callImport({ action: 'end' })
+
+      setReimportResult({ counts, errors })
+      const total = Object.values(counts).reduce((s, n) => s + n, 0)
+      if (errors.length) toast.error(`Reimportado con ${errors.length} errores · ${total} filas`)
+      else toast.success(`Reimportado · ${total} filas`)
+    } catch (e: any) {
+      toast.error(e?.message || 'Error de red')
+    } finally {
+      setReimporting(false)
+      if (reimportInputRef.current) reimportInputRef.current.value = ''
     }
   }
 
@@ -146,6 +232,63 @@ export default function DbMigrationPage() {
               <p className="text-[8px] text-amber-400/80 font-black uppercase tracking-widest flex items-center gap-1.5 pt-2 border-t border-white/[0.04]">
                 <ImageIcon className="w-3 h-3" /> {lastExport.images} imágenes (se migran aparte en el destino)
               </p>
+            </div>
+          )}
+        </section>
+
+        {/* Re-import (wipe + restore) */}
+        <section className="bg-[#141414]/40 backdrop-blur-xl rounded-[24px] border border-red-500/15 p-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <Trash2 className="w-4 h-4 text-[#FF3131]" />
+            <h3 className="text-[10px] font-black text-white uppercase tracking-[0.2em]">Borrar todo y reimportar</h3>
+          </div>
+          <p className="text-[10px] text-[#6A6C6E] font-bold uppercase tracking-widest leading-relaxed">
+            Usa esto si la importación inicial quedó incompleta. Vacía TODAS las tablas y vuelve a cargar desde el JSON. La acción no se puede deshacer.
+          </p>
+          <p className="text-[9px] text-amber-400/80 font-bold uppercase tracking-widest flex items-start gap-1.5">
+            <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" /> Tu sesión sigue activa porque el JSON contiene tu usuario admin. Si no, tendrás que volver a /admin-login.
+          </p>
+          <input
+            ref={reimportInputRef}
+            type="file"
+            accept="application/json,.json"
+            hidden
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleReimport(f) }}
+          />
+          <button
+            onClick={() => reimportInputRef.current?.click()}
+            disabled={reimporting}
+            className="w-full h-12 bg-[#FF3131]/10 hover:bg-[#FF3131] text-[#FF3131] hover:text-white border border-[#FF3131]/30 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all active:scale-95 disabled:opacity-40 flex items-center justify-center gap-2"
+          >
+            {reimporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+            Borrar todo + reimportar JSON
+          </button>
+          {reimportResult && (
+            <div className="bg-black/30 border border-white/[0.04] rounded-xl p-3 space-y-2">
+              <p className={`text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 ${reimportResult.errors.length ? 'text-amber-400' : 'text-[#00FF85]'}`}>
+                <CheckCircle className="w-3 h-3" />
+                {Object.values(reimportResult.counts).reduce((s, n) => s + n, 0)} filas · {reimportResult.errors.length} errores
+              </p>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                {Object.entries(reimportResult.counts).map(([t, n]) => (
+                  <div key={t} className="flex items-center justify-between text-[9px] font-bold uppercase tracking-widest">
+                    <span className="text-[#6A6C6E] truncate">{t}</span>
+                    <span className="text-white tabular-nums">{n}</span>
+                  </div>
+                ))}
+              </div>
+              {reimportResult.errors.length > 0 && (
+                <details className="text-[9px] text-red-400 font-bold uppercase tracking-widest pt-2 border-t border-white/[0.04]">
+                  <summary className="cursor-pointer">{reimportResult.errors.length} tablas con error</summary>
+                  <ul className="mt-2 space-y-1 max-h-48 overflow-y-auto">
+                    {reimportResult.errors.map((e, i) => (
+                      <li key={i} className="text-[8px] text-red-400/80">
+                        <span className="text-white">{e.table}</span> — {e.error}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
             </div>
           )}
         </section>
