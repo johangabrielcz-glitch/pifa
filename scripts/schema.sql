@@ -399,21 +399,24 @@ SELECT 'Permisos de mercado actualizados exitosamente' as status;
 -- >>> scripts/10-push-notifications.sql
 -- ============================================================
 -- Create the push tokens table
-create table public.user_push_tokens (
+create table if not exists public.user_push_tokens (
   id uuid default gen_random_uuid() primary key,
   user_id uuid not null references public.users(id) on delete cascade,
   user_name text not null,
   expo_push_token text not null,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  
+
   -- Prevent duplicate tokens for the same user
   unique(user_id, expo_push_token)
 );
 
--- Enable Row Level Security
+-- Enable Row Level Security (idempotent: no-op if already on, and this table
+-- lives in "public" — owned by the migration role, unlike storage.objects)
 alter table public.user_push_tokens enable row level security;
 
--- Create policies for management
+-- Create policies for management (drop first so re-running this script doesn't
+-- fail with "policy already exists" — schema.sql is meant to be idempotent)
+drop policy if exists "Authenticated users can manage their own push tokens" on public.user_push_tokens;
 create policy "Authenticated users can manage their own push tokens"
   on public.user_push_tokens
   for all
@@ -421,8 +424,8 @@ create policy "Authenticated users can manage their own push tokens"
   with check (true);
 
 -- Indices for performance
-create index idx_push_tokens_user_id on public.user_push_tokens(user_id);
-create index idx_push_tokens_token on public.user_push_tokens(expo_push_token);
+create index if not exists idx_push_tokens_user_id on public.user_push_tokens(user_id);
+create index if not exists idx_push_tokens_token on public.user_push_tokens(expo_push_token);
 
 -- ============================================================
 -- >>> scripts/10-storage-setup.sql
@@ -667,7 +670,26 @@ CREATE INDEX IF NOT EXISTS idx_standings_competition_points
 CREATE INDEX IF NOT EXISTS idx_players_club_position_number
   ON players(club_id, position, number);
 
--- News feed:
+-- News feed.
+-- "news" is used all over the app (lib/contract-engine.ts, app/api/news/generate,
+-- components/pifa/news-tab.tsx, create-news-dialog.tsx, the dashboard widget +
+-- its realtime channel) but was never created by any numbered script — it only
+-- exists in the live project because someone created it by hand from the
+-- Supabase Dashboard. Recreated here, right before the index that depends on
+-- it, so a fresh project doesn't fail with "relation news does not exist".
+CREATE TABLE IF NOT EXISTS news (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  club_id uuid REFERENCES clubs(id) ON DELETE CASCADE, -- null for match-triggered news
+  title text NOT NULL,
+  content text NOT NULL,
+  emoji text DEFAULT '📰',
+  category text DEFAULT 'gossip', -- match | gossip | rumor (free text, no CHECK in the original)
+  summary text, -- AI path stores a hex color here (item.color); manual creation leaves it null
+  image_url text,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_news_club_id ON news(club_id);
+
 --   news.select(...).order('created_at', desc).limit(N)
 CREATE INDEX IF NOT EXISTS idx_news_created_at_desc
   ON news(created_at DESC);
@@ -947,6 +969,12 @@ AS $$
 DECLARE
   t text;
   tables text[] := ARRAY[
+    -- Chat, social & AI-history tables (scripts/26-missing-tables.sql + the
+    -- `news` table inside scripts/15-performance-indexes.sql). TRUNCATE ...
+    -- CASCADE below makes order safe regardless, but listed first since
+    -- they're leaves (nothing references them).
+    'news','clause_negotiations','global_chat_read_status','global_chat_messages',
+    'user_stickers','player_chats',
     'award_votes','season_gala_publish','season_award_weights','season_awards',
     'club_bonuses','season_prizes','player_creation_requests','match_appeals',
     'club_trophies','trophies','diffusions','user_push_tokens','market_history',
@@ -968,6 +996,81 @@ END$$;
 GRANT EXECUTE ON FUNCTION public.migration_count_admins() TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.migration_set_replication(boolean) TO service_role;
 GRANT EXECUTE ON FUNCTION public.migration_truncate_all() TO service_role;
+
+-- ============================================================
+-- >>> scripts/26-missing-tables.sql
+-- ============================================================
+-- 26-missing-tables.sql
+-- Tables that are actively used by the app (lib/*-engine.ts, components/pifa/*)
+-- but were never created by any numbered script — they exist in the live
+-- project only because they were created by hand from the Supabase
+-- Dashboard (Table editor) at some point. Without this file, a fresh
+-- project built from scripts/01..25 ends up missing chat, stickers, the
+-- player-AI-chat history and clause-negotiation features even though
+-- everything else works. Schemas below are reverse-engineered from the
+-- exact columns each call site selects/inserts/upserts.
+
+-- Clause-negotiation chat with the AI (lib/market-engine.ts, app/api/market/clause-chat)
+-- Shape matches lib/types.ts ClauseNegotiation.
+CREATE TABLE IF NOT EXISTS public.clause_negotiations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  player_id uuid REFERENCES public.players(id) ON DELETE CASCADE,
+  buyer_club_id uuid REFERENCES public.clubs(id) ON DELETE CASCADE,
+  season_id uuid REFERENCES public.seasons(id) ON DELETE CASCADE,
+  status text NOT NULL DEFAULT 'active', -- active | blocked | accepted
+  patience integer NOT NULL DEFAULT 100,
+  deal_terms jsonb, -- { salary, squad_role, seasons } once accepted
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_clause_negotiations_player_id ON public.clause_negotiations(player_id);
+CREATE INDEX IF NOT EXISTS idx_clause_negotiations_buyer_club_id ON public.clause_negotiations(buyer_club_id);
+
+-- Global chat (components/pifa/global-chat.tsx, lib/use-unread-chat.ts)
+CREATE TABLE IF NOT EXISTS public.global_chat_messages (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid REFERENCES public.users(id) ON DELETE CASCADE,
+  club_id uuid REFERENCES public.clubs(id) ON DELETE SET NULL,
+  content text NOT NULL,
+  media_url text,
+  media_type text, -- image | video | sticker
+  reply_to_id uuid REFERENCES public.global_chat_messages(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_global_chat_messages_created_at ON public.global_chat_messages(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_global_chat_messages_reply_to_id ON public.global_chat_messages(reply_to_id);
+
+-- Per-user/per-club "last read" marker — upserted with onConflict: 'user_id,club_id'
+CREATE TABLE IF NOT EXISTS public.global_chat_read_status (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  club_id uuid NOT NULL REFERENCES public.clubs(id) ON DELETE CASCADE,
+  last_read_message_id uuid REFERENCES public.global_chat_messages(id) ON DELETE SET NULL,
+  last_read_at timestamptz,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (user_id, club_id)
+);
+
+-- Stickers a user has saved to their picker in the global chat
+CREATE TABLE IF NOT EXISTS public.user_stickers (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  url text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_user_stickers_user_id ON public.user_stickers(user_id);
+
+-- DT <-> player AI chat history — one row per (player, club), upserted with
+-- onConflict: 'player_id,club_id' (app/api/player/chat/route.ts)
+CREATE TABLE IF NOT EXISTS public.player_chats (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  player_id uuid NOT NULL REFERENCES public.players(id) ON DELETE CASCADE,
+  club_id uuid NOT NULL REFERENCES public.clubs(id) ON DELETE CASCADE,
+  messages jsonb NOT NULL DEFAULT '[]',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (player_id, club_id)
+);
 
 -- ============================================================
 -- >>> scripts/migration-contracts.sql

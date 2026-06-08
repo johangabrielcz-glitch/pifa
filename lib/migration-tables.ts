@@ -41,6 +41,17 @@ export const MIGRATION_TABLES: string[] = [
   'season_prizes',
   'club_bonuses',
   'player_creation_requests',
+  // Chat, social & AI-history features. These were missing from every schema
+  // script (created ad hoc from the Supabase Dashboard table editor — see
+  // scripts/26-missing-tables.sql and the `news` table now inside
+  // scripts/15-performance-indexes.sql). Listed last, in FK-safe order
+  // (clubs/users/players/seasons all appear earlier above).
+  'news',
+  'clause_negotiations',
+  'global_chat_messages',
+  'global_chat_read_status',
+  'user_stickers',
+  'player_chats',
 ]
 
 // Columns that store absolute public URLs to Supabase Storage objects. Used by

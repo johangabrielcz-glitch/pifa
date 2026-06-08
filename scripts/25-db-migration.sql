@@ -45,6 +45,12 @@ AS $$
 DECLARE
   t text;
   tables text[] := ARRAY[
+    -- Chat, social & AI-history tables (scripts/26-missing-tables.sql + the
+    -- `news` table inside scripts/15-performance-indexes.sql). TRUNCATE ...
+    -- CASCADE below makes order safe regardless, but listed first since
+    -- they're leaves (nothing references them).
+    'news','clause_negotiations','global_chat_read_status','global_chat_messages',
+    'user_stickers','player_chats',
     'award_votes','season_gala_publish','season_award_weights','season_awards',
     'club_bonuses','season_prizes','player_creation_requests','match_appeals',
     'club_trophies','trophies','diffusions','user_push_tokens','market_history',
