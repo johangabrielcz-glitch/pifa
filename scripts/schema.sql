@@ -61,6 +61,15 @@ CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_club_id ON users(club_id);
 CREATE INDEX IF NOT EXISTS idx_players_club_id ON players(club_id);
 
+-- The CREATE TABLE above declares club_id NOT NULL, but the live schema has
+-- long since had that constraint dropped by hand — free agents (released via
+-- dismissPlayer in contract-engine.ts / market-engine.ts, or created without
+-- a club in admin/players) are stored with club_id = NULL. Without this, a
+-- fresh project rejects every free-agent row on import with "null value in
+-- column club_id violates not-null constraint". DROP NOT NULL is a no-op if
+-- the column is already nullable, so this stays idempotent either way.
+ALTER TABLE players ALTER COLUMN club_id DROP NOT NULL;
+
 -- Mensaje de confirmación
 SELECT 'Tablas creadas exitosamente' as status;
 
@@ -426,6 +435,14 @@ create policy "Authenticated users can manage their own push tokens"
 -- Indices for performance
 create index if not exists idx_push_tokens_user_id on public.user_push_tokens(user_id);
 create index if not exists idx_push_tokens_token on public.user_push_tokens(expo_push_token);
+
+-- syncPushToken (lib/push-notifications.ts) inserts/updates an `updated_at`
+-- on every login/logout, but the CREATE TABLE above never declared it — the
+-- live table only has it because someone added it by hand. Without this, a
+-- fresh project rejects every row on import with "Could not find the
+-- 'updated_at' column of 'user_push_tokens' in the schema cache" (PostgREST
+-- reflecting the missing column), and the app's own writes would 400 too.
+alter table public.user_push_tokens add column if not exists updated_at timestamp with time zone default timezone('utc'::text, now());
 
 -- ============================================================
 -- >>> scripts/10-storage-setup.sql

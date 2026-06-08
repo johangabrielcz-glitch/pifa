@@ -44,5 +44,14 @@ CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_club_id ON users(club_id);
 CREATE INDEX IF NOT EXISTS idx_players_club_id ON players(club_id);
 
+-- The CREATE TABLE above declares club_id NOT NULL, but the live schema has
+-- long since had that constraint dropped by hand — free agents (released via
+-- dismissPlayer in contract-engine.ts / market-engine.ts, or created without
+-- a club in admin/players) are stored with club_id = NULL. Without this, a
+-- fresh project rejects every free-agent row on import with "null value in
+-- column club_id violates not-null constraint". DROP NOT NULL is a no-op if
+-- the column is already nullable, so this stays idempotent either way.
+ALTER TABLE players ALTER COLUMN club_id DROP NOT NULL;
+
 -- Mensaje de confirmación
 SELECT 'Tablas creadas exitosamente' as status;

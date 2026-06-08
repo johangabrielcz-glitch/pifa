@@ -26,3 +26,11 @@ create policy "Authenticated users can manage their own push tokens"
 -- Indices for performance
 create index if not exists idx_push_tokens_user_id on public.user_push_tokens(user_id);
 create index if not exists idx_push_tokens_token on public.user_push_tokens(expo_push_token);
+
+-- syncPushToken (lib/push-notifications.ts) inserts/updates an `updated_at`
+-- on every login/logout, but the CREATE TABLE above never declared it — the
+-- live table only has it because someone added it by hand. Without this, a
+-- fresh project rejects every row on import with "Could not find the
+-- 'updated_at' column of 'user_push_tokens' in the schema cache" (PostgREST
+-- reflecting the missing column), and the app's own writes would 400 too.
+alter table public.user_push_tokens add column if not exists updated_at timestamp with time zone default timezone('utc'::text, now());
