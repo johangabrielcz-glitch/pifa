@@ -635,6 +635,84 @@ ALTER TABLE public.match_appeals DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.match_appeals DISABLE ROW LEVEL SECURITY;
 
 -- ============================================================
+-- >>> scripts/migration-contracts.sql
+-- ============================================================
+-- ============================================
+-- PIFA Migration: Contracts, Salaries, Morale
+-- ============================================
+
+-- 1. New columns on PLAYERS
+ALTER TABLE players ADD COLUMN IF NOT EXISTS contract_seasons_left integer DEFAULT 3;
+ALTER TABLE players ADD COLUMN IF NOT EXISTS salary integer DEFAULT 25000;
+ALTER TABLE players ADD COLUMN IF NOT EXISTS squad_role text DEFAULT NULL; -- 'essential', 'important', 'rotation'
+ALTER TABLE players ADD COLUMN IF NOT EXISTS morale integer DEFAULT 75;
+ALTER TABLE players ADD COLUMN IF NOT EXISTS salary_paid_this_season boolean DEFAULT false;
+ALTER TABLE players ADD COLUMN IF NOT EXISTS wants_to_leave boolean DEFAULT false;
+ALTER TABLE players ADD COLUMN IF NOT EXISTS contract_status text DEFAULT 'active'; -- 'active', 'free_agent', 'renewal_pending'
+
+-- 2. New columns on SEASONS
+ALTER TABLE seasons ADD COLUMN IF NOT EXISTS transfer_window_open boolean DEFAULT false;
+ALTER TABLE seasons ADD COLUMN IF NOT EXISTS contracts_decremented boolean DEFAULT false;
+
+-- 3. New table: PLAYER_EMAILS (Player Brain / Inbox)
+CREATE TABLE IF NOT EXISTS player_emails (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  player_id uuid NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  club_id uuid NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
+  subject text NOT NULL,
+  body text NOT NULL,
+  email_type text NOT NULL DEFAULT 'general', -- complaint, apology, demand, farewell, general
+  is_read boolean DEFAULT false,
+  created_at timestamptz DEFAULT now()
+);
+
+-- Index for fast lookups by club
+CREATE INDEX IF NOT EXISTS idx_player_emails_club_id ON player_emails(club_id);
+CREATE INDEX IF NOT EXISTS idx_player_emails_player_id ON player_emails(player_id);
+
+-- 4. Migrate existing players to default contract values
+UPDATE players SET 
+  contract_seasons_left = 3,
+  salary = 25000,
+  morale = 75,
+  salary_paid_this_season = false,
+  wants_to_leave = false,
+  contract_status = 'active'
+WHERE contract_seasons_left IS NULL;
+
+-- 5. Actionable emails support (promotion demands)
+ALTER TABLE player_emails ADD COLUMN IF NOT EXISTS action_data jsonb DEFAULT NULL;
+ALTER TABLE player_emails ADD COLUMN IF NOT EXISTS action_taken boolean DEFAULT false;
+
+-- ============================================================
+-- >>> scripts/migration_injuries_stamina.sql
+-- ============================================================
+-- =============================================
+-- MIGRATION: Stamina, Injuries & Red Cards
+-- Run this script in Supabase SQL Editor
+-- =============================================
+
+-- 1. Add stamina and injury/suspension fields to players
+ALTER TABLE players ADD COLUMN IF NOT EXISTS stamina integer DEFAULT 100 NOT NULL;
+ALTER TABLE players ADD COLUMN IF NOT EXISTS injury_matches_left integer DEFAULT 0 NOT NULL;
+ALTER TABLE players ADD COLUMN IF NOT EXISTS injury_reason text DEFAULT NULL;
+ALTER TABLE players ADD COLUMN IF NOT EXISTS red_card_matches_left integer DEFAULT 0 NOT NULL;
+ALTER TABLE players ADD COLUMN IF NOT EXISTS red_card_reason text DEFAULT NULL;
+
+-- 2. Add red card check cooldown counter to clubs (every 3 matches)
+ALTER TABLE clubs ADD COLUMN IF NOT EXISTS red_card_check_counter integer DEFAULT 0 NOT NULL;
+
+-- 3. Ensure all existing players start at 100 stamina
+UPDATE players SET stamina = 100 WHERE stamina IS NULL;
+UPDATE players SET injury_matches_left = 0 WHERE injury_matches_left IS NULL;
+UPDATE players SET red_card_matches_left = 0 WHERE red_card_matches_left IS NULL;
+
+-- 4. Actualizar tipo de substitutes_in a JSONB para soportar el formato con player_in y player_out
+ALTER TABLE match_annotations ALTER COLUMN substitutes_in DROP DEFAULT;
+ALTER TABLE match_annotations ALTER COLUMN substitutes_in TYPE JSONB USING to_jsonb(substitutes_in);
+ALTER TABLE match_annotations ALTER COLUMN substitutes_in SET DEFAULT '[]'::JSONB;
+
+-- ============================================================
 -- >>> scripts/15-performance-indexes.sql
 -- ============================================================
 -- =====================================================================
@@ -1071,81 +1149,3 @@ CREATE TABLE IF NOT EXISTS public.player_chats (
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (player_id, club_id)
 );
-
--- ============================================================
--- >>> scripts/migration-contracts.sql
--- ============================================================
--- ============================================
--- PIFA Migration: Contracts, Salaries, Morale
--- ============================================
-
--- 1. New columns on PLAYERS
-ALTER TABLE players ADD COLUMN IF NOT EXISTS contract_seasons_left integer DEFAULT 3;
-ALTER TABLE players ADD COLUMN IF NOT EXISTS salary integer DEFAULT 25000;
-ALTER TABLE players ADD COLUMN IF NOT EXISTS squad_role text DEFAULT NULL; -- 'essential', 'important', 'rotation'
-ALTER TABLE players ADD COLUMN IF NOT EXISTS morale integer DEFAULT 75;
-ALTER TABLE players ADD COLUMN IF NOT EXISTS salary_paid_this_season boolean DEFAULT false;
-ALTER TABLE players ADD COLUMN IF NOT EXISTS wants_to_leave boolean DEFAULT false;
-ALTER TABLE players ADD COLUMN IF NOT EXISTS contract_status text DEFAULT 'active'; -- 'active', 'free_agent', 'renewal_pending'
-
--- 2. New columns on SEASONS
-ALTER TABLE seasons ADD COLUMN IF NOT EXISTS transfer_window_open boolean DEFAULT false;
-ALTER TABLE seasons ADD COLUMN IF NOT EXISTS contracts_decremented boolean DEFAULT false;
-
--- 3. New table: PLAYER_EMAILS (Player Brain / Inbox)
-CREATE TABLE IF NOT EXISTS player_emails (
-  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-  player_id uuid NOT NULL REFERENCES players(id) ON DELETE CASCADE,
-  club_id uuid NOT NULL REFERENCES clubs(id) ON DELETE CASCADE,
-  subject text NOT NULL,
-  body text NOT NULL,
-  email_type text NOT NULL DEFAULT 'general', -- complaint, apology, demand, farewell, general
-  is_read boolean DEFAULT false,
-  created_at timestamptz DEFAULT now()
-);
-
--- Index for fast lookups by club
-CREATE INDEX IF NOT EXISTS idx_player_emails_club_id ON player_emails(club_id);
-CREATE INDEX IF NOT EXISTS idx_player_emails_player_id ON player_emails(player_id);
-
--- 4. Migrate existing players to default contract values
-UPDATE players SET 
-  contract_seasons_left = 3,
-  salary = 25000,
-  morale = 75,
-  salary_paid_this_season = false,
-  wants_to_leave = false,
-  contract_status = 'active'
-WHERE contract_seasons_left IS NULL;
-
--- 5. Actionable emails support (promotion demands)
-ALTER TABLE player_emails ADD COLUMN IF NOT EXISTS action_data jsonb DEFAULT NULL;
-ALTER TABLE player_emails ADD COLUMN IF NOT EXISTS action_taken boolean DEFAULT false;
-
--- ============================================================
--- >>> scripts/migration_injuries_stamina.sql
--- ============================================================
--- =============================================
--- MIGRATION: Stamina, Injuries & Red Cards
--- Run this script in Supabase SQL Editor
--- =============================================
-
--- 1. Add stamina and injury/suspension fields to players
-ALTER TABLE players ADD COLUMN IF NOT EXISTS stamina integer DEFAULT 100 NOT NULL;
-ALTER TABLE players ADD COLUMN IF NOT EXISTS injury_matches_left integer DEFAULT 0 NOT NULL;
-ALTER TABLE players ADD COLUMN IF NOT EXISTS injury_reason text DEFAULT NULL;
-ALTER TABLE players ADD COLUMN IF NOT EXISTS red_card_matches_left integer DEFAULT 0 NOT NULL;
-ALTER TABLE players ADD COLUMN IF NOT EXISTS red_card_reason text DEFAULT NULL;
-
--- 2. Add red card check cooldown counter to clubs (every 3 matches)
-ALTER TABLE clubs ADD COLUMN IF NOT EXISTS red_card_check_counter integer DEFAULT 0 NOT NULL;
-
--- 3. Ensure all existing players start at 100 stamina
-UPDATE players SET stamina = 100 WHERE stamina IS NULL;
-UPDATE players SET injury_matches_left = 0 WHERE injury_matches_left IS NULL;
-UPDATE players SET red_card_matches_left = 0 WHERE red_card_matches_left IS NULL;
-
--- 4. Actualizar tipo de substitutes_in a JSONB para soportar el formato con player_in y player_out
-ALTER TABLE match_annotations ALTER COLUMN substitutes_in DROP DEFAULT;
-ALTER TABLE match_annotations ALTER COLUMN substitutes_in TYPE JSONB USING to_jsonb(substitutes_in);
-ALTER TABLE match_annotations ALTER COLUMN substitutes_in SET DEFAULT '[]'::JSONB;
