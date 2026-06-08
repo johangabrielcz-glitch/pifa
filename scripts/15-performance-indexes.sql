@@ -31,7 +31,26 @@ CREATE INDEX IF NOT EXISTS idx_standings_competition_points
 CREATE INDEX IF NOT EXISTS idx_players_club_position_number
   ON players(club_id, position, number);
 
--- News feed:
+-- News feed.
+-- "news" is used all over the app (lib/contract-engine.ts, app/api/news/generate,
+-- components/pifa/news-tab.tsx, create-news-dialog.tsx, the dashboard widget +
+-- its realtime channel) but was never created by any numbered script — it only
+-- exists in the live project because someone created it by hand from the
+-- Supabase Dashboard. Recreated here, right before the index that depends on
+-- it, so a fresh project doesn't fail with "relation news does not exist".
+CREATE TABLE IF NOT EXISTS news (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  club_id uuid REFERENCES clubs(id) ON DELETE CASCADE, -- null for match-triggered news
+  title text NOT NULL,
+  content text NOT NULL,
+  emoji text DEFAULT '📰',
+  category text DEFAULT 'gossip', -- match | gossip | rumor (free text, no CHECK in the original)
+  summary text, -- AI path stores a hex color here (item.color); manual creation leaves it null
+  image_url text,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_news_club_id ON news(club_id);
+
 --   news.select(...).order('created_at', desc).limit(N)
 CREATE INDEX IF NOT EXISTS idx_news_created_at_desc
   ON news(created_at DESC);
