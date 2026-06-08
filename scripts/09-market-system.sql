@@ -45,6 +45,16 @@ CREATE INDEX IF NOT EXISTS idx_market_offers_seller ON public.market_offers(sell
 CREATE INDEX IF NOT EXISTS idx_notifications_club ON public.notifications(club_id);
 CREATE INDEX IF NOT EXISTS idx_market_history_player ON public.market_history(player_id);
 
--- Enable Realtime for notifications
-ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.market_offers;
+-- Enable Realtime for notifications. ALTER PUBLICATION ... ADD TABLE has no
+-- IF NOT EXISTS — re-running it throws "42710: relation ... is already member
+-- of publication", which is what made schema.sql fail with "already exists"
+-- on a second paste. Guard via pg_publication_tables so this stays idempotent.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'notifications') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'market_offers') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.market_offers;
+  END IF;
+END $$;

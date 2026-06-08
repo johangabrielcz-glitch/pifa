@@ -379,9 +379,19 @@ CREATE INDEX IF NOT EXISTS idx_market_offers_seller ON public.market_offers(sell
 CREATE INDEX IF NOT EXISTS idx_notifications_club ON public.notifications(club_id);
 CREATE INDEX IF NOT EXISTS idx_market_history_player ON public.market_history(player_id);
 
--- Enable Realtime for notifications
-ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.market_offers;
+-- Enable Realtime for notifications. ALTER PUBLICATION ... ADD TABLE has no
+-- IF NOT EXISTS — re-running it throws "42710: relation ... is already member
+-- of publication", which is what made schema.sql fail with "already exists"
+-- on a second paste. Guard via pg_publication_tables so this stays idempotent.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'notifications') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'market_offers') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.market_offers;
+  END IF;
+END $$;
 
 -- ============================================================
 -- >>> scripts/10-market-rls-fix.sql
@@ -527,7 +537,12 @@ EXCEPTION WHEN OTHERS THEN
 END $$;
 
 -- 2. Crear llaves forAaneas con nombres EXPLAA CITOS y SIMPLES
-ALTER TABLE public.market_offers 
+-- (drop the explicit names too — re-running this script otherwise fails with
+-- "42710: constraint buyer_club_fk ... already exists", which is what made
+-- schema.sql non-idempotent and threw "already exist" on a second paste)
+ALTER TABLE public.market_offers DROP CONSTRAINT IF EXISTS buyer_club_fk;
+ALTER TABLE public.market_offers DROP CONSTRAINT IF EXISTS seller_club_fk;
+ALTER TABLE public.market_offers
     ADD CONSTRAINT buyer_club_fk FOREIGN KEY (buyer_club_id) REFERENCES public.clubs(id) ON DELETE CASCADE,
     ADD CONSTRAINT seller_club_fk FOREIGN KEY (seller_club_id) REFERENCES public.clubs(id) ON DELETE CASCADE;
 
@@ -543,7 +558,9 @@ EXCEPTION WHEN OTHERS THEN
 END $$;
 
 -- 4. Crear llaves forAaneas de historia con nombres explAA citos
-ALTER TABLE public.market_history 
+ALTER TABLE public.market_history DROP CONSTRAINT IF EXISTS from_club_fk;
+ALTER TABLE public.market_history DROP CONSTRAINT IF EXISTS to_club_fk;
+ALTER TABLE public.market_history
     ADD CONSTRAINT from_club_fk FOREIGN KEY (from_club_id) REFERENCES public.clubs(id) ON DELETE SET NULL,
     ADD CONSTRAINT to_club_fk FOREIGN KEY (to_club_id) REFERENCES public.clubs(id) ON DELETE SET NULL;
 
@@ -635,7 +652,15 @@ CREATE INDEX IF NOT EXISTS idx_match_appeals_club
 CREATE INDEX IF NOT EXISTS idx_match_appeals_match
     ON public.match_appeals (match_id);
 
-ALTER PUBLICATION supabase_realtime ADD TABLE public.match_appeals;
+-- Guarded the same way as the notifications/market_offers publication adds in
+-- 09-market-system.sql — ALTER PUBLICATION ... ADD TABLE has no IF NOT EXISTS
+-- and throws "42710: relation ... is already member of publication" on re-run.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'match_appeals') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.match_appeals;
+  END IF;
+END $$;
 
 -- RLS disabled (auth is custom, not Supabase Auth — same pattern as the other tables)
 ALTER TABLE public.match_appeals DISABLE ROW LEVEL SECURITY;

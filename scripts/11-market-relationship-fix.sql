@@ -16,7 +16,12 @@ EXCEPTION WHEN OTHERS THEN
 END $$;
 
 -- 2. Crear llaves forAaneas con nombres EXPLAA CITOS y SIMPLES
-ALTER TABLE public.market_offers 
+-- (drop the explicit names too — re-running this script otherwise fails with
+-- "42710: constraint buyer_club_fk ... already exists", which is what made
+-- schema.sql non-idempotent and threw "already exist" on a second paste)
+ALTER TABLE public.market_offers DROP CONSTRAINT IF EXISTS buyer_club_fk;
+ALTER TABLE public.market_offers DROP CONSTRAINT IF EXISTS seller_club_fk;
+ALTER TABLE public.market_offers
     ADD CONSTRAINT buyer_club_fk FOREIGN KEY (buyer_club_id) REFERENCES public.clubs(id) ON DELETE CASCADE,
     ADD CONSTRAINT seller_club_fk FOREIGN KEY (seller_club_id) REFERENCES public.clubs(id) ON DELETE CASCADE;
 
@@ -32,7 +37,9 @@ EXCEPTION WHEN OTHERS THEN
 END $$;
 
 -- 4. Crear llaves forAaneas de historia con nombres explAA citos
-ALTER TABLE public.market_history 
+ALTER TABLE public.market_history DROP CONSTRAINT IF EXISTS from_club_fk;
+ALTER TABLE public.market_history DROP CONSTRAINT IF EXISTS to_club_fk;
+ALTER TABLE public.market_history
     ADD CONSTRAINT from_club_fk FOREIGN KEY (from_club_id) REFERENCES public.clubs(id) ON DELETE SET NULL,
     ADD CONSTRAINT to_club_fk FOREIGN KEY (to_club_id) REFERENCES public.clubs(id) ON DELETE SET NULL;
 

@@ -44,7 +44,15 @@ CREATE INDEX IF NOT EXISTS idx_match_appeals_club
 CREATE INDEX IF NOT EXISTS idx_match_appeals_match
     ON public.match_appeals (match_id);
 
-ALTER PUBLICATION supabase_realtime ADD TABLE public.match_appeals;
+-- Guarded the same way as the notifications/market_offers publication adds in
+-- 09-market-system.sql — ALTER PUBLICATION ... ADD TABLE has no IF NOT EXISTS
+-- and throws "42710: relation ... is already member of publication" on re-run.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'match_appeals') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.match_appeals;
+  END IF;
+END $$;
 
 -- RLS disabled (auth is custom, not Supabase Auth — same pattern as the other tables)
 ALTER TABLE public.match_appeals DISABLE ROW LEVEL SECURITY;
